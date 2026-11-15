@@ -35,7 +35,6 @@ internal sealed class LauncherSettings
     public bool FpsBoost { get; set; }
     public string LastVersion { get; set; } = "1.21.1";
     public string ModLoader { get; set; } = "fabric";
-    public string JavaPath { get; set; } = "";
     public int ScreenWidth { get; set; } = 1280;
     public int ScreenHeight { get; set; } = 720;
     public bool FullScreen { get; set; }
@@ -60,7 +59,6 @@ internal sealed class MainForm : Form
     readonly Panel pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23) };
     readonly List<TabPage> navigationPages = new();
     readonly List<Button> navigationButtons = new();
-    TextBox? javaPathInput;
     TextBox? customMusicPath;
     NumericUpDown? widthInput;
     NumericUpDown? heightInput;
@@ -705,8 +703,7 @@ internal sealed class MainForm : Form
                         errorText.Contains("Java Virtual Machine", StringComparison.OrdinalIgnoreCase) ||
                         errorText.Contains("Java executable", StringComparison.OrdinalIgnoreCase))
                     {
-                        settings.JavaPath = "";
-                        if (javaPathInput != null) javaPathInput.Text = "";
+                                        if (javaPathInput != null) javaPathInput.Text = "";
                     }
                     if (errorText.Contains("Invalid maximum heap size", StringComparison.OrdinalIgnoreCase) ||
                         errorText.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase))
