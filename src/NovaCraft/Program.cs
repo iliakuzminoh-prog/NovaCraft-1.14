@@ -73,6 +73,7 @@ internal sealed class MainForm : Form
     readonly ComboBox modLoader = new();
     string? selectedModProject;
     string? selectedModTitle;
+    MSession? elySession;
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
 
     public MainForm()
@@ -464,13 +465,65 @@ internal sealed class MainForm : Form
     TabPage AccountPage()
     {
         var p = new TabPage("Аккаунт") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
-        p.Controls.Add(new Label { Text = "ПРОФИЛЬ И СКИНЫ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
-        p.Controls.Add(new Label { Text = "Локальный ник: " + settings.Username, AutoSize = true, ForeColor = Color.White, Location = new Point(26, 72) });
-        p.Controls.Add(new Label { Text = "Поиск скина Ely.by по нику", AutoSize = true, ForeColor = Color.Silver, Location = new Point(26, 116) });
-        var skinName = new TextBox { Text = settings.Username, Location = new Point(26, 145), Width = 260, Height = 34 };
-        var findSkin = new Button { Text = "Найти скин", Location = new Point(300, 143), Width = 130, Height = 38 };
-        var preview = new PictureBox { Location = new Point(26, 198), Size = new Size(256, 256), BackColor = Color.FromArgb(27, 30, 40), SizeMode = PictureBoxSizeMode.Zoom };
-        var skinStatus = new Label { Text = "Скин пока не загружен.", Location = new Point(300, 198), Size = new Size(480, 72), ForeColor = Color.Silver };
+        p.AutoScroll = true;
+        p.Controls.Add(new Label { Text = "АККАУНТ ELY.BY И СКИНЫ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
+        var accountStatus = new Label
+        {
+            Text = "Не выполнен вход. Можно играть офлайн с локальным ником.",
+            Location = new Point(26, 70), Size = new Size(760, 42), ForeColor = Color.Silver
+        };
+        var login = new Button { Text = "Войти через Ely.by", Location = new Point(26, 120), Width = 190, Height = 40 };
+        var logout = new Button { Text = "Выйти", Location = new Point(228, 120), Width = 100, Height = 40, Enabled = false };
+        login.Click += async (_, _) =>
+        {
+            login.Enabled = false;
+            accountStatus.Text = "Ожидаю данные входа…";
+            try
+            {
+                var loginName = PromptSecret("Вход Ely.by", "E-mail или ник Ely.by:", false);
+                if (string.IsNullOrWhiteSpace(loginName)) { accountStatus.Text = "Вход отменён."; return; }
+                var password = PromptSecret("Вход Ely.by", "Пароль Ely.by (не сохраняется):", true);
+                if (string.IsNullOrEmpty(password)) { accountStatus.Text = "Вход отменён."; return; }
+                accountStatus.Text = "Проверяю аккаунт на authserver.ely.by…";
+                var result = await AuthenticateElyByAsync(loginName.Trim(), password);
+                if (result == null)
+                {
+                    var totp = PromptSecret("Двухфакторная защита", "Код из приложения Ely.by:", false);
+                    if (string.IsNullOrWhiteSpace(totp)) { accountStatus.Text = "Вход отменён."; return; }
+                    result = await AuthenticateElyByAsync(loginName.Trim(), password + ":" + totp.Trim());
+                }
+                if (result == null) { accountStatus.Text = "Ely.by отклонил вход. Проверь логин, пароль и код 2FA."; return; }
+                elySession = result;
+                username.Text = result.Username;
+                settings.Username = result.Username;
+                SettingsService.Save(settings);
+                login.Enabled = false;
+                logout.Enabled = true;
+                accountStatus.Text = "Вход выполнен: " + result.Username + ". Сессия хранится только в памяти до закрытия лаунчера.";
+                WriteLog("Выполнен вход Ely.by: " + result.Username);
+            }
+            catch (Exception ex)
+            {
+                accountStatus.Text = "Ошибка входа Ely.by: " + ex.Message;
+                WriteLog("Ошибка Ely.by: " + ex);
+            }
+            finally { if (elySession == null) login.Enabled = true; }
+        };
+        logout.Click += (_, _) =>
+        {
+            elySession = null;
+            login.Enabled = true;
+            logout.Enabled = false;
+            accountStatus.Text = "Вы вышли. Следующий запуск будет в офлайн-режиме.";
+        };
+        p.Controls.AddRange(new Control[] { accountStatus, login, logout });
+
+        p.Controls.Add(new Label { Text = "ПОИСК И ПРОСМОТР СКИНА", Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(26, 190) });
+        p.Controls.Add(new Label { Text = "Ник игрока Ely.by или Minecraft:", AutoSize = true, ForeColor = Color.Silver, Location = new Point(26, 230) });
+        var skinName = new TextBox { Text = settings.Username, Location = new Point(26, 258), Width = 260, Height = 34 };
+        var findSkin = new Button { Text = "Найти скин", Location = new Point(300, 256), Width = 130, Height = 38 };
+        var preview = new PictureBox { Location = new Point(26, 310), Size = new Size(256, 256), BackColor = Color.FromArgb(27, 30, 40), SizeMode = PictureBoxSizeMode.Zoom };
+        var skinStatus = new Label { Text = "Скин пока не загружен.", Location = new Point(300, 310), Size = new Size(480, 100), ForeColor = Color.Silver };
         findSkin.Click += async (_, _) =>
         {
             var nick = skinName.Text.Trim();
@@ -483,7 +536,8 @@ internal sealed class MainForm : Form
             skinStatus.Text = "Запрашиваю текстуру Ely.by…";
             try
             {
-                var url = "https://skinsystem.ely.by/skins/" + Uri.EscapeDataString(nick) + ".png?version=2&minecraft_version=1.21.1";
+                var gameVersion = version.SelectedItem as string ?? settings.LastVersion;
+                var url = "https://skinsystem.ely.by/skins/" + Uri.EscapeDataString(nick) + ".png?version=2&minecraft_version=" + Uri.EscapeDataString(gameVersion);
                 var bytes = await http.GetByteArrayAsync(url);
                 using var ms = new MemoryStream(bytes);
                 using var loaded = Image.FromStream(ms);
@@ -495,7 +549,7 @@ internal sealed class MainForm : Form
                 Directory.CreateDirectory(folder);
                 var target = Path.Combine(folder, nick + ".png");
                 await File.WriteAllBytesAsync(target, bytes);
-                skinStatus.Text = "Текстура загружена и сохранена:\n" + target + "\nЭто просмотр/загрузка, не установка на аккаунт.";
+                skinStatus.Text = "Текстура загружена и сохранена:\n" + target + "\nПри входе Ely.by скин также загружается в клиент через Authlib Injector.";
             }
             catch (HttpRequestException ex)
             {
@@ -509,13 +563,75 @@ internal sealed class MainForm : Form
         p.Controls.AddRange(new Control[] { skinName, findSkin, preview, skinStatus });
         p.Controls.Add(new Label
         {
-            Text = "Важно: Ely.by пока используется как источник текстур. Авторизация Ely.by и установка скина на твой аккаунт — отдельная функция, её нельзя имитировать офлайн-ником.",
-            AutoSize = false, Size = new Size(760, 70), ForeColor = Color.FromArgb(190, 175, 145), Location = new Point(26, 480)
+            Text = "Пароль и токен не записываются в настройки. Для отображения скинов в одиночной игре нужен вход Ely.by. Сторонние серверы должны сами поддерживать Ely.by — настройки серверов лаунчер не меняет.",
+            AutoSize = false, Size = new Size(780, 72), ForeColor = Color.FromArgb(190, 175, 145), Location = new Point(26, 590)
         });
-        var openSettings = new Button { Text = "Изменить ник в настройках", Location = new Point(26, 565), Width = 210, Height = 40 };
-        openSettings.Click += (_, _) => ShowNavigationPage(9);
-        p.Controls.Add(openSettings);
         return p;
+    }
+
+    static string? PromptSecret(string title, string prompt, bool password)
+    {
+        using var dialog = new Form
+        {
+            Text = title, Width = 430, Height = 170, StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog, MaximizeBox = false, MinimizeBox = false,
+            BackColor = Color.FromArgb(24, 26, 34), ForeColor = Color.White
+        };
+        var label = new Label { Text = prompt, AutoSize = false, Location = new Point(16, 14), Size = new Size(380, 28), ForeColor = Color.White };
+        var input = new TextBox { Location = new Point(16, 48), Width = 380, UseSystemPasswordChar = password };
+        var ok = new Button { Text = "Продолжить", DialogResult = DialogResult.OK, Location = new Point(286, 88), Width = 110 };
+        var cancel = new Button { Text = "Отмена", DialogResult = DialogResult.Cancel, Location = new Point(170, 88), Width = 100 };
+        dialog.Controls.AddRange(new Control[] { label, input, ok, cancel });
+        dialog.AcceptButton = ok;
+        dialog.CancelButton = cancel;
+        return dialog.ShowDialog() == DialogResult.OK ? input.Text : null;
+    }
+
+    async Task<MSession?> AuthenticateElyByAsync(string loginName, string password)
+    {
+        var clientToken = Guid.NewGuid().ToString();
+        var payload = new JsonObject
+        {
+            ["username"] = loginName,
+            ["password"] = password,
+            ["clientToken"] = clientToken,
+            ["requestUser"] = true
+        };
+        using var content = new StringContent(payload.ToJsonString(), System.Text.Encoding.UTF8, "application/json");
+        using var response = await http.PostAsync("https://authserver.ely.by/auth/authenticate", content);
+        var body = await response.Content.ReadAsStringAsync();
+        JsonNode? json = null;
+        try { json = JsonNode.Parse(body); } catch { }
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = json?["errorMessage"]?.ToString() ?? json?["error"]?.ToString() ?? "HTTP " + (int)response.StatusCode;
+            if (error.Contains("two factor", StringComparison.OrdinalIgnoreCase) ||
+                error.Contains("two-factor", StringComparison.OrdinalIgnoreCase))
+                return null;
+            throw new InvalidOperationException(error);
+        }
+        var profile = json?["selectedProfile"];
+        var name = profile?["name"]?.ToString();
+        var uuid = profile?["id"]?.ToString();
+        var accessToken = json?["accessToken"]?.ToString();
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(uuid) || string.IsNullOrWhiteSpace(accessToken))
+            throw new InvalidOperationException("Ely.by вернул неполный профиль.");
+        return new MSession(name, accessToken, uuid);
+    }
+
+    async Task<string> EnsureAuthlibInjectorAsync()
+    {
+        var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "libraries");
+        Directory.CreateDirectory(folder);
+        var target = Path.Combine(folder, "authlib-injector-1.2.8.jar");
+        if (File.Exists(target) && new FileInfo(target).Length > 100_000) return target;
+        var url = "https://github.com/yushijinhun/authlib-injector/releases/download/v1.2.8/authlib-injector-1.2.8.jar";
+        var bytes = await http.GetByteArrayAsync(url);
+        if (bytes.Length < 100_000) throw new InvalidDataException("Скачанный Authlib Injector выглядит неполным.");
+        var temp = target + ".download";
+        await File.WriteAllBytesAsync(temp, bytes);
+        File.Move(temp, target, true);
+        return target;
     }
 
     TabPage SettingsPage()
@@ -653,13 +769,18 @@ internal sealed class MainForm : Form
     {
         var option = new MLaunchOption
         {
-            Session = MSession.CreateOfflineSession(username.Text.Trim()),
+            Session = elySession ?? MSession.CreateOfflineSession(username.Text.Trim()),
             MaximumRamMb = settings.MaximumRamMb,
             ScreenWidth = settings.ScreenWidth,
             ScreenHeight = settings.ScreenHeight,
             FullScreen = settings.FullScreen
         };
         var extra = new List<MArgument>();
+        if (elySession != null)
+        {
+            var injector = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "libraries", "authlib-injector-1.2.8.jar");
+            extra.Add(MArgument.FromCommandLine("-javaagent:\"" + injector + "\"=ely.by"));
+        }
         if (boost.Checked)
         {
             extra.Add(MArgument.FromCommandLine("-XX:+UseG1GC"));
@@ -684,6 +805,7 @@ internal sealed class MainForm : Form
         {
             SetBusy(true, "Подготовка игры…");
             launchVersion = await InstallSelectedLoaderAsync(v);
+            if (elySession != null) await EnsureAuthlibInjectorAsync();
             var process = await launcher.BuildProcessAsync(launchVersion, CreateLaunchOptions());
             process.Start();
             WriteLog("Minecraft запущен: " + launchVersion);
