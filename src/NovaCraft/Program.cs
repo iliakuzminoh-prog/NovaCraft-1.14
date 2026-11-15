@@ -738,9 +738,10 @@ internal sealed class MainForm : Form
                     SetBusy(true, "Обнаружена типовая ошибка. Восстанавливаю файлы…");
                     var errorText = ex.ToString();
                     if (errorText.Contains("Invalid maximum heap size", StringComparison.OrdinalIgnoreCase) ||
-                        errorText.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase))
+                        errorText.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase) ||
+                        errorText.Contains("Could not create Java Virtual Machine", StringComparison.OrdinalIgnoreCase))
                     {
-                        settings.MaximumRamMb = Math.Max(1024, Math.Min(settings.MaximumRamMb, 2048));
+                        settings.MaximumRamMb = Math.Max(1024, Math.Min(settings.MaximumRamMb - 512, 2048));
                         ram.Value = Math.Clamp(settings.MaximumRamMb, (int)ram.Minimum, (int)ram.Maximum);
                     }
                     SettingsService.Save(settings);
