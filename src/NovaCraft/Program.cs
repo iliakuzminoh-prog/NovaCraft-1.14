@@ -87,7 +87,6 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterScreen;
 
         BuildUi();
-        ApplyDarkTheme(this);
         Shown += async (_, _) => { await RefreshVersionsAsync(); await LoadPopularModsAsync(); };
     }
 
