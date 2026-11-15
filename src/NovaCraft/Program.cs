@@ -703,8 +703,7 @@ internal sealed class MainForm : Form
                         errorText.Contains("Java Virtual Machine", StringComparison.OrdinalIgnoreCase) ||
                         errorText.Contains("Java executable", StringComparison.OrdinalIgnoreCase))
                     {
-                                        if (javaPathInput != null) javaPathInput.Text = "";
-                    }
+                                    }
                     if (errorText.Contains("Invalid maximum heap size", StringComparison.OrdinalIgnoreCase) ||
                         errorText.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase))
                     {
@@ -908,7 +907,6 @@ internal sealed class MainForm : Form
         settings.GameDirectory = gameDir.Text.Trim();
         settings.LastVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
         settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
-        settings.JavaPath = "";
         settings.ScreenWidth = (int)(widthInput?.Value ?? settings.ScreenWidth);
         settings.ScreenHeight = (int)(heightInput?.Value ?? settings.ScreenHeight);
         settings.FullScreen = fullScreenInput?.Checked ?? settings.FullScreen;
@@ -950,8 +948,7 @@ internal sealed class MainForm : Form
             File.Delete(testFile);
             notes.Add("Папка игры доступна для записи.");
 
-            settings.JavaPath = "";
-            notes.Add("Ручной путь Java отключён: используется автоматический подбор под версию Minecraft.");
+            notes.Add("Java автоматически подбирается под выбранную версию Minecraft.");
 
             var availableMb = (int)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024);
             var safeLimit = Math.Clamp((int)(availableMb * 0.55), 1024, 8192);
