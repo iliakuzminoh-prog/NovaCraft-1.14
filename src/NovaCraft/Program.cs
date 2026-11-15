@@ -50,6 +50,7 @@ internal sealed class MainForm : Form
     readonly Button play = new();
     readonly Button install = new();
     readonly ListView mods = new();
+    readonly ImageList modImages = new() { ImageSize = new Size(48, 48), ColorDepth = ColorDepth.Depth32Bit };
     readonly ComboBox modLoader = new();
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
 
@@ -200,9 +201,9 @@ internal sealed class MainForm : Form
         modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", _ => "Fabric" };
         modLoader.Location = new Point(565,17); modLoader.Width = 125;
         var get = new Button { Text = "Скачать выбранный", Location = new Point(700,17), Width = 160 };
-        mods.SetBounds(22,62,1050,520); mods.View=View.Details; mods.FullRowSelect=true;
+        mods.SetBounds(22,62,1050,520); mods.View=View.Details; mods.FullRowSelect=true; mods.SmallImageList = modImages; mods.HideSelection = false;
         mods.BackColor=Color.FromArgb(25,27,32); mods.ForeColor=Color.White;
-        mods.Columns.Add("Название",300); mods.Columns.Add("Описание",600); mods.Columns.Add("Проект",120);
+        mods.Columns.Add("Название",260); mods.Columns.Add("Описание",610); mods.Columns.Add("Project ID",150);
         btn.Click += async (_,_) => await SearchModsAsync(search.Text);
         get.Click += async (_,_) => await DownloadSelectedModAsync();
         modLoader.SelectedIndexChanged += (_,_) => {
@@ -327,12 +328,43 @@ internal sealed class MainForm : Form
             status.Text="Поиск Modrinth…";
             var url="https://api.modrinth.com/v2/search?query="+Uri.EscapeDataString(query)+"&facets="+Uri.EscapeDataString("[[\"project_type:mod\"]]")+"&limit=20";
             var root=JsonNode.Parse(await http.GetStringAsync(url));
+            mods.BeginUpdate();
             mods.Items.Clear();
-            foreach(var hit in root?["hits"]?.AsArray() ?? new JsonArray()){
-                var item=new ListViewItem(hit?["title"]?.ToString()??"Без названия");
-                item.SubItems.Add(hit?["description"]?.ToString()??"");
-                item.SubItems.Add(hit?["project_id"]?.ToString()??""); mods.Items.Add(item);
+            modImages.Images.Clear();
+            var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).Take(20).ToList();
+            foreach (var hit in hits)
+            {
+                var title = hit?["title"]?.ToString() ?? "Без названия";
+                var description = hit?["description"]?.ToString() ?? "Описание отсутствует";
+                var projectId = hit?["project_id"]?.ToString() ?? "";
+                var iconUrl = hit?["icon_url"]?.ToString();
+                var item = new ListViewItem(title);
+                item.SubItems.Add(description);
+                item.SubItems.Add(projectId);
+                if (Uri.TryCreate(iconUrl, UriKind.Absolute, out var iconUri) &&
+                    iconUri.Scheme == "https" &&
+                    (iconUri.Host == "cdn.modrinth.com" || iconUri.Host == "images.modrinth.com"))
+                {
+                    try
+                    {
+                        var data = await http.GetByteArrayAsync(iconUri);
+                        using var ms = new MemoryStream(data);
+                        using var source = Image.FromStream(ms);
+                        var bitmap = new Bitmap(source);
+                        var key = projectId;
+                        if (!modImages.Images.ContainsKey(key))
+                            modImages.Images.Add(key, bitmap);
+                        else bitmap.Dispose();
+                        item.ImageKey = key;
+                    }
+                    catch (Exception imageError)
+                    {
+                        WriteLog("Иконка мода не загружена (" + title + "): " + imageError.Message);
+                    }
+                }
+                mods.Items.Add(item);
             }
+            mods.EndUpdate();
             status.Text="Найдено: "+mods.Items.Count;
         }catch(Exception ex){Fail("Modrinth недоступен",ex);}
     }
