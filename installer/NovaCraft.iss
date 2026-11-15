@@ -25,7 +25,7 @@ SetupLogging=yes
 Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительные ярлыки:"
 
 [Files]
-Source: "publish\NovaCraft.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\publish\NovaCraft.exe"; DestDir: "{app}"; Flags: ignoreversion
 
 [Icons]
 Name: "{autoprograms}\NovaCraft 1.14"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
