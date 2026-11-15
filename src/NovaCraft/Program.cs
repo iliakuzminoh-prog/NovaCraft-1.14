@@ -457,7 +457,7 @@ internal sealed class MainForm : Form
             catch (Exception ex) { Fail("Не удалось сохранить настройки", ex); }
         };
 
-        p.Controls.AddRange(new Control[] { gameDir, browse, javaPathInput, javaBrowse, ram, widthInput, heightInput, fullScreenInput, closeAfterLaunchInput, autoRepairInput, jvmArgsInput, note, save });
+        p.Controls.AddRange(new Control[] { gameDir, browse, ram, widthInput, heightInput, fullScreenInput, closeAfterLaunchInput, autoRepairInput, jvmArgsInput, note, save });
         return p;
     }
 
@@ -465,7 +465,7 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Исправление") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
         p.Controls.Add(new Label { Text = "ПРОВЕРКА И АВТОИСПРАВЛЕНИЕ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 22) });
-        p.Controls.Add(new Label { Text = "Проверяются папка игры, доступ на запись, путь Java, параметры памяти и файлы выбранной версии. Повреждённые или отсутствующие официальные файлы можно восстановить повторной установкой.", AutoSize = false, Size = new Size(760, 70), ForeColor = Color.Silver, Location = new Point(26, 70) });
+        p.Controls.Add(new Label { Text = "Проверяются папка игры, доступ на запись, автоматический выбор Java, параметры памяти и файлы выбранной версии. Повреждённые или отсутствующие официальные файлы можно восстановить повторной установкой.", AutoSize = false, Size = new Size(760, 70), ForeColor = Color.Silver, Location = new Point(26, 70) });
         var result = new Label { Text = "Проверка ещё не запускалась.", AutoSize = false, Size = new Size(760, 90), ForeColor = Color.FromArgb(190, 205, 220), Location = new Point(26, 155), Padding = new Padding(10), BackColor = Color.FromArgb(27, 31, 39) };
         var repair = new Button { Text = "Проверить и исправить", Location = new Point(26, 265), Width = 220, Height = 44 };
         repair.Click += async (_, _) => await RunAutoRepairAsync(result);
