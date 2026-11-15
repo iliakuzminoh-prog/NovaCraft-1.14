@@ -155,8 +155,8 @@ internal sealed class MainForm : Form
         Controls.Add(sidebar);
         Controls.Add(header);
         Controls.Add(status);
-        ShowNavigationPage(0);
         ApplyDarkTheme(this);
+        ShowNavigationPage(0);
     }
 
     void ShowNavigationPage(int index)
@@ -755,6 +755,8 @@ internal sealed class MainForm : Form
 
     void SaveSettings()
     {
+        if (string.IsNullOrWhiteSpace(gameDir.Text))
+            throw new InvalidOperationException("Выбери папку Minecraft в настройках.");
         settings.Username = username.Text.Trim();
         settings.MaximumRamMb = (int)ram.Value;
         settings.FpsBoost = boost.Checked;
