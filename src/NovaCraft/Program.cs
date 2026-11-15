@@ -735,7 +735,12 @@ internal sealed class MainForm : Form
     async Task LaunchAsync()
     {
         if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
-        if (string.IsNullOrWhiteSpace(username.Text)) { MessageBox.Show("Введи имя игрока."); return; }
+        var playerName = username.Text.Trim();
+        if (playerName.Length is < 3 or > 16 || playerName.Any(c => !(c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '_')))
+        {
+            MessageBox.Show("Имя игрока должно содержать от 3 до 16 символов: только латинские буквы, цифры и знак подчёркивания.", "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return;
+        }
         string launchVersion = v;
         try
         {
