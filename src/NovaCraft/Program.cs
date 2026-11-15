@@ -73,6 +73,7 @@ internal sealed class MainForm : Form
     readonly ComboBox modLoader = new();
     string? selectedModProject;
     string? selectedModTitle;
+    string? selectedDatapackWorldDirectory;
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
 
     public MainForm()
@@ -337,6 +338,24 @@ internal sealed class MainForm : Form
         var search = new TextBox { PlaceholderText = "Найти: название, автор или описание…", Location = new Point(12, 14), Width = 430, Height = 34 };
         var find = new Button { Text = "Найти", Location = new Point(452, 13), Width = 95, Height = 34 };
         var caption = new Label { Text = "Каталог Modrinth · авторы и описания из источника", AutoSize = true, ForeColor = Color.Silver, Location = new Point(565, 21) };
+        if (projectType == "datapack")
+        {
+            var chooseWorld = new Button { Text = "Папка мира…", Location = new Point(565, 13), Width = 125, Height = 34 };
+            chooseWorld.Click += (_, _) =>
+            {
+                using var dialog = new FolderBrowserDialog { Description = "Выбери папку мира Minecraft, в которой находится level.dat", SelectedPath = selectedDatapackWorldDirectory ?? settings.GameDirectory };
+                if (dialog.ShowDialog() != DialogResult.OK) return;
+                if (!File.Exists(Path.Combine(dialog.SelectedPath, "level.dat")))
+                {
+                    MessageBox.Show("В выбранной папке не найден level.dat. Нужна папка конкретного мира Minecraft.", "Не папка мира", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                selectedDatapackWorldDirectory = dialog.SelectedPath;
+                caption.Text = "Мир: " + Path.GetFileName(dialog.SelectedPath);
+            };
+            toolbar.Controls.Add(chooseWorld);
+            caption.Location = new Point(700, 21);
+        }
         var results = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
         find.Click += async (_, _) => await SearchProjectsAsync(search.Text, projectType, results);
         search.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SearchProjectsAsync(search.Text, projectType, results); } };
@@ -779,7 +798,7 @@ internal sealed class MainForm : Form
         var by = new Label { Text = "Автор: " + author, Location = new Point(80, 49), Size = new Size(220, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
         var desc = new Label { Text = description, Location = new Point(10, 78), Size = new Size(294, 48), ForeColor = Color.FromArgb(211, 216, 225), AutoEllipsis = true };
         var stats = new Label { Text = downloads + " загрузок", Location = new Point(10, 137), Size = new Size(165, 25), ForeColor = Color.FromArgb(153, 166, 187) };
-        var canInstallHere = projectType is "mod" or "resourcepack" or "shader";
+        var canInstallHere = projectType is "mod" or "resourcepack" or "shader" or "datapack";
         var action = new Button { Text = canInstallHere ? "Установить" : "Открыть", Location = new Point(190, 133), Size = new Size(114, 30), Tag = projectId };
         if (projectType == "mod")
         {
@@ -788,6 +807,10 @@ internal sealed class MainForm : Form
         else if (projectType is "resourcepack" or "shader")
         {
             action.Click += async (_, _) => await DownloadCatalogArchiveAsync(projectId, title, projectType);
+        }
+        else if (projectType == "datapack")
+        {
+            action.Click += async (_, _) => await DownloadCatalogArchiveAsync(projectId, title, projectType, selectedDatapackWorldDirectory);
         }
         else
         {
@@ -903,7 +926,7 @@ internal sealed class MainForm : Form
         catch (Exception ex) { Fail("Каталог Modrinth недоступен", ex); }
     }
 
-    async Task DownloadCatalogArchiveAsync(string projectId, string title, string projectType)
+    async Task DownloadCatalogArchiveAsync(string projectId, string title, string projectType, string? worldDirectory = null)
     {
         try
         {
@@ -926,8 +949,26 @@ internal sealed class MainForm : Form
             var expected = file["hashes"]?["sha512"]?.ToString();
             if (string.IsNullOrWhiteSpace(expected) || expected.Length != 128 || !expected.All(Uri.IsHexDigit))
                 throw new InvalidDataException("У архива отсутствует корректный SHA-512. Загрузка отменена.");
-            var folderName = projectType == "resourcepack" ? "resourcepacks" : "shaderpacks";
-            var targetDir = Path.Combine(settings.GameDirectory, folderName);
+            string folderName;
+            string targetDir;
+            if (projectType == "resourcepack")
+            {
+                folderName = "resourcepacks";
+                targetDir = Path.Combine(settings.GameDirectory, folderName);
+            }
+            else if (projectType == "shader")
+            {
+                folderName = "shaderpacks";
+                targetDir = Path.Combine(settings.GameDirectory, folderName);
+            }
+            else if (projectType == "datapack")
+            {
+                if (string.IsNullOrWhiteSpace(worldDirectory) || !File.Exists(Path.Combine(worldDirectory, "level.dat")))
+                    throw new InvalidOperationException("Сначала выбери папку мира Minecraft с файлом level.dat.");
+                folderName = "datapacks";
+                targetDir = Path.Combine(worldDirectory, folderName);
+            }
+            else throw new InvalidOperationException("Этот тип проекта нельзя установить напрямую.");
             Directory.CreateDirectory(targetDir);
             var destination = Path.Combine(targetDir, filename);
             if (File.Exists(destination))
