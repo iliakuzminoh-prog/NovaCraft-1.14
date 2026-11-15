@@ -576,7 +576,7 @@ internal sealed class MainForm : Form
         ram.Minimum = 1024; ram.Maximum = 8192; ram.Increment = 256;
         ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 8192);
         ram.SetBounds(24, 171, 180, 34);
-        p.Controls.Add(new Label { Text = "Java автоматически подбирается и устанавливается под выбранную версию Minecraft.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(150, 190, 165), Location = new Point(24, 210) });
+        p.Controls.Add(new Label { Text = "CmlLib отвечает за подбор Java при запуске; ручной путь Java в NovaCraft не настраивается.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(150, 190, 165), Location = new Point(24, 210) });
 
         p.Controls.Add(new Label { Text = "Разрешение окна", AutoSize = true, ForeColor = Color.Silver, Location = new Point(245, 145) });
         widthInput = new NumericUpDown { Minimum = 800, Maximum = 3840, Increment = 80, Value = Math.Clamp(settings.ScreenWidth, 800, 3840), Location = new Point(245, 171), Width = 100 };
@@ -603,7 +603,7 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Исправление") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
         p.Controls.Add(new Label { Text = "ПРОВЕРКА И АВТОИСПРАВЛЕНИЕ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 22) });
-        p.Controls.Add(new Label { Text = "Проверяются папка игры, доступ на запись, автоматический выбор Java, параметры памяти и файлы выбранной версии. Повреждённые или отсутствующие официальные файлы можно восстановить повторной установкой.", AutoSize = false, Size = new Size(760, 70), ForeColor = Color.Silver, Location = new Point(26, 70) });
+        p.Controls.Add(new Label { Text = "Проверяются папка игры, доступ на запись, параметры памяти и файлы выбранной версии. Отдельная диагностика Java не выполняется. Повреждённые или отсутствующие официальные файлы можно восстановить повторной установкой.", AutoSize = false, Size = new Size(760, 70), ForeColor = Color.Silver, Location = new Point(26, 70) });
         var result = new Label { Text = "Проверка ещё не запускалась.", AutoSize = false, Size = new Size(760, 90), ForeColor = Color.FromArgb(190, 205, 220), Location = new Point(26, 155), Padding = new Padding(10), BackColor = Color.FromArgb(27, 31, 39) };
         var repair = new Button { Text = "Проверить и исправить", Location = new Point(26, 265), Width = 220, Height = 44 };
         repair.Click += async (_, _) => await RunAutoRepairAsync(result);
@@ -1062,7 +1062,7 @@ internal sealed class MainForm : Form
             File.Delete(testFile);
             notes.Add("Папка игры доступна для записи.");
 
-            notes.Add("Java автоматически подбирается под выбранную версию Minecraft.");
+            notes.Add("Отдельная проверка Java не выполняется; её подбор при запуске выполняет CmlLib.");
 
             var availableMb = (int)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024);
             var safeLimit = Math.Clamp((int)(availableMb * 0.55), 1024, 8192);
