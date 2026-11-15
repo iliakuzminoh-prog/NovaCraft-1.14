@@ -9,8 +9,10 @@ Features in the current build:
 - Vanilla version installation and launch.
 - RAM control; default 3 GB for the game.
 - FPS Boost JVM profile using G1GC tuning.
-- Modrinth search for mod projects; downloads require explicit confirmation, HTTPS from the official Modrinth CDN, a valid JAR/ZIP signature, and a matching SHA-512 from Modrinth metadata. Files are written only after verification.
-- The Fabric/Forge/NeoForge selector currently filters compatible mod versions; it does not yet install the mod loader itself.
+- Modrinth popular-project feed on the home page, sorted by downloads, with project cards, descriptions, author names, download counts, and icons loaded from Modrinth project metadata.
+- Modrinth mod search with responsive project cards and bounded parallel icon loading; missing icons remain neutral placeholders rather than invented artwork.
+- Mod downloads require explicit confirmation, HTTPS from the official Modrinth CDN, a valid JAR/ZIP signature, and a matching SHA-512 from Modrinth metadata. Files are written only after verification.
+- The launcher contains install paths for Vanilla, Fabric, Forge, and Quilt. Runtime verification of each loader is still required.
 - Microsoft/Mojang sign-in is excluded. Ely.by account authentication is the target; offline nickname mode remains a separate fallback.
 - Dark Russian UI, no ads, no background service, no automatic startup.
 - Local settings under %LOCALAPPDATA%\NovaCraft.
