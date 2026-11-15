@@ -30,7 +30,7 @@ internal sealed class LauncherSettings
 {
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
     public string Username { get; set; } = "NovaPlayer";
-    public int MaximumRamMb { get; set; } = 3072;
+    public int MaximumRamMb { get; set; } = 1024;
     public bool FpsBoost { get; set; }
     public string LastVersion { get; set; } = "1.21.1";
     public string ModLoader { get; set; } = "fabric";
@@ -109,7 +109,6 @@ internal sealed class MainForm : Form
             ("✧  Шейдеры", CatalogPage("Шейдеры Modrinth", "shader")),
             ("▦  Датапаки", CatalogPage("Датапаки Modrinth", "datapack")),
             ("▤  Каталог", CatalogPage("Сборки Modrinth", "modpack")),
-            ("◷  Новости", NewsPage()),
             ("♙  Аккаунт", AccountPage()),
             ("⚙  Настройки", SettingsPage()),
             ("✓  Исправление", DiagnosticsPage())
@@ -414,7 +413,7 @@ internal sealed class MainForm : Form
         p.Controls.Add(new Label { Text = "Текущий локальный ник: " + settings.Username, AutoSize = true, ForeColor = Color.White, Location = new Point(26, 82) });
         p.Controls.Add(new Label { Text = "Это офлайн-профиль. Подключение Ely.by ещё не реализовано — офлайн-режим не выдаётся за авторизацию.", AutoSize = false, Size = new Size(760, 58), ForeColor = Color.Silver, Location = new Point(26, 120) });
         var openSettings = new Button { Text = "Изменить ник в настройках", Location = new Point(26, 195), Width = 210, Height = 40 };
-        openSettings.Click += (_, _) => ShowNavigationPage(9);
+        openSettings.Click += (_, _) => ShowNavigationPage(8);
         p.Controls.Add(openSettings);
         return p;
     }
@@ -435,28 +434,20 @@ internal sealed class MainForm : Form
             if (d.ShowDialog() == DialogResult.OK) gameDir.Text = d.SelectedPath;
         };
 
-        p.Controls.Add(new Label { Text = "Java (оставь пустым для автоматического выбора)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 145) });
-        javaPathInput = new TextBox { Text = settings.JavaPath, Location = new Point(24, 171), Width = 590, Height = 34 };
-        var javaBrowse = new Button { Text = "Найти javaw.exe", Location = new Point(625, 170), Width = 130, Height = 36 };
-        javaBrowse.Click += (_, _) =>
-        {
-            using var dialog = new OpenFileDialog { Filter = "Java executable|javaw.exe;java.exe|All files|*.*", Title = "Выберите Java" };
-            if (dialog.ShowDialog() == DialogResult.OK) javaPathInput.Text = dialog.FileName;
-        };
+        p.Controls.Add(new Label { Text = "Оперативная память для Minecraft (МБ)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 145) });
+        ram.Minimum = 1024; ram.Maximum = 8192; ram.Increment = 256;
+        ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 8192);
+        ram.SetBounds(24, 171, 180, 34);
+        p.Controls.Add(new Label { Text = "Java автоматически подбирается и устанавливается под выбранную версию Minecraft.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(150, 190, 165), Location = new Point(24, 210) });
 
-        p.Controls.Add(new Label { Text = "Оперативная память для Minecraft (МБ)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 222) });
-        ram.Minimum = 1024; ram.Maximum = 16384; ram.Increment = 512;
-        ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 16384);
-        ram.SetBounds(24, 248, 180, 34);
+        p.Controls.Add(new Label { Text = "Разрешение окна", AutoSize = true, ForeColor = Color.Silver, Location = new Point(245, 145) });
+        widthInput = new NumericUpDown { Minimum = 800, Maximum = 3840, Increment = 80, Value = Math.Clamp(settings.ScreenWidth, 800, 3840), Location = new Point(245, 171), Width = 100 };
+        heightInput = new NumericUpDown { Minimum = 600, Maximum = 2160, Increment = 60, Value = Math.Clamp(settings.ScreenHeight, 600, 2160), Location = new Point(355, 171), Width = 100 };
+        fullScreenInput = new CheckBox { Text = "Полный экран", Checked = settings.FullScreen, AutoSize = true, Location = new Point(480, 176), ForeColor = Color.White };
+        closeAfterLaunchInput = new CheckBox { Text = "Закрывать лаунчер после запуска игры", Checked = settings.CloseAfterLaunch, AutoSize = true, Location = new Point(24, 230), ForeColor = Color.White };
+        autoRepairInput = new CheckBox { Text = "Автоматически исправлять типовые ошибки запуска", Checked = settings.AutoRepair, AutoSize = true, Location = new Point(24, 264), ForeColor = Color.White };
 
-        p.Controls.Add(new Label { Text = "Разрешение окна", AutoSize = true, ForeColor = Color.Silver, Location = new Point(245, 222) });
-        widthInput = new NumericUpDown { Minimum = 800, Maximum = 3840, Increment = 80, Value = Math.Clamp(settings.ScreenWidth, 800, 3840), Location = new Point(245, 248), Width = 100 };
-        heightInput = new NumericUpDown { Minimum = 600, Maximum = 2160, Increment = 60, Value = Math.Clamp(settings.ScreenHeight, 600, 2160), Location = new Point(355, 248), Width = 100 };
-        fullScreenInput = new CheckBox { Text = "Полный экран", Checked = settings.FullScreen, AutoSize = true, Location = new Point(480, 253), ForeColor = Color.White };
-        closeAfterLaunchInput = new CheckBox { Text = "Закрывать лаунчер после запуска игры", Checked = settings.CloseAfterLaunch, AutoSize = true, Location = new Point(24, 300), ForeColor = Color.White };
-        autoRepairInput = new CheckBox { Text = "Автоматически исправлять типовые ошибки запуска", Checked = settings.AutoRepair, AutoSize = true, Location = new Point(24, 334), ForeColor = Color.White };
-
-        p.Controls.Add(new Label { Text = "Дополнительные JVM-параметры (необязательно)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 380) });
+        p.Controls.Add(new Label { Text = "Дополнительные JVM-параметры (необязательно)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 310) });
         jvmArgsInput = new TextBox { Text = settings.ExtraJvmArguments, Location = new Point(24, 406), Width = 710, Height = 34 };
         var note = new Label { Text = "Не меняй параметры, если не знаешь их назначения: неверные аргументы могут помешать запуску.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(155, 165, 184), Location = new Point(24, 445) };
         var save = new Button { Text = "Сохранить настройки", Location = new Point(24, 500), Width = 190, Height = 42 };
@@ -568,8 +559,6 @@ internal sealed class MainForm : Form
             ScreenHeight = settings.ScreenHeight,
             FullScreen = settings.FullScreen
         };
-        if (!string.IsNullOrWhiteSpace(settings.JavaPath) && File.Exists(settings.JavaPath))
-            option.JavaPath = settings.JavaPath;
         var extra = new List<MArgument>();
         if (boost.Checked)
         {
@@ -820,7 +809,7 @@ internal sealed class MainForm : Form
         settings.GameDirectory = gameDir.Text.Trim();
         settings.LastVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
         settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
-        settings.JavaPath = javaPathInput?.Text.Trim() ?? settings.JavaPath;
+        settings.JavaPath = "";
         settings.ScreenWidth = (int)(widthInput?.Value ?? settings.ScreenWidth);
         settings.ScreenHeight = (int)(heightInput?.Value ?? settings.ScreenHeight);
         settings.FullScreen = fullScreenInput?.Checked ?? settings.FullScreen;
@@ -862,13 +851,8 @@ internal sealed class MainForm : Form
             File.Delete(testFile);
             notes.Add("Папка игры доступна для записи.");
 
-            if (!string.IsNullOrWhiteSpace(settings.JavaPath) && !File.Exists(settings.JavaPath))
-            {
-                settings.JavaPath = "";
-                if (javaPathInput != null) javaPathInput.Text = "";
-                notes.Add("Неверный путь Java сброшен; включён автоматический выбор Java.");
-            }
-            else notes.Add("Путь Java проверен.");
+            settings.JavaPath = "";
+            notes.Add("Ручной путь Java отключён: используется автоматический подбор под версию Minecraft.");
 
             var availableMb = (int)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024);
             var safeLimit = Math.Clamp((int)(availableMb * 0.55), 1024, 8192);
