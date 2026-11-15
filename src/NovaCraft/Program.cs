@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Security.Cryptography;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
@@ -210,7 +211,7 @@ internal sealed class MainForm : Form
         if(string.IsNullOrWhiteSpace(query))return;
         try{
             status.Text="Поиск Modrinth…";
-            var url="https://api.modrinth.com/v2/search?query="+Uri.EscapeDataString(query)+"&limit=20";
+            var url="https://api.modrinth.com/v2/search?query="+Uri.EscapeDataString(query)+"&facets="+Uri.EscapeDataString("[[\"project_type:mod\"]]")+"&limit=20";
             var root=JsonNode.Parse(await http.GetStringAsync(url));
             mods.Items.Clear();
             foreach(var hit in root?["hits"]?.AsArray() ?? new JsonArray()){
@@ -234,18 +235,40 @@ internal sealed class MainForm : Form
             var loaderFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loaderName }));
             var url=$"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(project)}/version?game_versions={gameFilter}&loaders={loaderFilter}";
             var arr=JsonNode.Parse(await http.GetStringAsync(url))?.AsArray();
-            var file=arr?.FirstOrDefault()?["files"]?.AsArray()?.FirstOrDefault() ?? throw new InvalidOperationException("Совместимый файл не найден.");
-            var download=file["url"]?.ToString()??throw new InvalidOperationException("Ссылка отсутствует.");
+            var file=arr?.FirstOrDefault()?["files"]?.AsArray()?.FirstOrDefault()
+                ?? throw new InvalidOperationException("Совместимый файл не найден.");
+            var download=file["url"]?.ToString() ?? throw new InvalidOperationException("Ссылка отсутствует.");
+            if(!Uri.TryCreate(download,UriKind.Absolute,out var downloadUri) || downloadUri.Scheme!="https" || downloadUri.Host!="cdn.modrinth.com")
+                throw new SecurityException("Загрузка разрешена только с официального CDN cdn.modrinth.com.");
             var name=Path.GetFileName(file["filename"]?.ToString()??(project+".jar"));
             if(string.IsNullOrWhiteSpace(name) || !name.EndsWith(".jar",StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("Modrinth вернул некорректное имя файла.");
+            var expectedSha512=file["hashes"]?["sha512"]?.ToString();
+            if(string.IsNullOrWhiteSpace(expectedSha512) || expectedSha512.Length!=128 || !expectedSha512.All(Uri.IsHexDigit))
+                throw new InvalidDataException("У файла отсутствует корректный SHA-512 в метаданных Modrinth. Загрузка отменена.");
+            var projectTitle=mods.SelectedItems[0].Text;
+            var approval=MessageBox.Show(
+                "Мод: "+projectTitle+"\nФайл: "+name+"\nВерсия Minecraft: "+game+"\nЗагрузчик: "+loaderName+"\nИсточник: api.modrinth.com / cdn.modrinth.com\nПроверка: SHA-512 по метаданным Modrinth.\n\nМоды — сторонний исполняемый код. Даже успешная проверка хеша не доказывает, что мод безопасен. Продолжить загрузку?",
+                "Подтверждение загрузки стороннего мода", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if(approval!=DialogResult.Yes) return;
             var dir=Path.Combine(settings.GameDirectory,"mods"); Directory.CreateDirectory(dir);
             var destination=Path.Combine(dir,name);
             if(File.Exists(destination)) throw new IOException("Этот файл уже есть в папке mods: "+name);
-            var bytes=await http.GetByteArrayAsync(download);
-            if(bytes.Length<4 || bytes[0]!=(byte)'P' || bytes[1]!=(byte)'K') throw new InvalidDataException("Загруженный файл не похож на JAR/ZIP-архив мода.");
-            await File.WriteAllBytesAsync(destination,bytes);
-            WriteLog("Мод скачан: "+name); status.Text="Мод установлен в mods";
+            using var response=await http.GetAsync(downloadUri,HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            if(response.Content.Headers.ContentLength is long declaredLength && declaredLength>250L*1024*1024)
+                throw new InvalidDataException("Файл превышает защитный лимит 250 МБ.");
+            var bytes=await response.Content.ReadAsByteArrayAsync();
+            if(bytes.Length<4 || bytes.Length>250*1024*1024 || bytes[0]!=(byte)'P' || bytes[1]!=(byte)'K')
+                throw new InvalidDataException("Файл не является допустимым JAR/ZIP или превышает лимит 250 МБ.");
+            var actualSha512=SHA512.HashData(bytes);
+            if(!CryptographicOperations.FixedTimeEquals(actualSha512,Convert.FromHexString(expectedSha512)))
+                throw new CryptographicException("SHA-512 не совпадает с метаданными Modrinth. Файл не будет установлен.");
+            var temporary=destination+".download";
+            try { await File.WriteAllBytesAsync(temporary,bytes); File.Move(temporary,destination); }
+            finally { if(File.Exists(temporary)) File.Delete(temporary); }
+            WriteLog("Мод скачан и проверен SHA-512: "+name);
+            status.Text="Хеш совпал. Мод сохранён; безопасность содержимого не гарантируется.";
         }catch(Exception ex){Fail("Не удалось скачать мод",ex);}
     }
 
