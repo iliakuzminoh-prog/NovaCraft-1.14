@@ -8,7 +8,7 @@ using CmlLib.Core.ProcessBuilder;
 using CmlLib.Core.ModLoaders.FabricMC;
 using CmlLib.Core.Installer.Forge;
 using CmlLib.Core.Installers;
-using CmlLib.Core.Installer.NeoForge;
+using CmlLib.Core.ModLoaders.QuiltMC;
 
 namespace NovaCraft;
 
@@ -149,10 +149,10 @@ internal sealed class MainForm : Form
         version.DropDownStyle = ComboBoxStyle.DropDownList;
         left.Controls.Add(Labeled("Версия Minecraft", version, 22, 140, 360));
         gameLoader.DropDownStyle = ComboBoxStyle.DropDownList;
-        gameLoader.Items.AddRange(new object[] { "Vanilla", "Fabric", "Forge", "NeoForge" });
-        gameLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "neoforge" => "NeoForge", "vanilla" => "Vanilla", _ => "Fabric" };
+        gameLoader.Items.AddRange(new object[] { "Vanilla", "Fabric", "Quilt", "Forge" });
+        gameLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", "vanilla" => "Vanilla", _ => "Fabric" };
         gameLoader.SelectedIndexChanged += (_, _) => {
-            settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "NeoForge" => "neoforge", "Vanilla" => "vanilla", _ => "fabric" };
+            settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
             SettingsService.Save(settings);
         };
         left.Controls.Add(Labeled("Загрузчик", gameLoader, 22, 210, 360));
@@ -273,13 +273,10 @@ internal sealed class MainForm : Form
                 InstallerOutput = new Progress<string>(line => WriteLog(line))
             });
         }
-        else if (loaderName == "neoforge")
+        else if (loaderName == "quilt")
         {
-            var neo = new NeoForgeInstaller(launcher, http);
-            installedId = await neo.Install(vanillaVersion, new NeoForgeInstallOptions
-            {
-                InstallerOutput = new Progress<string>(line => WriteLog(line))
-            });
+            var quilt = new QuiltInstaller(http);
+            installedId = await quilt.Install(vanillaVersion, path);
         }
         else throw new InvalidOperationException("Неизвестный загрузчик.");
 
