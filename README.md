@@ -10,11 +10,11 @@ Features in the current build:
 - RAM control; default 3 GB for the game.
 - FPS Boost JVM profile using G1GC tuning.
 - Modrinth search and HTTPS download into the selected mods folder, with Fabric/Forge/NeoForge project-version filters.
-- Local offline profile by nickname; no Microsoft/Mojang OAuth or Microsoft sign-in UI.
+- Microsoft/Mojang sign-in is excluded. Ely.by account authentication is the target; offline nickname mode remains a separate fallback.
 - Dark Russian UI, no ads, no background service, no automatic startup.
 - Local settings under %LOCALAPPDATA%\NovaCraft.
 - GitHub Actions build produces a portable EXE ZIP.
 
-Authentication is intentionally local/offline by nickname. Microsoft/Mojang OAuth is not part of NovaCraft 1.14. The launcher does not include license-check bypass or game acquisition features.
+Microsoft/Mojang OAuth is intentionally excluded from NovaCraft 1.14. Ely.by authentication must use Ely.by's own authentication/session endpoints and authlib integration; a local offline nickname alone is not equivalent to an Ely.by account. The launcher does not include license-check bypass or game acquisition features.
 
 The EXE is not padded with junk just to hit an arbitrary 100/300 MB number. A large file should contain useful runtime/dependencies. A bundled Java runtime can legitimately make a distribution much larger and will be added only as a real, verified component.
