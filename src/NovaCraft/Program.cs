@@ -26,6 +26,7 @@ internal sealed class LauncherSettings
     public int MaximumRamMb { get; set; } = 3072;
     public bool FpsBoost { get; set; }
     public string LastVersion { get; set; } = "1.21.1";
+    public string ModLoader { get; set; } = "fabric";
 }
 
 internal sealed class MainForm : Form
@@ -42,6 +43,7 @@ internal sealed class MainForm : Form
     readonly Button play = new();
     readonly Button install = new();
     readonly ListView mods = new();
+    readonly ComboBox modLoader = new();
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
 
     public MainForm()
@@ -124,13 +126,21 @@ internal sealed class MainForm : Form
         var p = new TabPage("Моды") { BackColor = Color.FromArgb(18,19,23) };
         var search = new TextBox { PlaceholderText = "Поиск модов Modrinth…", Width = 430, Location = new Point(22,18) };
         var btn = new Button { Text = "Найти", Location = new Point(465,17), Width = 90 };
-        var get = new Button { Text = "Скачать выбранный", Location = new Point(565,17), Width = 160 };
+        modLoader.DropDownStyle = ComboBoxStyle.DropDownList;
+        modLoader.Items.AddRange(new object[] { "Fabric", "Forge", "NeoForge" });
+        modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "neoforge" => "NeoForge", _ => "Fabric" };
+        modLoader.Location = new Point(565,17); modLoader.Width = 125;
+        var get = new Button { Text = "Скачать выбранный", Location = new Point(700,17), Width = 160 };
         mods.SetBounds(22,62,1050,520); mods.View=View.Details; mods.FullRowSelect=true;
         mods.BackColor=Color.FromArgb(25,27,32); mods.ForeColor=Color.White;
         mods.Columns.Add("Название",300); mods.Columns.Add("Описание",600); mods.Columns.Add("Проект",120);
         btn.Click += async (_,_) => await SearchModsAsync(search.Text);
         get.Click += async (_,_) => await DownloadSelectedModAsync();
-        p.Controls.AddRange(new Control[]{search,btn,get,mods}); return p;
+        modLoader.SelectedIndexChanged += (_,_) => {
+            settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "NeoForge" => "neoforge", _ => "fabric" };
+            SettingsService.Save(settings);
+        };
+        p.Controls.AddRange(new Control[]{search,btn,modLoader,get,mods}); return p;
     }
 
     TabPage SettingsPage()
@@ -218,14 +228,23 @@ internal sealed class MainForm : Form
         var project=mods.SelectedItems[0].SubItems[2].Text;
         try{
             status.Text="Получение версии мода…";
-            var game=version.SelectedItem?.ToString()??"1.21.1";
-            var url=$"https://api.modrinth.com/v2/project/{project}/version?game_versions=%5B%22{Uri.EscapeDataString(game)}%22%5D&loaders=%5B%22fabric%22%5D";
+            var game=version.SelectedItem?.ToString()??throw new InvalidOperationException("Сначала выберите версию Minecraft.");
+            var loaderName = settings.ModLoader;
+            var gameFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game }));
+            var loaderFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loaderName }));
+            var url=$"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(project)}/version?game_versions={gameFilter}&loaders={loaderFilter}";
             var arr=JsonNode.Parse(await http.GetStringAsync(url))?.AsArray();
             var file=arr?.FirstOrDefault()?["files"]?.AsArray()?.FirstOrDefault() ?? throw new InvalidOperationException("Совместимый файл не найден.");
             var download=file["url"]?.ToString()??throw new InvalidOperationException("Ссылка отсутствует.");
-            var name=file["filename"]?.ToString()??(project+".jar");
+            var name=Path.GetFileName(file["filename"]?.ToString()??(project+".jar"));
+            if(string.IsNullOrWhiteSpace(name) || !name.EndsWith(".jar",StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Modrinth вернул некорректное имя файла.");
             var dir=Path.Combine(settings.GameDirectory,"mods"); Directory.CreateDirectory(dir);
-            await File.WriteAllBytesAsync(Path.Combine(dir,name),await http.GetByteArrayAsync(download));
+            var destination=Path.Combine(dir,name);
+            if(File.Exists(destination)) throw new IOException("Этот файл уже есть в папке mods: "+name);
+            var bytes=await http.GetByteArrayAsync(download);
+            if(bytes.Length<4 || bytes[0]!=(byte)'P' || bytes[1]!=(byte)'K') throw new InvalidDataException("Загруженный файл не похож на JAR/ZIP-архив мода.");
+            await File.WriteAllBytesAsync(destination,bytes);
             WriteLog("Мод скачан: "+name); status.Text="Мод установлен в mods";
         }catch(Exception ex){Fail("Не удалось скачать мод",ex);}
     }
