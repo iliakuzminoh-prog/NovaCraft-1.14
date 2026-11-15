@@ -559,13 +559,21 @@ internal sealed class MainForm : Form
                 try
                 {
                     SetBusy(true, "Обнаружена типовая ошибка. Восстанавливаю файлы…");
-                    if (ex.ToString().Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase) ||
-                        ex.ToString().Contains("Java Virtual Machine", StringComparison.OrdinalIgnoreCase))
+                    var errorText = ex.ToString();
+                    if (errorText.Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase) ||
+                        errorText.Contains("Java Virtual Machine", StringComparison.OrdinalIgnoreCase) ||
+                        errorText.Contains("Java executable", StringComparison.OrdinalIgnoreCase))
                     {
                         settings.JavaPath = "";
                         if (javaPathInput != null) javaPathInput.Text = "";
-                        SettingsService.Save(settings);
                     }
+                    if (errorText.Contains("Invalid maximum heap size", StringComparison.OrdinalIgnoreCase) ||
+                        errorText.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase))
+                    {
+                        settings.MaximumRamMb = Math.Max(1024, Math.Min(settings.MaximumRamMb, 2048));
+                        ram.Value = Math.Clamp(settings.MaximumRamMb, (int)ram.Minimum, (int)ram.Maximum);
+                    }
+                    SettingsService.Save(settings);
                     await launcher.InstallAsync(launchVersion);
                     var repaired = await launcher.BuildProcessAsync(launchVersion, CreateLaunchOptions());
                     repaired.Start();
@@ -785,7 +793,12 @@ internal sealed class MainForm : Form
                message.Contains("Cannot find version", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Java executable", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("FileNotFoundException", StringComparison.OrdinalIgnoreCase) ||
-               message.Contains("checksum", StringComparison.OrdinalIgnoreCase);
+               message.Contains("checksum", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("NoClassDefFoundError", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Could not find or load main class", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Invalid maximum heap size", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("UnsupportedClassVersionError", StringComparison.OrdinalIgnoreCase);
     }
 
     async Task RunAutoRepairAsync(Label result)
