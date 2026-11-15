@@ -12,7 +12,7 @@ Windows launcher for Minecraft Java Edition. The current implementation is a C# 
 - Loader installation code paths for Vanilla, Fabric, Forge and Quilt. Successful compilation does not prove runtime compatibility for every Minecraft version/loader combination; these combinations still require testing.
 - Modrinth popular-mod feed and search.
 - Mod download is limited to the official Modrinth CDN over HTTPS, checks the JAR/ZIP signature and compares SHA-512 against Modrinth metadata. A matching hash does not prove a mod is safe.
-- Resource-pack and shader cards support one-click ZIP installation into the selected game directory after HTTPS CDN and SHA-512 verification. Datapack and modpack cards still open their Modrinth project pages; datapack installation needs a selected world, and modpack import is not implemented.
+- Resource-pack and shader cards support one-click ZIP installation into the game directory. Datapack cards install ZIPs into a user-selected world folder after checking for level.dat. All three use HTTPS from the official Modrinth CDN and SHA-512 verification. Modpack cards still open their Modrinth project pages; modpack import is not implemented.
 - Saved build profiles store a name, Minecraft version and loader.
 - Custom OGG background-music resource-pack generation. The generated pack uses a fixed pack format value of 34 (Minecraft 1.21.1), so compatibility with other game versions is not guaranteed. The user must enable the pack in Minecraft's Resource Packs menu.
 - Local PNG skin selection, validation and preview. The selected PNG is stored under `%LOCALAPPDATA%\NovaCraft\skins\active.png`. This local file is not injected into Minecraft and is not automatically uploaded to a server.
@@ -25,7 +25,7 @@ Windows launcher for Minecraft Java Edition. The current implementation is a C# 
 - Microsoft/Mojang authentication and online account sessions.
 - Universal skin visibility on third-party or offline-mode servers.
 - Automatic upload of a local skin PNG to a skin host.
-- One-click installation of datapacks and modpacks from their catalog cards.
+- One-click import/installation of modpacks from their catalog cards.
 - Automatic enabling of the generated music resource pack.
 - Runtime testing of Vanilla, Fabric, Forge and Quilt across supported Minecraft versions.
 - Full game-process crash analysis or guaranteed automatic repair.
