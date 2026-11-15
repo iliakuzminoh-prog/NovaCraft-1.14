@@ -65,6 +65,7 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterScreen;
 
         BuildUi();
+        ApplyDarkTheme(this);
         Shown += async (_, _) => await RefreshVersionsAsync();
     }
 
@@ -74,12 +75,65 @@ internal sealed class MainForm : Form
         header.Controls.Add(new Label { Text = "NOVACRAFT", Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold), AutoSize = true, Location = new Point(26, 17) });
         header.Controls.Add(new Label { Text = "1.14 • Windows 10/11 • Minecraft Java", ForeColor = Color.Silver, AutoSize = true, Location = new Point(29, 49) });
 
-        var tabs = new TabControl { Dock = DockStyle.Fill };
+        var tabs = new TabControl { Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed, ItemSize = new Size(150, 38), SizeMode = TabSizeMode.Fixed };
+        tabs.DrawItem += (_, e) =>
+        {
+            var selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
+            using var brush = new SolidBrush(selected ? Color.FromArgb(48, 58, 76) : Color.FromArgb(24, 26, 31));
+            e.Graphics.FillRectangle(brush, e.Bounds);
+            TextRenderer.DrawText(e.Graphics, tabs.TabPages[e.Index].Text,
+                new Font("Segoe UI Semibold", 9, FontStyle.Bold), e.Bounds,
+                selected ? Color.White : Color.FromArgb(170, 180, 195),
+                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        };
         tabs.TabPages.Add(HomePage()); tabs.TabPages.Add(VersionsPage()); tabs.TabPages.Add(ModsPage()); tabs.TabPages.Add(SettingsPage());
 
         status.Text = "Готов"; status.Dock = DockStyle.Bottom; status.Height = 32; status.Padding = new Padding(16, 7, 0, 0);
         status.ForeColor = Color.LightGray;
         Controls.Add(tabs); Controls.Add(header); Controls.Add(status);
+    }
+
+    static void ApplyDarkTheme(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            if (c is TextBox textBox)
+            {
+                textBox.BackColor = Color.FromArgb(31, 35, 44);
+                textBox.ForeColor = Color.White;
+                textBox.BorderStyle = BorderStyle.FixedSingle;
+            }
+            else if (c is ComboBox combo)
+            {
+                combo.BackColor = Color.FromArgb(31, 35, 44);
+                combo.ForeColor = Color.White;
+                combo.FlatStyle = FlatStyle.Flat;
+            }
+            else if (c is NumericUpDown numeric)
+            {
+                numeric.BackColor = Color.FromArgb(31, 35, 44);
+                numeric.ForeColor = Color.White;
+            }
+            else if (c is Button button)
+            {
+                button.FlatStyle = FlatStyle.Flat;
+                button.FlatAppearance.BorderColor = Color.FromArgb(75, 87, 108);
+                button.BackColor = button.Text.Contains("ИГРАТЬ", StringComparison.OrdinalIgnoreCase)
+                    ? Color.FromArgb(38, 190, 143) : Color.FromArgb(38, 44, 56);
+                button.ForeColor = Color.White;
+            }
+            else if (c is ListView list)
+            {
+                list.BackColor = Color.FromArgb(27, 31, 39);
+                list.ForeColor = Color.White;
+            }
+            else if (c is ListBox box)
+            {
+                box.BackColor = Color.FromArgb(27, 31, 39);
+                box.ForeColor = Color.White;
+            }
+            if (c.HasChildren) ApplyDarkTheme(c);
+        }
     }
 
     TabPage HomePage()
