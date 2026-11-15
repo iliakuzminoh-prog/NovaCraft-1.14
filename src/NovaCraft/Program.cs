@@ -775,10 +775,15 @@ internal sealed class MainForm : Form
         var by = new Label { Text = "Автор: " + author, Location = new Point(80, 49), Size = new Size(220, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
         var desc = new Label { Text = description, Location = new Point(10, 78), Size = new Size(294, 48), ForeColor = Color.FromArgb(211, 216, 225), AutoEllipsis = true };
         var stats = new Label { Text = downloads + " загрузок", Location = new Point(10, 137), Size = new Size(165, 25), ForeColor = Color.FromArgb(153, 166, 187) };
-        var action = new Button { Text = projectType == "mod" ? "Установить" : "Открыть", Location = new Point(190, 133), Size = new Size(114, 30), Tag = projectId };
+        var canInstallHere = projectType is "mod" or "resourcepack" or "shader";
+        var action = new Button { Text = canInstallHere ? "Установить" : "Открыть", Location = new Point(190, 133), Size = new Size(114, 30), Tag = projectId };
         if (projectType == "mod")
         {
             action.Click += async (_, _) => { selectedModProject = projectId; selectedModTitle = title; await DownloadSelectedModAsync(); };
+        }
+        else if (projectType is "resourcepack" or "shader")
+        {
+            action.Click += async (_, _) => await DownloadCatalogArchiveAsync(projectId, title, projectType);
         }
         else
         {
@@ -876,6 +881,63 @@ internal sealed class MainForm : Form
             status.Text = "Найдено проектов: " + hits.Count;
         }
         catch (Exception ex) { Fail("Каталог Modrinth недоступен", ex); }
+    }
+
+    async Task DownloadCatalogArchiveAsync(string projectId, string title, string projectType)
+    {
+        try
+        {
+            var game = version.SelectedItem?.ToString()
+                ?? throw new InvalidOperationException("Сначала выбери версию Minecraft на главной странице.");
+            status.Text = "Получение версии проекта…";
+            var gameFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game }));
+            var endpoint = $"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(projectId)}/version?game_versions={gameFilter}";
+            var versions = JsonNode.Parse(await http.GetStringAsync(endpoint))?.AsArray();
+            var file = versions?.FirstOrDefault()?[ "files" ]?.AsArray()?.FirstOrDefault()
+                ?? throw new InvalidOperationException("Для выбранной версии Minecraft не найден совместимый архив.");
+            var download = file["url"]?.ToString()
+                ?? throw new InvalidOperationException("В метаданных проекта отсутствует ссылка на файл.");
+            if (!Uri.TryCreate(download, UriKind.Absolute, out var uri) ||
+                uri.Scheme != "https" || uri.Host != "cdn.modrinth.com")
+                throw new SecurityException("Разрешена загрузка только с официального CDN cdn.modrinth.com.");
+            var filename = Path.GetFileName(file["filename"]?.ToString() ?? "");
+            if (string.IsNullOrWhiteSpace(filename) || !filename.EndsWith(".zip", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidDataException("Modrinth не предоставил ZIP-архив нужного типа.");
+            var expected = file["hashes"]?["sha512"]?.ToString();
+            if (string.IsNullOrWhiteSpace(expected) || expected.Length != 128 || !expected.All(Uri.IsHexDigit))
+                throw new InvalidDataException("У архива отсутствует корректный SHA-512. Загрузка отменена.");
+            var folderName = projectType == "resourcepack" ? "resourcepacks" : "shaderpacks";
+            var targetDir = Path.Combine(settings.GameDirectory, folderName);
+            Directory.CreateDirectory(targetDir);
+            var destination = Path.Combine(targetDir, filename);
+            if (File.Exists(destination))
+                throw new IOException("Такой файл уже установлен: " + filename);
+            var approval = MessageBox.Show(
+                "Проект: " + title + "\\nФайл: " + filename + "\\nMinecraft: " + game +
+                "\\nКаталог: " + folderName + "\\nИсточник: Modrinth CDN\\nПроверка: SHA-512.\\n\\nПродолжить загрузку?",
+                "Подтверждение установки", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
+            if (approval != DialogResult.Yes) return;
+            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentLength is long length && length > 250L * 1024 * 1024)
+                throw new InvalidDataException("Архив превышает защитный лимит 250 МБ.");
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            if (bytes.Length < 4 || bytes.Length > 250 * 1024 * 1024 || bytes[0] != (byte)'P' || bytes[1] != (byte)'K')
+                throw new InvalidDataException("Полученный файл не является допустимым ZIP-архивом.");
+            var actual = SHA512.HashData(bytes);
+            if (!CryptographicOperations.FixedTimeEquals(actual, Convert.FromHexString(expected)))
+                throw new CryptographicException("SHA-512 не совпадает с метаданными Modrinth. Файл не установлен.");
+            var temporary = destination + ".download";
+            try
+            {
+                await File.WriteAllBytesAsync(temporary, bytes);
+                File.Move(temporary, destination);
+            }
+            finally { if (File.Exists(temporary)) File.Delete(temporary); }
+            WriteLog("Установлен архив Modrinth: " + destination);
+            status.Text = "Архив установлен: " + filename;
+        }
+        catch (Exception ex) { Fail("Не удалось установить проект Modrinth", ex); }
     }
 
     async Task DownloadSelectedModAsync()
