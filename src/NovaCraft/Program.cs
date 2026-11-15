@@ -713,10 +713,10 @@ internal sealed class MainForm : Form
     {
         if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
         if (string.IsNullOrWhiteSpace(username.Text)) { MessageBox.Show("Введи имя игрока."); return; }
-        SaveSettings();
         string launchVersion = v;
         try
         {
+            SaveSettings();
             SetBusy(true, "Подготовка игры…");
             launchVersion = await InstallSelectedLoaderAsync(v);
             var process = await launcher.BuildProcessAsync(launchVersion, CreateLaunchOptions());
@@ -734,11 +734,6 @@ internal sealed class MainForm : Form
                 {
                     SetBusy(true, "Обнаружена типовая ошибка. Восстанавливаю файлы…");
                     var errorText = ex.ToString();
-                    if (errorText.Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase) ||
-                        errorText.Contains("Java Virtual Machine", StringComparison.OrdinalIgnoreCase) ||
-                        errorText.Contains("Java executable", StringComparison.OrdinalIgnoreCase))
-                    {
-                                    }
                     if (errorText.Contains("Invalid maximum heap size", StringComparison.OrdinalIgnoreCase) ||
                         errorText.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase))
                     {
@@ -888,6 +883,8 @@ internal sealed class MainForm : Form
         if (string.IsNullOrWhiteSpace(selectedModProject)) return;
         var project = selectedModProject;
         try{
+            if (settings.ModLoader == "vanilla")
+                throw new InvalidOperationException("Для установки модов выбери Fabric, Quilt или Forge. В Vanilla моды не загружаются.");
             status.Text="Получение версии мода…";
             var game=version.SelectedItem?.ToString()??throw new InvalidOperationException("Сначала выберите версию Minecraft.");
             var loaderName = settings.ModLoader == "vanilla" ? "fabric" : settings.ModLoader;
@@ -1020,9 +1017,9 @@ internal sealed class MainForm : Form
     {
         var message = ex.ToString();
         if (message.Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase))
-            return "Повреждена конфигурация Java. Сбрось пользовательский путь Java и повтори восстановление.";
+            return "Повреждена конфигурация Java. Повтори установку выбранной версии Minecraft; если ошибка останется, приложи технический отчёт.";
         if (message.Contains("Could not create Java Virtual Machine", StringComparison.OrdinalIgnoreCase))
-            return "Java не смогла выделить память. Уменьши лимит ОЗУ или выбери подходящую 64-битную Java.";
+            return "Java не смогла выделить память. Уменьши лимит ОЗУ и закрой другие программы перед запуском.";
         if (message.Contains("Cannot find version", StringComparison.OrdinalIgnoreCase))
             return "Файлы выбранной версии не найдены или повреждены. Запусти проверку и восстановление.";
         if (message.Contains("timed out", StringComparison.OrdinalIgnoreCase) || message.Contains("Name or service not known", StringComparison.OrdinalIgnoreCase))
