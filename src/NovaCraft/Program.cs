@@ -784,7 +784,6 @@ internal sealed class MainForm : Form
     }
 
     void SetBusy(bool busy,string? message=null){play.Enabled=!busy;install.Enabled=!busy;Cursor=busy?Cursors.WaitCursor:Cursors.Default;if(message!=null)status.Text=message;}
-    void WriteLog(string text)=>log.AppendText("["+DateTime.Now.ToString("HH:mm:ss")+"] "+text+Environment.NewLine);
     bool IsKnownLaunchError(Exception ex)
     {
         var message = ex.ToString();
