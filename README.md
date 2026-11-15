@@ -1,40 +1,38 @@
 # NovaCraft 1.14
 
-Windows Minecraft Java launcher.
+Windows launcher for Minecraft Java Edition. The current implementation is a C# WinForms application targeting .NET 8 (Windows x64).
 
-Features in the current build:
-- Windows 10/11, C#/.NET 8, self-contained win-x64 EXE.
-- Minecraft folder can be placed on any drive.
-- Official Mojang release manifest through CmlLib.Core.
-- Vanilla version installation and launch.
-- RAM control; default 3 GB for the game.
-- FPS Boost JVM profile using G1GC tuning.
-- Modrinth popular-project feed on the home page, sorted by downloads, with project cards, descriptions, author names, download counts, and icons loaded from Modrinth project metadata.
-- Modrinth mod search with responsive project cards and bounded parallel icon loading; missing icons remain neutral placeholders rather than invented artwork.
-- Mod downloads require explicit confirmation, HTTPS from the official Modrinth CDN, a valid JAR/ZIP signature, and a matching SHA-512 from Modrinth metadata. Files are written only after verification.
-- The launcher contains install paths for Vanilla, Fabric, Forge, and Quilt. Runtime verification of each loader is still required.
-- Microsoft/Mojang sign-in is excluded. Ely.by account authentication is the target; offline nickname mode remains a separate fallback.
-- Custom left navigation for Home, saved build profiles, mods, resource packs, shaders, datapacks, modpacks, news, account, settings, and diagnostics.
-- Original NovaCraft hero artwork embedded in the executable; no third-party watermark.
-- Flexible settings for RAM, Java executable path, game resolution, fullscreen, custom JVM arguments, launcher close behavior, and automatic repair.
-- Diagnostics for writable game folder, invalid Java path, RAM allocation, and repair/reinstall of selected version files. Common launch errors are translated into readable messages; this is not a guarantee against every possible Minecraft or mod error.
-- Dark Russian UI, no ads, no background service, no automatic startup.
-- Local settings under %LOCALAPPDATA%\NovaCraft.
-- GitHub Actions build produces a portable EXE ZIP.
+## Implemented in the current source
 
-Microsoft/Mojang OAuth is intentionally excluded from NovaCraft 1.14. Ely.by authentication must use Ely.by's own authentication/session endpoints and authlib integration; a local offline nickname alone is not equivalent to an Ely.by account. The launcher does not include license-check bypass or game acquisition features.
+- Dark Russian-language interface with Home, Builds, Mods, Resource Packs, Shaders, Datapacks, Modpacks, Music, Skin, Settings and Diagnostics pages.
+- Self-contained Windows x64 executable; the installer allows choosing the installation folder, creates a Start Menu shortcut, optionally creates a desktop shortcut, and supports uninstall.
+- Minecraft game directory can be selected on any drive.
+- Minecraft release list and game installation through CmlLib.Core.
+- Offline nickname session. Microsoft/Mojang account sign-in is not implemented.
+- Loader installation code paths for Vanilla, Fabric, Forge and Quilt. Successful compilation does not prove runtime compatibility for every Minecraft version/loader combination; these combinations still require testing.
+- Modrinth popular-mod feed and search.
+- Mod download is limited to the official Modrinth CDN over HTTPS, checks the JAR/ZIP signature and compares SHA-512 against Modrinth metadata. A matching hash does not prove a mod is safe.
+- Resource-pack, shader, datapack and modpack search cards currently open the project's Modrinth page. One-click installation for these project types is not implemented.
+- Saved build profiles store a name, Minecraft version and loader.
+- Custom OGG background-music resource-pack generation. The generated pack uses a fixed pack format value of 34 (Minecraft 1.21.1), so compatibility with other game versions is not guaranteed. The user must enable the pack in Minecraft's Resource Packs menu.
+- Local PNG skin selection, validation and preview. The selected PNG is stored under `%LOCALAPPDATA%\NovaCraft\skins\active.png`. This local file is not injected into Minecraft and is not automatically uploaded to a server.
+- Optional SkinsRestorer command helper. Other players see the skin only on servers that support the relevant plugin/command and permit the player to use it.
+- Settings for game directory, RAM limit, resolution, fullscreen, close-after-launch, auto-repair toggle and extra JVM arguments.
+- Basic diagnostics for write access, RAM settings and reinstalling selected Minecraft/loader files. It does not repair every Java, mod or runtime crash.
 
-The UI is implemented independently in C# WinForms; it does not copy SKlauncher source code. The Modrinth catalog uses project metadata and icons from Modrinth's API. Non-mod catalog cards currently open their Modrinth project pages; one-click installation for resource packs, shaders, and datapacks is not yet implemented.
+## Not implemented / not verified
 
-The EXE is not padded with junk just to hit an arbitrary 100/300 MB number. A large file should contain useful runtime/dependencies. A bundled Java runtime can legitimately make a distribution much larger and will be added only as a real, verified component.
+- Microsoft/Mojang authentication and online account sessions.
+- Universal skin visibility on third-party or offline-mode servers.
+- Automatic upload of a local skin PNG to a skin host.
+- One-click installation of resource packs, shaders, datapacks or modpacks from their catalog cards.
+- Automatic enabling of the generated music resource pack.
+- Runtime testing of Vanilla, Fabric, Forge and Quilt across supported Minecraft versions.
+- Full game-process crash analysis or guaranteed automatic repair.
+- Independent security audit of CmlLib.Core, NuGet dependencies, Java, Minecraft downloads or third-party mods.
 
+## Build
 
-## Download security notes
+GitHub Actions workflow `.github/workflows/build.yml` restores and publishes the .NET project as a self-contained single-file Windows x64 executable, creates a portable ZIP and builds the Inno Setup installer. A successful workflow confirms compilation and packaging only; it is not a substitute for running the launcher and Minecraft on a Windows test machine.
 
-- Minecraft version metadata and game files are obtained through CmlLib.Core using Mojang's published version metadata. The launcher does not add unofficial Minecraft mirrors.
-- Mod downloads are opt-in. The user sees the project, filename, Minecraft version, loader filter, and source before downloading.
-- A mod file is accepted only from HTTPS host `cdn.modrinth.com`, must have a JAR/ZIP signature, and must match the SHA-512 value returned by Modrinth's API over HTTPS. A mismatch aborts installation.
-- SHA-512 comparison protects against transfer corruption or a CDN file that differs from the API metadata. It does **not** prove that a mod is benign, and it cannot protect against a compromised metadata source or malicious publisher.
-- No antivirus scan is claimed. Users should only install mods from authors they trust and can decline every download.
-- Modrinth's API and CDN are external dependencies. No third-party mod is bundled into the launcher.
-- This security work does not yet constitute a full independent audit of CmlLib.Core, its transitive NuGet dependencies, Java, or Minecraft's complete download chain. Those dependencies still need a pinned-version/SBOM and provenance review.
+The executable is not padded with junk to reach an arbitrary file size.
