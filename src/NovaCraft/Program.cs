@@ -413,56 +413,11 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Аккаунт") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
         p.Controls.Add(new Label { Text = "ПРОФИЛЬ ИГРОКА", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
-        p.Controls.Add(new Label { Text = "Сейчас доступен локальный ник. Подключение Ely.by ещё не реализовано — не буду выдавать офлайн-режим за авторизацию.", AutoSize = false, Size = new Size(760, 58), ForeColor = Color.Silver, Location = new Point(26, 70) });
-        p.Controls.Add(Labeled("Имя игрока", username, 26, 140, 340));
-        var save = new Button { Text = "Сохранить имя", Location = new Point(26, 215), Width = 150, Height = 38 };
-        save.Click += (_, _) => { settings.Username = username.Text.Trim(); SettingsService.Save(settings); status.Text = "Имя сохранено"; };
-        p.Controls.Add(save);
-        return p;
-    }
-
-    TabPage SettingsPage()
-    {
-        var p = new TabPage("Настройки") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(22) };
-        p.AutoScroll = true;
-        p.Controls.Add(new Label { Text = "НАСТРОЙКИ ИГРЫ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(22, 18) });
-
-        p.Controls.Add(new Label { Text = "Папка Minecraft", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 68) });
-        gameDir.Text = settings.GameDirectory; gameDir.SetBounds(24, 94, 590, 34);
-        var browse = new Button { Text = "Выбрать…", Location = new Point(625, 93), Width = 110, Height = 36 };
-        browse.Click += (_, _) =>
-        {
-            using var d = new FolderBrowserDialog { Description = "Выберите папку Minecraft", SelectedPath = gameDir.Text };
-            if (d.ShowDialog() == DialogResult.OK) gameDir.Text = d.SelectedPath;
-        };
-
-        p.Controls.Add(new Label { Text = "Java (оставь пустым для автоматического выбора и установки)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 145) });
-        javaPathInput = new TextBox { Text = settings.JavaPath, Location = new Point(24, 171), Width = 590, Height = 34 };
-        var javaBrowse = new Button { Text = "Найти javaw.exe", Location = new Point(625, 170), Width = 130, Height = 36 };
-        javaBrowse.Click += (_, _) =>
-        {
-            using var dialog = new OpenFileDialog { Filter = "Java executable|javaw.exe;java.exe|All files|*.*", Title = "Выберите Java" };
-            if (dialog.ShowDialog() == DialogResult.OK) javaPathInput.Text = dialog.FileName;
-        };
-
-        p.Controls.Add(new Label { Text = "Оперативная память для Minecraft (МБ)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 222) });
-        ram.Minimum = 1024; ram.Maximum = 16384; ram.Increment = 512; ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 16384);
-        ram.SetBounds(24, 248, 180, 34);
-
-        p.Controls.Add(new Label { Text = "Разрешение окна", AutoSize = true, ForeColor = Color.Silver, Location = new Point(245, 222) });
-        widthInput = new NumericUpDown { Minimum = 800, Maximum = 3840, Increment = 80, Value = Math.Clamp(settings.ScreenWidth, 800, 3840), Location = new Point(245, 248), Width = 100 };
-        heightInput = new NumericUpDown { Minimum = 600, Maximum = 2160, Increment = 60, Value = Math.Clamp(settings.ScreenHeight, 600, 2160), Location = new Point(355, 248), Width = 100 };
-        fullScreenInput = new CheckBox { Text = "Полный экран", Checked = settings.FullScreen, AutoSize = true, Location = new Point(480, 253), ForeColor = Color.White };
-        closeAfterLaunchInput = new CheckBox { Text = "Закрывать лаунчер после запуска игры", Checked = settings.CloseAfterLaunch, AutoSize = true, Location = new Point(24, 300), ForeColor = Color.White };
-        autoRepairInput = new CheckBox { Text = "Автоматически исправлять типовые ошибки запуска", Checked = settings.AutoRepair, AutoSize = true, Location = new Point(24, 334), ForeColor = Color.White };
-
-        p.Controls.Add(new Label { Text = "Дополнительные JVM-параметры (необязательно)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 380) });
-        jvmArgsInput = new TextBox { Text = settings.ExtraJvmArguments, Location = new Point(24, 406), Width = 710, Height = 34 };
-        var note = new Label { Text = "Не меняй параметры, если не знаешь их назначение. Неверные аргументы могут помешать запуску.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(155, 165, 184), Location = new Point(24, 445) };
-        var save = new Button { Text = "Сохранить настройки", Location = new Point(24, 500), Width = 190, Height = 42 };
-        save.Click += (_, _) => SaveSettings();
-
-        p.Controls.AddRange(new Control[] { gameDir, browse, javaPathInput, javaBrowse, ram, widthInput, heightInput, fullScreenInput, closeAfterLaunchInput, autoRepairInput, jvmArgsInput, note, save });
+        p.Controls.Add(new Label { Text = "Текущий локальный ник: " + settings.Username, AutoSize = true, ForeColor = Color.White, Location = new Point(26, 82) });
+        p.Controls.Add(new Label { Text = "Это офлайн-профиль. Подключение Ely.by ещё не реализовано — офлайн-режим не выдаётся за авторизацию.", AutoSize = false, Size = new Size(760, 58), ForeColor = Color.Silver, Location = new Point(26, 120) });
+        var openSettings = new Button { Text = "Изменить ник в настройках", Location = new Point(26, 195), Width = 210, Height = 40 };
+        openSettings.Click += (_, _) => ShowNavigationPage(9);
+        p.Controls.Add(openSettings);
         return p;
     }
 
@@ -554,49 +509,112 @@ internal sealed class MainForm : Form
         finally{SetBusy(false);}
     }
 
-    async Task LaunchAsync()
+    MLaunchOption CreateLaunchOptions()
     {
-        if(version.SelectedItem is not string v){MessageBox.Show("Выберите версию.");return;}
-        if(string.IsNullOrWhiteSpace(username.Text)){MessageBox.Show("Введите ник.");return;}
-        SaveSettings();
-        try{
-            SetBusy(true,"Подготовка "+v+"…"); var launchVersion = await InstallSelectedLoaderAsync(v);
-            var opt=new MLaunchOption{Session=MSession.CreateOfflineSession(username.Text.Trim()),MaximumRamMb=(int)ram.Value};
-            if(boost.Checked) opt.ExtraJvmArguments=new[]{
-                MArgument.FromCommandLine("-XX:+UseG1GC"),
-                MArgument.FromCommandLine("-XX:+ParallelRefProcEnabled"),
-                MArgument.FromCommandLine("-XX:MaxGCPauseMillis=100"),
-                MArgument.FromCommandLine("-XX:+UnlockExperimentalVMOptions"),
-                MArgument.FromCommandLine("-XX:+DisableExplicitGC")};
-            var process=await launcher.BuildProcessAsync(launchVersion,opt); process.Start();
-            WriteLog("Minecraft запущен: "+launchVersion); status.Text="Minecraft запущен: "+launchVersion;
-        }catch(Exception ex){Fail("Minecraft не удалось запустить",ex);}finally{SetBusy(false);}
+        var option = new MLaunchOption
+        {
+            Session = MSession.CreateOfflineSession(username.Text.Trim()),
+            MaximumRamMb = settings.MaximumRamMb,
+            ScreenWidth = settings.ScreenWidth,
+            ScreenHeight = settings.ScreenHeight,
+            FullScreen = settings.FullScreen
+        };
+        if (!string.IsNullOrWhiteSpace(settings.JavaPath) && File.Exists(settings.JavaPath))
+            option.JavaPath = settings.JavaPath;
+        var extra = new List<MArgument>();
+        if (boost.Checked)
+        {
+            extra.Add(MArgument.FromCommandLine("-XX:+UseG1GC"));
+            extra.Add(MArgument.FromCommandLine("-XX:+ParallelRefProcEnabled"));
+            extra.Add(MArgument.FromCommandLine("-XX:MaxGCPauseMillis=100"));
+            extra.Add(MArgument.FromCommandLine("-XX:+UnlockExperimentalVMOptions"));
+            extra.Add(MArgument.FromCommandLine("-XX:+DisableExplicitGC"));
+        }
+        if (!string.IsNullOrWhiteSpace(settings.ExtraJvmArguments))
+            extra.Add(MArgument.FromCommandLine(settings.ExtraJvmArguments));
+        if (extra.Count > 0) option.ExtraJvmArguments = extra;
+        return option;
     }
 
-    Panel CreateProjectCard(JsonNode hit, out PictureBox icon)
+    async Task LaunchAsync()
+    {
+        if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
+        if (string.IsNullOrWhiteSpace(username.Text)) { MessageBox.Show("Введи имя игрока."); return; }
+        SaveSettings();
+        string launchVersion = v;
+        try
+        {
+            SetBusy(true, "Подготовка игры…");
+            launchVersion = await InstallSelectedLoaderAsync(v);
+            var process = await launcher.BuildProcessAsync(launchVersion, CreateLaunchOptions());
+            process.Start();
+            WriteLog("Minecraft запущен: " + launchVersion);
+            status.Text = "Игра запущена";
+            if (settings.CloseAfterLaunch) BeginInvoke(new Action(Close));
+        }
+        catch (Exception ex)
+        {
+            WriteLog("Ошибка запуска: " + ex);
+            if (settings.AutoRepair && IsKnownLaunchError(ex))
+            {
+                try
+                {
+                    SetBusy(true, "Обнаружена типовая ошибка. Восстанавливаю файлы…");
+                    if (ex.ToString().Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase) ||
+                        ex.ToString().Contains("Java Virtual Machine", StringComparison.OrdinalIgnoreCase))
+                    {
+                        settings.JavaPath = "";
+                        if (javaPathInput != null) javaPathInput.Text = "";
+                        SettingsService.Save(settings);
+                    }
+                    await launcher.InstallAsync(launchVersion);
+                    var repaired = await launcher.BuildProcessAsync(launchVersion, CreateLaunchOptions());
+                    repaired.Start();
+                    status.Text = "Файлы восстановлены, игра запущена";
+                    WriteLog("Автоисправление завершено: " + launchVersion);
+                    if (settings.CloseAfterLaunch) BeginInvoke(new Action(Close));
+                    return;
+                }
+                catch (Exception repairError)
+                {
+                    WriteLog("Автоисправление не помогло: " + repairError);
+                    Fail("Автоисправление не смогло устранить проблему", repairError);
+                }
+            }
+            else Fail("Minecraft не удалось запустить", ex);
+        }
+        finally { SetBusy(false); }
+    }
+
+    Panel CreateProjectCard(JsonNode hit, out PictureBox icon, string projectType = "mod")
     {
         var projectId = hit?["project_id"]?.ToString() ?? "";
+        var slug = hit?["slug"]?.ToString() ?? projectId;
         var title = hit?["title"]?.ToString() ?? "Без названия";
         var description = hit?["description"]?.ToString() ?? "Описание отсутствует";
         var author = hit?["author"]?.ToString() ?? "Автор не указан";
         var downloads = long.TryParse(hit?["downloads"]?.ToString(), out var count) ? count.ToString("N0") : "—";
-        var iconUrl = hit?["icon_url"]?.ToString();
-
         var card = new Panel { Width = 326, Height = 174, Margin = new Padding(7), BackColor = Color.FromArgb(29, 33, 42), BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(10) };
         icon = new PictureBox { Location = new Point(10, 10), Size = new Size(58, 58), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(42, 48, 60), BorderStyle = BorderStyle.FixedSingle };
-        var placeholder = new Label { Text = "MOD", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(155, 166, 185), Font = new Font("Segoe UI Semibold", 9, FontStyle.Bold) };
-        icon.Controls.Add(placeholder);
+        icon.Controls.Add(new Label { Text = projectType.ToUpperInvariant(), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(155, 166, 185), Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold) });
         var name = new Label { Text = title, Location = new Point(78, 9), Size = new Size(224, 39), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true };
-        var by = new Label { Text = author, Location = new Point(80, 49), Size = new Size(220, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
+        var by = new Label { Text = "Автор: " + author, Location = new Point(80, 49), Size = new Size(220, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
         var desc = new Label { Text = description, Location = new Point(10, 78), Size = new Size(294, 48), ForeColor = Color.FromArgb(211, 216, 225), AutoEllipsis = true };
         var stats = new Label { Text = downloads + " загрузок", Location = new Point(10, 137), Size = new Size(165, 25), ForeColor = Color.FromArgb(153, 166, 187) };
-        var installCard = new Button { Text = "Установить", Location = new Point(190, 133), Size = new Size(114, 30), Tag = projectId };
-        installCard.Click += async (_, _) => {
-            selectedModProject = projectId;
-            selectedModTitle = title;
-            await DownloadSelectedModAsync();
-        };
-        card.Controls.AddRange(new Control[] { icon, name, by, desc, stats, installCard });
+        var action = new Button { Text = projectType == "mod" ? "Установить" : "Открыть", Location = new Point(190, 133), Size = new Size(114, 30), Tag = projectId };
+        if (projectType == "mod")
+        {
+            action.Click += async (_, _) => { selectedModProject = projectId; selectedModTitle = title; await DownloadSelectedModAsync(); };
+        }
+        else
+        {
+            action.Click += (_, _) =>
+            {
+                try { Process.Start(new ProcessStartInfo("https://modrinth.com/" + projectType + "/" + Uri.EscapeDataString(slug)) { UseShellExecute = true }); }
+                catch (Exception ex) { Fail("Не удалось открыть страницу проекта", ex); }
+            };
+        }
+        card.Controls.AddRange(new Control[] { icon, name, by, desc, stats, action });
         return card;
     }
 
@@ -630,60 +648,60 @@ internal sealed class MainForm : Form
         try
         {
             status.Text = "Загрузка популярных модов Modrinth…";
-            var facets = Uri.EscapeDataString("""[["project_type:mod"]]""");
+            var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { "project_type:mod" } }));
             var url = "https://api.modrinth.com/v2/search?facets=" + facets + "&index=downloads&limit=8";
             var root = JsonNode.Parse(await http.GetStringAsync(url));
             var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
             popularFeed.SuspendLayout();
             popularFeed.Controls.Clear();
-            var gate = new SemaphoreSlim(3);
+            using var gate = new SemaphoreSlim(3);
             var iconTasks = new List<Task>();
             foreach (var hit in hits)
             {
-                var card = CreateProjectCard(hit!, out var picture);
+                var card = CreateProjectCard(hit!, out var picture, "mod");
                 popularFeed.Controls.Add(card);
                 iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
             }
             popularFeed.ResumeLayout();
             await Task.WhenAll(iconTasks);
-            gate.Dispose();
-            status.Text = hits.Count == 0 ? "Modrinth не вернул популярные моды" : "Популярные моды загружены: " + hits.Count;
+            status.Text = hits.Count == 0 ? "Популярные проекты не найдены" : "Популярные моды загружены: " + hits.Count;
         }
         catch (Exception ex)
         {
-            status.Text = "Не удалось загрузить ленту Modrinth";
+            status.Text = "Лента Modrinth временно недоступна";
             WriteLog("Лента популярных модов: " + ex.Message);
             popularFeed.Controls.Clear();
-            popularFeed.Controls.Add(new Label { Text = "Не удалось получить популярные проекты Modrinth. Проверьте подключение и нажмите «Моды», чтобы повторить поиск.", AutoSize = false, Size = new Size(520, 60), ForeColor = Color.Silver, Padding = new Padding(12) });
+            popularFeed.Controls.Add(new Label { Text = "Не удалось загрузить ленту Modrinth. Проверь подключение и повтори попытку позже.", AutoSize = false, Size = new Size(520, 60), ForeColor = Color.Silver, Padding = new Padding(12) });
         }
     }
 
-    async Task SearchModsAsync(string query)
+    async Task SearchModsAsync(string query) => await SearchProjectsAsync(query, "mod", modCards);
+
+    async Task SearchProjectsAsync(string query, string projectType, FlowLayoutPanel target)
     {
         if (string.IsNullOrWhiteSpace(query)) return;
         try
         {
-            status.Text = "Поиск Modrinth…";
-            var facets = Uri.EscapeDataString("""[["project_type:mod"]]""");
+            status.Text = "Поиск в каталоге Modrinth…";
+            var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { "project_type:" + projectType } }));
             var url = "https://api.modrinth.com/v2/search?query=" + Uri.EscapeDataString(query) + "&facets=" + facets + "&index=relevance&limit=30";
             var root = JsonNode.Parse(await http.GetStringAsync(url));
             var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
-            modCards.SuspendLayout();
-            modCards.Controls.Clear();
-            var gate = new SemaphoreSlim(3);
+            target.SuspendLayout();
+            target.Controls.Clear();
+            using var gate = new SemaphoreSlim(3);
             var iconTasks = new List<Task>();
             foreach (var hit in hits)
             {
-                var card = CreateProjectCard(hit!, out var picture);
-                modCards.Controls.Add(card);
+                var card = CreateProjectCard(hit!, out var picture, projectType);
+                target.Controls.Add(card);
                 iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
             }
-            modCards.ResumeLayout();
+            target.ResumeLayout();
             await Task.WhenAll(iconTasks);
-            gate.Dispose();
             status.Text = "Найдено проектов: " + hits.Count;
         }
-        catch (Exception ex) { Fail("Modrinth недоступен", ex); }
+        catch (Exception ex) { Fail("Каталог Modrinth недоступен", ex); }
     }
 
     async Task DownloadSelectedModAsync()
@@ -758,7 +776,93 @@ internal sealed class MainForm : Form
 
     void SetBusy(bool busy,string? message=null){play.Enabled=!busy;install.Enabled=!busy;Cursor=busy?Cursors.WaitCursor:Cursors.Default;if(message!=null)status.Text=message;}
     void WriteLog(string text)=>log.AppendText("["+DateTime.Now.ToString("HH:mm:ss")+"] "+text+Environment.NewLine);
-    void Fail(string message,Exception ex){WriteLog(message+": "+ex.Message);status.Text=message;MessageBox.Show(message+"\n\n"+ex.Message,"NovaCraft",MessageBoxButtons.OK,MessageBoxIcon.Error);}
+    bool IsKnownLaunchError(Exception ex)
+    {
+        var message = ex.ToString();
+        return message.Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Could not create Java Virtual Machine", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Cannot find version", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("Java executable", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("FileNotFoundException", StringComparison.OrdinalIgnoreCase) ||
+               message.Contains("checksum", StringComparison.OrdinalIgnoreCase);
+    }
+
+    async Task RunAutoRepairAsync(Label result)
+    {
+        try
+        {
+            SetBusy(true, "Проверяю настройки и файлы…");
+            var notes = new List<string>();
+            Directory.CreateDirectory(settings.GameDirectory);
+            var testFile = Path.Combine(settings.GameDirectory, ".novacraft-write-test");
+            await File.WriteAllTextAsync(testFile, "ok");
+            File.Delete(testFile);
+            notes.Add("Папка игры доступна для записи.");
+
+            if (!string.IsNullOrWhiteSpace(settings.JavaPath) && !File.Exists(settings.JavaPath))
+            {
+                settings.JavaPath = "";
+                if (javaPathInput != null) javaPathInput.Text = "";
+                notes.Add("Неверный путь Java сброшен; включён автоматический выбор Java.");
+            }
+            else notes.Add("Путь Java проверен.");
+
+            var availableMb = (int)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024);
+            var safeLimit = Math.Clamp((int)(availableMb * 0.55), 1024, 8192);
+            if (settings.MaximumRamMb > safeLimit)
+            {
+                settings.MaximumRamMb = safeLimit;
+                ram.Value = Math.Clamp(safeLimit, (int)ram.Minimum, (int)ram.Maximum);
+                notes.Add("Лимит памяти уменьшен до безопасного значения для доступной памяти.");
+            }
+            else notes.Add("Лимит памяти выглядит допустимым.");
+
+            var selected = version.SelectedItem?.ToString() ?? settings.LastVersion;
+            if (!string.IsNullOrWhiteSpace(selected))
+            {
+                await InstallSelectedLoaderAsync(selected);
+                notes.Add("Официальные файлы выбранной версии проверены и недостающие компоненты восстановлены.");
+            }
+            settings.LastVersion = selected;
+            SettingsService.Save(settings);
+            result.Text = "Проверка завершена.\n\n" + string.Join("\n", notes);
+            status.Text = "Проверка и восстановление завершены";
+            WriteLog("Автопроверка: " + string.Join(" | ", notes));
+        }
+        catch (Exception ex)
+        {
+            WriteLog("Автоисправление: " + ex);
+            result.Text = "Не все проблемы удалось исправить автоматически.\n" + FriendlyError(ex) + "\n\nПодробности доступны в техническом отчёте.";
+            status.Text = "Нужна дополнительная проверка";
+        }
+        finally { SetBusy(false); }
+    }
+
+    string FriendlyError(Exception ex)
+    {
+        var message = ex.ToString();
+        if (message.Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase))
+            return "Повреждена конфигурация Java. Сбрось пользовательский путь Java и повтори восстановление.";
+        if (message.Contains("Could not create Java Virtual Machine", StringComparison.OrdinalIgnoreCase))
+            return "Java не смогла выделить память. Уменьши лимит ОЗУ или выбери подходящую 64-битную Java.";
+        if (message.Contains("Cannot find version", StringComparison.OrdinalIgnoreCase))
+            return "Файлы выбранной версии не найдены или повреждены. Запусти проверку и восстановление.";
+        if (message.Contains("timed out", StringComparison.OrdinalIgnoreCase) || message.Contains("Name or service not known", StringComparison.OrdinalIgnoreCase))
+            return "Не удалось связаться с сервером загрузки. Проверь интернет-соединение и повтори попытку.";
+        if (message.Contains("Access to the path", StringComparison.OrdinalIgnoreCase) || message.Contains("UnauthorizedAccess", StringComparison.OrdinalIgnoreCase))
+            return "Нет доступа к папке игры. Выбери другую папку, в которую разрешена запись.";
+        return "Произошла ошибка. Технические подробности сохранены во внутреннем отчёте.";
+    }
+
+    void WriteLog(string text) => log.AppendText("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + text + Environment.NewLine);
+
+    void Fail(string message, Exception ex)
+    {
+        WriteLog(message + ": " + ex);
+        status.Text = message;
+        MessageBox.Show(FriendlyError(ex), "NovaCraft — проблема", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+    }
+
 }
 
 static class SettingsService
