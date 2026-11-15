@@ -1,0 +1,32 @@
+name: Build NovaCraft
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore NovaCraft.sln
+      - name: Publish
+        run: dotnet publish src/NovaCraft/NovaCraft.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
+      - name: Inspect EXE
+        shell: pwsh
+        run: |
+          $exe = Get-Item "publish/NovaCraft.exe"
+          Write-Host "NovaCraft.exe: $([math]::Round($exe.Length / 1MB,2)) MB"
+      - name: Package
+        shell: pwsh
+        run: Compress-Archive -Path publish/NovaCraft.exe -DestinationPath NovaCraft-1.14-win-x64.zip -Force
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NovaCraft-1.14-win-x64
+          path: NovaCraft-1.14-win-x64.zip
+          if-no-files-found: error
