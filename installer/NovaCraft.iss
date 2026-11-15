@@ -22,7 +22,7 @@ ArchitecturesInstallIn64BitMode=x64
 SetupLogging=yes
 
 [Tasks]
-Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительные ярлыки:"; Flags: checked
+Name: "desktopicon"; Description: "Создать ярлык на рабочем столе"; GroupDescription: "Дополнительные ярлыки:"
 
 [Files]
 Source: "publish\NovaCraft.exe"; DestDir: "{app}"; Flags: ignoreversion
