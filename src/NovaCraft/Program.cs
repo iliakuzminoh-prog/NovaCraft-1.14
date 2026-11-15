@@ -74,11 +74,12 @@ internal sealed class MainForm : Form
     string? selectedModProject;
     string? selectedModTitle;
     string? selectedDatapackWorldDirectory;
-    readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
+    readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromMinutes(3) };
 
     public MainForm()
     {
         settings = SettingsService.Load();
+        http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaCraft/1.14 (https://github.com/iliakuzminoh-prog/NovaCraft-1.14)");
         Directory.CreateDirectory(settings.GameDirectory);
         launcher = new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
 
