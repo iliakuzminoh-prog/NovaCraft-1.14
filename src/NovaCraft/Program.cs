@@ -5,6 +5,10 @@ using System.Security.Cryptography;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
+using CmlLib.Core.ModLoaders.FabricMC;
+using CmlLib.Core.Installer.Forge;
+using CmlLib.Core.Installers;
+using CmlLib.Core.Installer.NeoForge;
 
 namespace NovaCraft;
 
@@ -37,6 +41,7 @@ internal sealed class MainForm : Form
     MinecraftLauncher launcher;
     readonly TextBox username = new();
     readonly ComboBox version = new();
+    readonly ComboBox gameLoader = new();
     readonly NumericUpDown ram = new();
     readonly TextBox gameDir = new();
     readonly CheckBox boost = new();
@@ -88,25 +93,33 @@ internal sealed class MainForm : Form
         left.Controls.Add(Labeled("Ник", username, 22, 70, 360));
 
         version.DropDownStyle = ComboBoxStyle.DropDownList;
-        left.Controls.Add(Labeled("Версия", version, 22, 140, 360));
+        left.Controls.Add(Labeled("Версия Minecraft", version, 22, 140, 360));
+        gameLoader.DropDownStyle = ComboBoxStyle.DropDownList;
+        gameLoader.Items.AddRange(new object[] { "Vanilla", "Fabric", "Forge", "NeoForge" });
+        gameLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "neoforge" => "NeoForge", "vanilla" => "Vanilla", _ => "Fabric" };
+        gameLoader.SelectedIndexChanged += (_, _) => {
+            settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "NeoForge" => "neoforge", "Vanilla" => "vanilla", _ => "fabric" };
+            SettingsService.Save(settings);
+        };
+        left.Controls.Add(Labeled("Загрузчик", gameLoader, 22, 210, 360));
 
         ram.Minimum = 1024; ram.Maximum = 16384; ram.Increment = 512;
         ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 16384);
-        left.Controls.Add(Labeled("Память игры (МБ)", ram, 22, 210, 360));
+        left.Controls.Add(Labeled("Память игры (МБ)", ram, 22, 280, 360));
 
         boost.Text = "FPS Boost — JVM профиль"; boost.Checked = settings.FpsBoost;
-        boost.AutoSize = true; boost.Location = new Point(26, 282); left.Controls.Add(boost);
+        boost.AutoSize = true; boost.Location = new Point(26, 352); left.Controls.Add(boost);
 
         play.Text = "ИГРАТЬ"; play.Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold);
         play.FlatStyle = FlatStyle.Flat; play.BackColor = Color.FromArgb(46, 160, 67); play.ForeColor = Color.White;
-        play.SetBounds(22, 325, 360, 54); play.Click += async (_, _) => await LaunchAsync(); left.Controls.Add(play);
+        play.SetBounds(22, 395, 360, 54); play.Click += async (_, _) => await LaunchAsync(); left.Controls.Add(play);
 
         install.Text = "Установить выбранную версию"; install.FlatStyle = FlatStyle.Flat;
-        install.SetBounds(22, 392, 360, 44); install.Click += async (_, _) => await InstallAsync(); left.Controls.Add(install);
+        install.SetBounds(22, 462, 360, 44); install.Click += async (_, _) => await InstallAsync(); left.Controls.Add(install);
 
         left.Controls.Add(new Label {
             Text = "Нет скрытых служб, автозапуска и рекламных баннеров.\nФайлы Minecraft находятся только в выбранной папке.",
-            ForeColor = Color.LightGray, AutoSize = true, Location = new Point(22, 465)
+            ForeColor = Color.LightGray, AutoSize = true, Location = new Point(22, 525)
         });
 
         log.Dock = DockStyle.Fill; log.ReadOnly = true; log.BackColor = Color.FromArgb(11,12,15);
@@ -181,11 +194,60 @@ internal sealed class MainForm : Form
         } catch(Exception ex){Fail("Не удалось получить список версий",ex);}
     }
 
+    async Task<string> InstallSelectedLoaderAsync(string vanillaVersion)
+    {
+        var loaderName = settings.ModLoader;
+        if (loaderName == "vanilla")
+        {
+            await launcher.InstallAsync(vanillaVersion);
+            return vanillaVersion;
+        }
+
+        WriteLog("Установка " + loaderName + " для Minecraft " + vanillaVersion);
+        string installedId;
+        var path = new MinecraftPath(settings.GameDirectory);
+        if (loaderName == "fabric")
+        {
+            var fabric = new FabricInstaller(http);
+            installedId = await fabric.Install(vanillaVersion, path);
+        }
+        else if (loaderName == "forge")
+        {
+            var forge = new ForgeInstaller(launcher);
+            installedId = await forge.Install(vanillaVersion, new ForgeInstallOptions
+            {
+                InstallerOutput = new Progress<string>(line => WriteLog(line))
+            });
+        }
+        else if (loaderName == "neoforge")
+        {
+            var neo = new NeoForgeInstaller(launcher, http);
+            installedId = await neo.Install(vanillaVersion, new NeoForgeInstallOptions
+            {
+                InstallerOutput = new Progress<string>(line => WriteLog(line))
+            });
+        }
+        else throw new InvalidOperationException("Неизвестный загрузчик.");
+
+        await launcher.InstallAsync(installedId);
+        WriteLog("Загрузчик установлен: " + installedId);
+        return installedId;
+    }
+
     async Task InstallAsync()
     {
         if(version.SelectedItem is not string v)return;
-        try{SetBusy(true,"Установка "+v+"…"); await launcher.InstallAsync(v); WriteLog("Установлено: "+v); status.Text="Установка завершена";}
-        catch(Exception ex){Fail("Ошибка установки",ex);} finally{SetBusy(false);}
+        try
+        {
+            SetBusy(true,"Установка " + settings.ModLoader + " для " + v + "…");
+            var installedId = await InstallSelectedLoaderAsync(v);
+            settings.LastVersion = v;
+            SettingsService.Save(settings);
+            WriteLog("Готово: " + installedId);
+            status.Text = "Установка завершена: " + installedId;
+        }
+        catch(Exception ex){Fail("Ошибка установки загрузчика",ex);}
+        finally{SetBusy(false);}
     }
 
     async Task LaunchAsync()
@@ -194,7 +256,7 @@ internal sealed class MainForm : Form
         if(string.IsNullOrWhiteSpace(username.Text)){MessageBox.Show("Введите ник.");return;}
         SaveSettings();
         try{
-            SetBusy(true,"Подготовка "+v+"…"); await launcher.InstallAsync(v);
+            SetBusy(true,"Подготовка "+v+"…"); var launchVersion = await InstallSelectedLoaderAsync(v);
             var opt=new MLaunchOption{Session=MSession.CreateOfflineSession(username.Text.Trim()),MaximumRamMb=(int)ram.Value};
             if(boost.Checked) opt.ExtraJvmArguments=new[]{
                 MArgument.FromCommandLine("-XX:+UseG1GC"),
@@ -202,8 +264,8 @@ internal sealed class MainForm : Form
                 MArgument.FromCommandLine("-XX:MaxGCPauseMillis=100"),
                 MArgument.FromCommandLine("-XX:+UnlockExperimentalVMOptions"),
                 MArgument.FromCommandLine("-XX:+DisableExplicitGC")};
-            var process=await launcher.BuildProcessAsync(v,opt); process.Start();
-            WriteLog("Minecraft запущен: "+v); status.Text="Minecraft запущен";
+            var process=await launcher.BuildProcessAsync(launchVersion,opt); process.Start();
+            WriteLog("Minecraft запущен: "+launchVersion); status.Text="Minecraft запущен: "+launchVersion;
         }catch(Exception ex){Fail("Minecraft не удалось запустить",ex);}finally{SetBusy(false);}
     }
 
@@ -231,7 +293,7 @@ internal sealed class MainForm : Form
         try{
             status.Text="Получение версии мода…";
             var game=version.SelectedItem?.ToString()??throw new InvalidOperationException("Сначала выберите версию Minecraft.");
-            var loaderName = settings.ModLoader;
+            var loaderName = settings.ModLoader == "vanilla" ? "fabric" : settings.ModLoader;
             var gameFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game }));
             var loaderFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loaderName }));
             var url=$"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(project)}/version?game_versions={gameFilter}&loaders={loaderFilter}";
@@ -278,6 +340,7 @@ internal sealed class MainForm : Form
         settings.Username=username.Text.Trim(); settings.MaximumRamMb=(int)ram.Value;
         settings.FpsBoost=boost.Checked; settings.GameDirectory=gameDir.Text.Trim();
         settings.LastVersion=version.SelectedItem?.ToString()??settings.LastVersion;
+        settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "NeoForge" => "neoforge", "Vanilla" => "vanilla", _ => "fabric" };
         Directory.CreateDirectory(settings.GameDirectory); launcher=new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
         SettingsService.Save(settings); status.Text="Настройки сохранены";
     }
