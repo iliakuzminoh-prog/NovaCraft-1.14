@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Security;
 using System.Security.Cryptography;
+using System.IO.Compression;
 using System.Diagnostics;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
@@ -60,6 +61,7 @@ internal sealed class MainForm : Form
     readonly List<TabPage> navigationPages = new();
     readonly List<Button> navigationButtons = new();
     TextBox? javaPathInput;
+    TextBox? customMusicPath;
     NumericUpDown? widthInput;
     NumericUpDown? heightInput;
     CheckBox? fullScreenInput;
@@ -109,6 +111,7 @@ internal sealed class MainForm : Form
             ("✧  Шейдеры", CatalogPage("Шейдеры Modrinth", "shader")),
             ("▦  Датапаки", CatalogPage("Датапаки Modrinth", "datapack")),
             ("▤  Каталог", CatalogPage("Сборки Modrinth", "modpack")),
+            ("♫  Музыка", MusicPage()),
             ("♙  Аккаунт", AccountPage()),
             ("⚙  Настройки", SettingsPage()),
             ("✓  Исправление", DiagnosticsPage())
@@ -406,6 +409,60 @@ internal sealed class MainForm : Form
         return p;
     }
 
+    TabPage MusicPage()
+    {
+        var p = new TabPage("Музыка") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
+        p.Controls.Add(new Label { Text = "СВОЯ МУЗЫКА В MINECRAFT", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
+        p.Controls.Add(new Label
+        {
+            Text = "Выбери собственный файл OGG. NovaCraft соберёт ресурс-пак, который заменяет фоновую музыку игры. Исходные файлы Minecraft не перезаписываются.",
+            AutoSize = false, Size = new Size(760, 58), ForeColor = Color.Silver, Location = new Point(26, 76)
+        });
+        customMusicPath = new TextBox { Location = new Point(26, 150), Width = 560, Height = 34, ReadOnly = true };
+        var browse = new Button { Text = "Выбрать OGG…", Location = new Point(600, 148), Width = 150, Height = 38 };
+        var installPack = new Button { Text = "Создать ресурс-пак", Location = new Point(26, 210), Width = 190, Height = 42 };
+        var result = new Label { Text = "Поддерживается OGG — это формат звука, который использует Minecraft Java.", Location = new Point(26, 270), Size = new Size(760, 90), ForeColor = Color.Silver };
+        browse.Click += (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Filter = "OGG audio (*.ogg)|*.ogg", Title = "Выбери музыкальный файл" };
+            if (dialog.ShowDialog() == DialogResult.OK) customMusicPath.Text = dialog.FileName;
+        };
+        installPack.Click += (_, _) =>
+        {
+            try
+            {
+                var source = customMusicPath.Text;
+                if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
+                    throw new InvalidOperationException("Сначала выбери существующий файл .ogg.");
+                if (!string.Equals(Path.GetExtension(source), ".ogg", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidOperationException("Minecraft Java принимает этот ресурс-пак с аудио в формате OGG.");
+                var targetDir = Path.Combine(settings.GameDirectory, "resourcepacks");
+                Directory.CreateDirectory(targetDir);
+                var target = Path.Combine(targetDir, "NovaCraftCustomMusic.zip");
+                var temp = target + ".tmp";
+                if (File.Exists(temp)) File.Delete(temp);
+                using (var archive = ZipFile.Open(temp, ZipArchiveMode.Create))
+                {
+                    var meta = archive.CreateEntry("pack.mcmeta");
+                    using (var writer = new StreamWriter(meta.Open()))
+                        writer.Write("{\"pack\":{\"pack_format\":34,\"description\":\"NovaCraft custom background music\"}}");
+                    var sounds = archive.CreateEntry("assets/minecraft/sounds.json");
+                    using (var writer = new StreamWriter(sounds.Open()))
+                        writer.Write("{\"music.game\":{\"replace\":true,\"sounds\":[{\"name\":\"music/game/novacraft_custom\",\"stream\":true}]}}");
+                    var audio = archive.CreateEntry("assets/minecraft/sounds/music/game/novacraft_custom.ogg", CompressionLevel.Optimal);
+                    using var input = File.OpenRead(source);
+                    using var output = audio.Open();
+                    input.CopyTo(output);
+                }
+                File.Move(temp, target, true);
+                result.Text = "Ресурс-пак создан:\n" + target + "\nОткрой Minecraft → Настройки → Ресурс-паки и включи NovaCraftCustomMusic. Он меняет фоновую музыку игры, не звуки шагов/ударов.";
+            }
+            catch (Exception ex) { result.Text = "Не удалось создать ресурс-пак: " + ex.Message; }
+        };
+        p.Controls.AddRange(new Control[] { customMusicPath, browse, installPack, result });
+        return p;
+    }
+
     TabPage AccountPage()
     {
         var p = new TabPage("Аккаунт") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
@@ -458,7 +515,7 @@ internal sealed class MainForm : Form
             AutoSize = false, Size = new Size(760, 70), ForeColor = Color.FromArgb(190, 175, 145), Location = new Point(26, 480)
         });
         var openSettings = new Button { Text = "Изменить ник в настройках", Location = new Point(26, 565), Width = 210, Height = 40 };
-        openSettings.Click += (_, _) => ShowNavigationPage(8);
+        openSettings.Click += (_, _) => ShowNavigationPage(9);
         p.Controls.Add(openSettings);
         return p;
     }
