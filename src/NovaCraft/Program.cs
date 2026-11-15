@@ -397,7 +397,7 @@ internal sealed class MainForm : Form
         try
         {
             status.Text = "Загрузка популярных модов Modrinth…";
-            var facets = Uri.EscapeDataString("[[\\"project_type:mod\\"]]");
+            var facets = Uri.EscapeDataString("""[["project_type:mod"]]""");
             var url = "https://api.modrinth.com/v2/search?facets=" + facets + "&index=downloads&limit=8";
             var root = JsonNode.Parse(await http.GetStringAsync(url));
             var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
@@ -431,7 +431,7 @@ internal sealed class MainForm : Form
         try
         {
             status.Text = "Поиск Modrinth…";
-            var facets = Uri.EscapeDataString("[[\\"project_type:mod\\"]]");
+            var facets = Uri.EscapeDataString("""[["project_type:mod"]]""");
             var url = "https://api.modrinth.com/v2/search?query=" + Uri.EscapeDataString(query) + "&facets=" + facets + "&index=relevance&limit=30";
             var root = JsonNode.Parse(await http.GetStringAsync(url));
             var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
