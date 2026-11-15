@@ -800,6 +800,22 @@ internal sealed class MainForm : Form
         return card;
     }
 
+    static async Task<byte[]> ReadBoundedContentAsync(HttpContent content, int maxBytes)
+    {
+        await using var input = await content.ReadAsStreamAsync();
+        using var output = new MemoryStream(Math.Min(maxBytes, 1024 * 1024));
+        var buffer = new byte[81920];
+        while (true)
+        {
+            var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length));
+            if (read == 0) break;
+            if (output.Length + read > maxBytes)
+                throw new InvalidDataException($"Загружаемый файл превышает лимит {maxBytes / (1024 * 1024)} МБ.");
+            await output.WriteAsync(buffer.AsMemory(0, read));
+        }
+        return output.ToArray();
+    }
+
     async Task LoadProjectIconAsync(PictureBox picture, string? iconUrl, SemaphoreSlim gate)
     {
         if (string.IsNullOrWhiteSpace(iconUrl) || !Uri.TryCreate(iconUrl, UriKind.Absolute, out var uri) ||
@@ -811,7 +827,7 @@ internal sealed class MainForm : Form
             using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024)) return;
-            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var bytes = await ReadBoundedContentAsync(response.Content, 250 * 1024 * 1024);
             if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024) return;
             using var ms = new MemoryStream(bytes);
             using var source = Image.FromStream(ms);
@@ -924,7 +940,7 @@ internal sealed class MainForm : Form
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength is long length && length > 250L * 1024 * 1024)
                 throw new InvalidDataException("Архив превышает защитный лимит 250 МБ.");
-            var bytes = await response.Content.ReadAsByteArrayAsync();
+            var bytes = await ReadBoundedContentAsync(response.Content, 250 * 1024 * 1024);
             if (bytes.Length < 4 || bytes.Length > 250 * 1024 * 1024 || bytes[0] != (byte)'P' || bytes[1] != (byte)'K')
                 throw new InvalidDataException("Полученный файл не является допустимым ZIP-архивом.");
             var actual = SHA512.HashData(bytes);
@@ -980,7 +996,7 @@ internal sealed class MainForm : Form
             response.EnsureSuccessStatusCode();
             if(response.Content.Headers.ContentLength is long declaredLength && declaredLength>250L*1024*1024)
                 throw new InvalidDataException("Файл превышает защитный лимит 250 МБ.");
-            var bytes=await response.Content.ReadAsByteArrayAsync();
+            var bytes=await ReadBoundedContentAsync(response.Content, 250 * 1024 * 1024);
             if(bytes.Length<4 || bytes.Length>250*1024*1024 || bytes[0]!=(byte)'P' || bytes[1]!=(byte)'K')
                 throw new InvalidDataException("Файл не является допустимым JAR/ZIP или превышает лимит 250 МБ.");
             var actualSha512=SHA512.HashData(bytes);
