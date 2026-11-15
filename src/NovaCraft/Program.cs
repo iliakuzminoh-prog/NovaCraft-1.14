@@ -49,9 +49,12 @@ internal sealed class MainForm : Form
     readonly Label status = new();
     readonly Button play = new();
     readonly Button install = new();
-    readonly ListView mods = new();
-    readonly ImageList modImages = new() { ImageSize = new Size(48, 48), ColorDepth = ColorDepth.Depth32Bit };
+    readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
+    readonly FlowLayoutPanel modCards = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly ComboBox modLoader = new();
+    TabControl? mainTabs;
+    string? selectedModProject;
+    string? selectedModTitle;
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All });
 
     public MainForm()
@@ -67,7 +70,7 @@ internal sealed class MainForm : Form
 
         BuildUi();
         ApplyDarkTheme(this);
-        Shown += async (_, _) => await RefreshVersionsAsync();
+        Shown += async (_, _) => { await RefreshVersionsAsync(); await LoadPopularModsAsync(); };
     }
 
     void BuildUi()
@@ -87,6 +90,7 @@ internal sealed class MainForm : Form
                 selected ? Color.White : Color.FromArgb(170, 180, 195),
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         };
+        mainTabs = tabs;
         tabs.TabPages.Add(HomePage()); tabs.TabPages.Add(VersionsPage()); tabs.TabPages.Add(ModsPage()); tabs.TabPages.Add(SettingsPage());
 
         status.Text = "Готов"; status.Dock = DockStyle.Bottom; status.Height = 32; status.Padding = new Padding(16, 7, 0, 0);
@@ -177,9 +181,20 @@ internal sealed class MainForm : Form
             ForeColor = Color.LightGray, AutoSize = true, Location = new Point(22, 525)
         });
 
-        log.Dock = DockStyle.Fill; log.ReadOnly = true; log.BackColor = Color.FromArgb(11,12,15);
+        var feedHeader = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.FromArgb(18, 19, 23) };
+        feedHeader.Controls.Add(new Label { Text = "Популярные моды", Font = new Font("Segoe UI Semibold", 18, FontStyle.Bold), AutoSize = true, Location = new Point(8, 5), ForeColor = Color.White });
+        feedHeader.Controls.Add(new Label { Text = "Популярное на Modrinth · сортировка по загрузкам", AutoSize = true, Location = new Point(10, 39), ForeColor = Color.Silver });
+        var openCatalog = new Button { Text = "Весь каталог", Width = 130, Height = 34, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+        openCatalog.Location = new Point(Math.Max(0, right.ClientSize.Width - 160), 18);
+        openCatalog.Click += (_, _) => { if (mainTabs != null) mainTabs.SelectedIndex = 2; };
+        feedHeader.Resize += (_, _) => openCatalog.Location = new Point(Math.Max(0, feedHeader.ClientSize.Width - 145), 18);
+        feedHeader.Controls.Add(openCatalog);
+
+        log.Dock = DockStyle.Bottom; log.Height = 112; log.ReadOnly = true; log.BackColor = Color.FromArgb(11,12,15);
         log.ForeColor = Color.Gainsboro; log.Font = new Font("Consolas", 9); log.BorderStyle = BorderStyle.None;
-        right.Controls.Add(log); p.Controls.Add(right); p.Controls.Add(left); return p;
+        popularFeed.Dock = DockStyle.Fill;
+        right.Controls.Add(popularFeed); right.Controls.Add(log); right.Controls.Add(feedHeader);
+        p.Controls.Add(right); p.Controls.Add(left); return p;
     }
 
     TabPage VersionsPage()
@@ -193,24 +208,28 @@ internal sealed class MainForm : Form
 
     TabPage ModsPage()
     {
-        var p = new TabPage("Моды") { BackColor = Color.FromArgb(18,19,23) };
-        var search = new TextBox { PlaceholderText = "Поиск модов Modrinth…", Width = 430, Location = new Point(22,18) };
-        var btn = new Button { Text = "Найти", Location = new Point(465,17), Width = 90 };
+        var p = new TabPage("Моды") { BackColor = Color.FromArgb(18, 19, 23) };
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12) };
+        var search = new TextBox { PlaceholderText = "Поиск модов на Modrinth…", Width = 390, Height = 34, Location = new Point(10, 14), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+        var btn = new Button { Text = "Найти", Location = new Point(410, 13), Width = 90, Height = 34 };
         modLoader.DropDownStyle = ComboBoxStyle.DropDownList;
+        modLoader.Items.Clear();
         modLoader.Items.AddRange(new object[] { "Fabric", "Quilt", "Forge" });
         modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", _ => "Fabric" };
-        modLoader.Location = new Point(565,17); modLoader.Width = 125;
-        var get = new Button { Text = "Скачать выбранный", Location = new Point(700,17), Width = 160 };
-        mods.SetBounds(22,62,1050,520); mods.View=View.Details; mods.FullRowSelect=true; mods.SmallImageList = modImages; mods.HideSelection = false;
-        mods.BackColor=Color.FromArgb(25,27,32); mods.ForeColor=Color.White;
-        mods.Columns.Add("Название",260); mods.Columns.Add("Описание",610); mods.Columns.Add("Project ID",150);
-        btn.Click += async (_,_) => await SearchModsAsync(search.Text);
-        get.Click += async (_,_) => await DownloadSelectedModAsync();
-        modLoader.SelectedIndexChanged += (_,_) => {
+        modLoader.Location = new Point(510, 14); modLoader.Width = 125; modLoader.Height = 34;
+        var hint = new Label { Text = "Карточки проектов · иконки и сведения загружаются из Modrinth", AutoSize = true, ForeColor = Color.Silver, Location = new Point(650, 21) };
+        toolbar.Controls.AddRange(new Control[] { search, btn, modLoader, hint });
+        toolbar.Resize += (_, _) => { search.Width = Math.Max(180, toolbar.ClientSize.Width - 760); btn.Left = search.Right + 10; modLoader.Left = btn.Right + 10; hint.Left = modLoader.Right + 14; };
+        btn.Click += async (_, _) => await SearchModsAsync(search.Text);
+        search.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SearchModsAsync(search.Text); } };
+        modLoader.SelectedIndexChanged += (_, _) => {
             settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", _ => "fabric" };
+            if (gameLoader.Items.Contains(modLoader.SelectedItem)) gameLoader.SelectedItem = modLoader.SelectedItem;
             SettingsService.Save(settings);
         };
-        p.Controls.AddRange(new Control[]{search,btn,modLoader,get,mods}); return p;
+        p.Controls.Add(modCards);
+        p.Controls.Add(toolbar);
+        return p;
     }
 
     TabPage SettingsPage()
@@ -321,58 +340,123 @@ internal sealed class MainForm : Form
         }catch(Exception ex){Fail("Minecraft не удалось запустить",ex);}finally{SetBusy(false);}
     }
 
-    async Task SearchModsAsync(string query)
+    Panel CreateProjectCard(JsonNode hit, out PictureBox icon)
     {
-        if(string.IsNullOrWhiteSpace(query))return;
-        try{
-            status.Text="Поиск Modrinth…";
-            var url="https://api.modrinth.com/v2/search?query="+Uri.EscapeDataString(query)+"&facets="+Uri.EscapeDataString("[[\"project_type:mod\"]]")+"&limit=20";
-            var root=JsonNode.Parse(await http.GetStringAsync(url));
-            mods.BeginUpdate();
-            mods.Items.Clear();
-            modImages.Images.Clear();
-            var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).Take(20).ToList();
+        var projectId = hit?["project_id"]?.ToString() ?? "";
+        var title = hit?["title"]?.ToString() ?? "Без названия";
+        var description = hit?["description"]?.ToString() ?? "Описание отсутствует";
+        var author = hit?["author"]?.ToString() ?? "Автор не указан";
+        var downloads = long.TryParse(hit?["downloads"]?.ToString(), out var count) ? count.ToString("N0") : "—";
+        var iconUrl = hit?["icon_url"]?.ToString();
+
+        var card = new Panel { Width = 326, Height = 174, Margin = new Padding(7), BackColor = Color.FromArgb(29, 33, 42), BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(10) };
+        icon = new PictureBox { Location = new Point(10, 10), Size = new Size(58, 58), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(42, 48, 60), BorderStyle = BorderStyle.FixedSingle };
+        var placeholder = new Label { Text = "MOD", Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(155, 166, 185), Font = new Font("Segoe UI Semibold", 9, FontStyle.Bold) };
+        icon.Controls.Add(placeholder);
+        var name = new Label { Text = title, Location = new Point(78, 9), Size = new Size(224, 39), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true };
+        var by = new Label { Text = author, Location = new Point(80, 49), Size = new Size(220, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
+        var desc = new Label { Text = description, Location = new Point(10, 78), Size = new Size(294, 48), ForeColor = Color.FromArgb(211, 216, 225), AutoEllipsis = true };
+        var stats = new Label { Text = downloads + " загрузок", Location = new Point(10, 137), Size = new Size(165, 25), ForeColor = Color.FromArgb(153, 166, 187) };
+        var installCard = new Button { Text = "Установить", Location = new Point(190, 133), Size = new Size(114, 30), Tag = projectId };
+        installCard.Click += async (_, _) => {
+            selectedModProject = projectId;
+            selectedModTitle = title;
+            await DownloadSelectedModAsync();
+        };
+        card.Controls.AddRange(new Control[] { icon, name, by, desc, stats, installCard });
+        return card;
+    }
+
+    async Task LoadProjectIconAsync(PictureBox picture, string? iconUrl, SemaphoreSlim gate)
+    {
+        if (string.IsNullOrWhiteSpace(iconUrl) || !Uri.TryCreate(iconUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme != "https" || (uri.Host != "cdn.modrinth.com" && uri.Host != "images.modrinth.com"))
+            return;
+        await gate.WaitAsync();
+        try
+        {
+            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024)) return;
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024) return;
+            using var ms = new MemoryStream(bytes);
+            using var source = Image.FromStream(ms);
+            var bitmap = new Bitmap(source);
+            if (picture.IsDisposed) { bitmap.Dispose(); return; }
+            picture.Image?.Dispose();
+            picture.Image = bitmap;
+            picture.Controls.Clear();
+        }
+        catch { /* Отсутствующая или недоступная иконка не ломает каталог. */ }
+        finally { gate.Release(); }
+    }
+
+    async Task LoadPopularModsAsync()
+    {
+        try
+        {
+            status.Text = "Загрузка популярных модов Modrinth…";
+            var facets = Uri.EscapeDataString("[[\\"project_type:mod\\"]]");
+            var url = "https://api.modrinth.com/v2/search?facets=" + facets + "&index=downloads&limit=8";
+            var root = JsonNode.Parse(await http.GetStringAsync(url));
+            var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
+            popularFeed.SuspendLayout();
+            popularFeed.Controls.Clear();
+            var gate = new SemaphoreSlim(3);
+            var iconTasks = new List<Task>();
             foreach (var hit in hits)
             {
-                var title = hit?["title"]?.ToString() ?? "Без названия";
-                var description = hit?["description"]?.ToString() ?? "Описание отсутствует";
-                var projectId = hit?["project_id"]?.ToString() ?? "";
-                var iconUrl = hit?["icon_url"]?.ToString();
-                var item = new ListViewItem(title);
-                item.SubItems.Add(description);
-                item.SubItems.Add(projectId);
-                if (Uri.TryCreate(iconUrl, UriKind.Absolute, out var iconUri) &&
-                    iconUri.Scheme == "https" &&
-                    (iconUri.Host == "cdn.modrinth.com" || iconUri.Host == "images.modrinth.com"))
-                {
-                    try
-                    {
-                        var data = await http.GetByteArrayAsync(iconUri);
-                        using var ms = new MemoryStream(data);
-                        using var source = Image.FromStream(ms);
-                        var bitmap = new Bitmap(source);
-                        var key = projectId;
-                        if (!modImages.Images.ContainsKey(key))
-                            modImages.Images.Add(key, bitmap);
-                        else bitmap.Dispose();
-                        item.ImageKey = key;
-                    }
-                    catch (Exception imageError)
-                    {
-                        WriteLog("Иконка мода не загружена (" + title + "): " + imageError.Message);
-                    }
-                }
-                mods.Items.Add(item);
+                var card = CreateProjectCard(hit!, out var picture);
+                popularFeed.Controls.Add(card);
+                iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
             }
-            mods.EndUpdate();
-            status.Text="Найдено: "+mods.Items.Count;
-        }catch(Exception ex){Fail("Modrinth недоступен",ex);}
+            popularFeed.ResumeLayout();
+            await Task.WhenAll(iconTasks);
+            gate.Dispose();
+            status.Text = hits.Count == 0 ? "Modrinth не вернул популярные моды" : "Популярные моды загружены: " + hits.Count;
+        }
+        catch (Exception ex)
+        {
+            status.Text = "Не удалось загрузить ленту Modrinth";
+            WriteLog("Лента популярных модов: " + ex.Message);
+            popularFeed.Controls.Clear();
+            popularFeed.Controls.Add(new Label { Text = "Не удалось получить популярные проекты Modrinth. Проверьте подключение и нажмите «Моды», чтобы повторить поиск.", AutoSize = false, Size = new Size(520, 60), ForeColor = Color.Silver, Padding = new Padding(12) });
+        }
+    }
+
+    async Task SearchModsAsync(string query)
+    {
+        if (string.IsNullOrWhiteSpace(query)) return;
+        try
+        {
+            status.Text = "Поиск Modrinth…";
+            var facets = Uri.EscapeDataString("[[\\"project_type:mod\\"]]");
+            var url = "https://api.modrinth.com/v2/search?query=" + Uri.EscapeDataString(query) + "&facets=" + facets + "&index=relevance&limit=30";
+            var root = JsonNode.Parse(await http.GetStringAsync(url));
+            var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
+            modCards.SuspendLayout();
+            modCards.Controls.Clear();
+            var gate = new SemaphoreSlim(3);
+            var iconTasks = new List<Task>();
+            foreach (var hit in hits)
+            {
+                var card = CreateProjectCard(hit!, out var picture);
+                modCards.Controls.Add(card);
+                iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
+            }
+            modCards.ResumeLayout();
+            await Task.WhenAll(iconTasks);
+            gate.Dispose();
+            status.Text = "Найдено проектов: " + hits.Count;
+        }
+        catch (Exception ex) { Fail("Modrinth недоступен", ex); }
     }
 
     async Task DownloadSelectedModAsync()
     {
-        if(mods.SelectedItems.Count==0)return;
-        var project=mods.SelectedItems[0].SubItems[2].Text;
+        if (string.IsNullOrWhiteSpace(selectedModProject)) return;
+        var project = selectedModProject;
         try{
             status.Text="Получение версии мода…";
             var game=version.SelectedItem?.ToString()??throw new InvalidOperationException("Сначала выберите версию Minecraft.");
@@ -392,7 +476,7 @@ internal sealed class MainForm : Form
             var expectedSha512=file["hashes"]?["sha512"]?.ToString();
             if(string.IsNullOrWhiteSpace(expectedSha512) || expectedSha512.Length!=128 || !expectedSha512.All(Uri.IsHexDigit))
                 throw new InvalidDataException("У файла отсутствует корректный SHA-512 в метаданных Modrinth. Загрузка отменена.");
-            var projectTitle=mods.SelectedItems[0].Text;
+            var projectTitle = selectedModTitle ?? project;
             var approval=MessageBox.Show(
                 "Мод: "+projectTitle+"\nФайл: "+name+"\nВерсия Minecraft: "+game+"\nЗагрузчик: "+loaderName+"\nИсточник: api.modrinth.com / cdn.modrinth.com\nПроверка: SHA-512 по метаданным Modrinth.\n\nМоды — сторонний исполняемый код. Даже успешная проверка хеша не доказывает, что мод безопасен. Продолжить загрузку?",
                 "Подтверждение загрузки стороннего мода", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
