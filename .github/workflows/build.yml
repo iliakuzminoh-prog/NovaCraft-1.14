@@ -34,7 +34,6 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
-          New-Item -ItemType Directory -Force installer-output | Out-Null
           & $iscc "installer\NovaCraft.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
           if (!(Test-Path "installer-output\NovaCraft-1.14-Setup.exe")) { throw "Installer EXE was not created" }
@@ -42,6 +41,6 @@ jobs:
         with:
           name: NovaCraft-1.14-Windows
           path: |
-            installer-output/NovaCraft-1.14-Setup.exe
+            installer/installer-output/NovaCraft-1.14-Setup.exe
             NovaCraft-1.14-win-x64-portable.zip
           if-no-files-found: error
