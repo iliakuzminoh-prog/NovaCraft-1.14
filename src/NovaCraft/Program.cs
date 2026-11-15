@@ -1036,11 +1036,11 @@ internal sealed class MainForm : Form
     bool IsKnownLaunchError(Exception ex)
     {
         var message = ex.ToString();
-        return message.Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase) ||
-               message.Contains("Could not create Java Virtual Machine", StringComparison.OrdinalIgnoreCase) ||
+        if (message.Contains("jvm.cfg", StringComparison.OrdinalIgnoreCase) ||
+            message.Contains("Java executable", StringComparison.OrdinalIgnoreCase))
+            return false;
+        return message.Contains("Could not create Java Virtual Machine", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Cannot find version", StringComparison.OrdinalIgnoreCase) ||
-               message.Contains("Java executable", StringComparison.OrdinalIgnoreCase) ||
-               message.Contains("FileNotFoundException", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("checksum", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("NoClassDefFoundError", StringComparison.OrdinalIgnoreCase) ||
                message.Contains("Could not find or load main class", StringComparison.OrdinalIgnoreCase) ||
