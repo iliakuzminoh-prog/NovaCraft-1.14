@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Security;
 using System.Security.Cryptography;
+using System.Diagnostics;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
@@ -33,6 +34,14 @@ internal sealed class LauncherSettings
     public bool FpsBoost { get; set; }
     public string LastVersion { get; set; } = "1.21.1";
     public string ModLoader { get; set; } = "fabric";
+    public string JavaPath { get; set; } = "";
+    public int ScreenWidth { get; set; } = 1280;
+    public int ScreenHeight { get; set; } = 720;
+    public bool FullScreen { get; set; }
+    public bool CloseAfterLaunch { get; set; }
+    public bool AutoRepair { get; set; } = true;
+    public string ExtraJvmArguments { get; set; } = "";
+    public List<string> SavedBuilds { get; set; } = new();
 }
 
 internal sealed class MainForm : Form
@@ -47,6 +56,16 @@ internal sealed class MainForm : Form
     readonly CheckBox boost = new();
     readonly RichTextBox log = new();
     readonly Label status = new();
+    readonly Panel pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23) };
+    readonly List<TabPage> navigationPages = new();
+    readonly List<Button> navigationButtons = new();
+    TextBox? javaPathInput;
+    NumericUpDown? widthInput;
+    NumericUpDown? heightInput;
+    CheckBox? fullScreenInput;
+    CheckBox? closeAfterLaunchInput;
+    CheckBox? autoRepairInput;
+    TextBox? jvmArgsInput;
     readonly Button play = new();
     readonly Button install = new();
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
@@ -75,27 +94,81 @@ internal sealed class MainForm : Form
 
     void BuildUi()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.FromArgb(24, 26, 31) };
-        header.Controls.Add(new Label { Text = "NOVACRAFT", Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold), AutoSize = true, Location = new Point(26, 17) });
-        header.Controls.Add(new Label { Text = "1.14 • Windows 10/11 • Minecraft Java", ForeColor = Color.Silver, AutoSize = true, Location = new Point(29, 49) });
+        var header = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Color.FromArgb(24, 26, 34), Padding = new Padding(18, 8, 18, 8) };
+        header.Controls.Add(new Label { Text = "◆  NOVACRAFT", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, Location = new Point(18, 13), ForeColor = Color.White });
+        header.Controls.Add(new Label { Text = "Minecraft Java · лаунчер без рекламы и фоновых служб", AutoSize = true, Location = new Point(220, 23), ForeColor = Color.FromArgb(160, 170, 190) });
 
-        var tabs = new TabControl { Dock = DockStyle.Fill, DrawMode = TabDrawMode.OwnerDrawFixed, ItemSize = new Size(150, 38), SizeMode = TabSizeMode.Fixed };
-        tabs.DrawItem += (_, e) =>
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 188, BackColor = Color.FromArgb(22, 24, 32), Padding = new Padding(10, 14, 10, 10) };
+        var navScroll = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent };
+        sidebar.Controls.Add(navScroll);
+
+        var pages = new (string Name, TabPage Page)[]
         {
-            var selected = (e.State & DrawItemState.Selected) == DrawItemState.Selected;
-            using var brush = new SolidBrush(selected ? Color.FromArgb(48, 58, 76) : Color.FromArgb(24, 26, 31));
-            e.Graphics.FillRectangle(brush, e.Bounds);
-            TextRenderer.DrawText(e.Graphics, tabs.TabPages[e.Index].Text,
-                new Font("Segoe UI Semibold", 9, FontStyle.Bold), e.Bounds,
-                selected ? Color.White : Color.FromArgb(170, 180, 195),
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            ("⌂  Главная", HomePage()),
+            ("▣  Сборки", BuildsPage()),
+            ("✦  Моды", ModsPage()),
+            ("▧  Ресурспаки", CatalogPage("Ресурспаки Modrinth", "resourcepack")),
+            ("✧  Шейдеры", CatalogPage("Шейдеры Modrinth", "shader")),
+            ("▦  Датапаки", CatalogPage("Датапаки Modrinth", "datapack")),
+            ("▤  Каталог", CatalogPage("Сборки Modrinth", "modpack")),
+            ("◷  Новости", NewsPage()),
+            ("♙  Аккаунт", AccountPage()),
+            ("⚙  Настройки", SettingsPage()),
+            ("✓  Исправление", DiagnosticsPage())
         };
-        mainTabs = tabs;
-        tabs.TabPages.Add(HomePage()); tabs.TabPages.Add(VersionsPage()); tabs.TabPages.Add(ModsPage()); tabs.TabPages.Add(SettingsPage());
 
-        status.Text = "Готов"; status.Dock = DockStyle.Bottom; status.Height = 32; status.Padding = new Padding(16, 7, 0, 0);
-        status.ForeColor = Color.LightGray;
-        Controls.Add(tabs); Controls.Add(header); Controls.Add(status);
+        foreach (var item in pages)
+        {
+            item.Page.Dock = DockStyle.Fill;
+            item.Page.Visible = false;
+            navigationPages.Add(item.Page);
+            pageHost.Controls.Add(item.Page);
+
+            var button = new Button
+            {
+                Text = item.Name,
+                Width = 166,
+                Height = 42,
+                Margin = new Padding(0, 2, 0, 4),
+                TextAlign = ContentAlignment.MiddleLeft,
+                Padding = new Padding(12, 0, 4, 0),
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(22, 24, 32),
+                ForeColor = Color.FromArgb(190, 198, 215),
+                Font = new Font("Segoe UI", 9.5f)
+            };
+            button.FlatAppearance.BorderSize = 0;
+            var index = navigationPages.Count - 1;
+            button.Click += (_, _) => ShowNavigationPage(index);
+            navigationButtons.Add(button);
+            navScroll.Controls.Add(button);
+        }
+
+        status.Text = "Готов";
+        status.Dock = DockStyle.Bottom;
+        status.Height = 30;
+        status.Padding = new Padding(14, 6, 0, 0);
+        status.ForeColor = Color.FromArgb(185, 194, 210);
+        status.BackColor = Color.FromArgb(24, 26, 34);
+
+        Controls.Add(pageHost);
+        Controls.Add(sidebar);
+        Controls.Add(header);
+        Controls.Add(status);
+        ShowNavigationPage(0);
+        ApplyDarkTheme(this);
+    }
+
+    void ShowNavigationPage(int index)
+    {
+        if (index < 0 || index >= navigationPages.Count) return;
+        for (var i = 0; i < navigationPages.Count; i++)
+        {
+            navigationPages[i].Visible = i == index;
+            if (i == index) navigationPages[i].BringToFront();
+            navigationButtons[i].BackColor = i == index ? Color.FromArgb(83, 47, 174) : Color.FromArgb(22, 24, 32);
+            navigationButtons[i].ForeColor = i == index ? Color.White : Color.FromArgb(190, 198, 215);
+        }
     }
 
     static void ApplyDarkTheme(Control root)
@@ -143,58 +216,83 @@ internal sealed class MainForm : Form
 
     TabPage HomePage()
     {
-        var p = new TabPage("Главная") { BackColor = Color.FromArgb(18,19,23) };
-        var left = new Panel { Dock = DockStyle.Left, Width = 420, Padding = new Padding(22) };
-        var right = new Panel { Dock = DockStyle.Fill, Padding = new Padding(22) };
-        left.Controls.Add(new Label { Text = "Запуск Minecraft", Font = new Font("Segoe UI Semibold", 20, FontStyle.Bold), AutoSize = true, Location = new Point(22, 20) });
+        var p = new TabPage("Главная") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12) };
+        var hero = new Panel { Dock = DockStyle.Top, Height = 250, BackColor = Color.FromArgb(35, 29, 58), Margin = new Padding(0, 0, 0, 12) };
+        var artwork = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(35, 29, 58), Image = LoadHeroArt() };
+        hero.Controls.Add(artwork);
 
+        var lower = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(0, 12, 0, 0) };
+        var launchPanel = new Panel { Dock = DockStyle.Left, Width = 350, BackColor = Color.FromArgb(27, 30, 40), Padding = new Padding(18) };
+        var feedPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12, 0, 0, 0) };
+
+        launchPanel.Controls.Add(new Label { Text = "БЫСТРЫЙ ЗАПУСК", Font = new Font("Segoe UI Semibold", 14, FontStyle.Bold), AutoSize = true, Location = new Point(18, 15), ForeColor = Color.White });
         username.Text = settings.Username;
-        left.Controls.Add(Labeled("Ник", username, 22, 70, 360));
+        launchPanel.Controls.Add(Labeled("Имя игрока", username, 18, 50, 300));
 
         version.DropDownStyle = ComboBoxStyle.DropDownList;
-        left.Controls.Add(Labeled("Версия Minecraft", version, 22, 140, 360));
+        launchPanel.Controls.Add(Labeled("Версия Minecraft", version, 18, 118, 300));
         gameLoader.DropDownStyle = ComboBoxStyle.DropDownList;
+        gameLoader.Items.Clear();
         gameLoader.Items.AddRange(new object[] { "Vanilla", "Fabric", "Quilt", "Forge" });
         gameLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", "vanilla" => "Vanilla", _ => "Fabric" };
-        gameLoader.SelectedIndexChanged += (_, _) => {
+        gameLoader.SelectedIndexChanged += (_, _) =>
+        {
             settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
+            if (modLoader.Items.Contains(gameLoader.SelectedItem)) modLoader.SelectedItem = gameLoader.SelectedItem;
             SettingsService.Save(settings);
         };
-        left.Controls.Add(Labeled("Загрузчик", gameLoader, 22, 210, 360));
+        launchPanel.Controls.Add(Labeled("Загрузчик", gameLoader, 18, 186, 300));
 
-        ram.Minimum = 1024; ram.Maximum = 16384; ram.Increment = 512;
-        ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 16384);
-        left.Controls.Add(Labeled("Память игры (МБ)", ram, 22, 280, 360));
+        boost.Text = "Профиль оптимизации JVM";
+        boost.Checked = settings.FpsBoost;
+        boost.AutoSize = true;
+        boost.Location = new Point(20, 258);
+        launchPanel.Controls.Add(boost);
 
-        boost.Text = "FPS Boost — JVM профиль"; boost.Checked = settings.FpsBoost;
-        boost.AutoSize = true; boost.Location = new Point(26, 352); left.Controls.Add(boost);
+        play.Text = "▶  ИГРАТЬ";
+        play.Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold);
+        play.SetBounds(18, 292, 300, 48);
+        play.Click += async (_, _) => await LaunchAsync();
+        launchPanel.Controls.Add(play);
 
-        play.Text = "ИГРАТЬ"; play.Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold);
-        play.FlatStyle = FlatStyle.Flat; play.BackColor = Color.FromArgb(46, 160, 67); play.ForeColor = Color.White;
-        play.SetBounds(22, 395, 360, 54); play.Click += async (_, _) => await LaunchAsync(); left.Controls.Add(play);
+        install.Text = "Установить / восстановить версию";
+        install.SetBounds(18, 350, 300, 38);
+        install.Click += async (_, _) => await InstallAsync();
+        launchPanel.Controls.Add(install);
 
-        install.Text = "Установить выбранную версию"; install.FlatStyle = FlatStyle.Flat;
-        install.SetBounds(22, 462, 360, 44); install.Click += async (_, _) => await InstallAsync(); left.Controls.Add(install);
+        var ramInfo = new Label { Text = $"Память игры: {settings.MaximumRamMb} МБ  ·  Подробнее в настройках", AutoSize = true, ForeColor = Color.Silver, Location = new Point(18, 402) };
+        launchPanel.Controls.Add(ramInfo);
 
-        left.Controls.Add(new Label {
-            Text = "Нет скрытых служб, автозапуска и рекламных баннеров.\nФайлы Minecraft находятся только в выбранной папке.",
-            ForeColor = Color.LightGray, AutoSize = true, Location = new Point(22, 525)
-        });
-
-        var feedHeader = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.FromArgb(18, 19, 23) };
-        feedHeader.Controls.Add(new Label { Text = "Популярные моды", Font = new Font("Segoe UI Semibold", 18, FontStyle.Bold), AutoSize = true, Location = new Point(8, 5), ForeColor = Color.White });
-        feedHeader.Controls.Add(new Label { Text = "Популярное на Modrinth · сортировка по загрузкам", AutoSize = true, Location = new Point(10, 39), ForeColor = Color.Silver });
-        var openCatalog = new Button { Text = "Весь каталог", Width = 130, Height = 34, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        openCatalog.Location = new Point(Math.Max(0, right.ClientSize.Width - 160), 18);
-        openCatalog.Click += (_, _) => { if (mainTabs != null) mainTabs.SelectedIndex = 2; };
-        feedHeader.Resize += (_, _) => openCatalog.Location = new Point(Math.Max(0, feedHeader.ClientSize.Width - 145), 18);
-        feedHeader.Controls.Add(openCatalog);
-
-        log.Dock = DockStyle.Bottom; log.Height = 112; log.ReadOnly = true; log.BackColor = Color.FromArgb(11,12,15);
-        log.ForeColor = Color.Gainsboro; log.Font = new Font("Consolas", 9); log.BorderStyle = BorderStyle.None;
+        feedPanel.Controls.Add(new Label { Text = "ПОПУЛЯРНЫЕ МОДЫ", Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold), AutoSize = true, Location = new Point(12, 2), ForeColor = Color.White });
+        var seeAll = new Button { Text = "Весь каталог →", Width = 120, Height = 30, Anchor = AnchorStyles.Top | AnchorStyles.Right };
+        seeAll.Location = new Point(Math.Max(12, feedPanel.ClientSize.Width - 140), 0);
+        seeAll.Click += (_, _) => ShowNavigationPage(2);
+        feedPanel.Resize += (_, _) => seeAll.Location = new Point(Math.Max(12, feedPanel.ClientSize.Width - 140), 0);
+        feedPanel.Controls.Add(seeAll);
         popularFeed.Dock = DockStyle.Fill;
-        right.Controls.Add(popularFeed); right.Controls.Add(log); right.Controls.Add(feedHeader);
-        p.Controls.Add(right); p.Controls.Add(left); return p;
+        popularFeed.Padding = new Padding(4, 40, 4, 4);
+        feedPanel.Controls.Add(popularFeed);
+
+        lower.Controls.Add(feedPanel);
+        lower.Controls.Add(launchPanel);
+        p.Controls.Add(lower);
+        p.Controls.Add(hero);
+        return p;
+    }
+
+    Image? LoadHeroArt()
+    {
+        try
+        {
+            var assembly = typeof(Program).Assembly;
+            var name = assembly.GetManifestResourceNames().FirstOrDefault(x => x.EndsWith("novacraft-hero.webp", StringComparison.OrdinalIgnoreCase));
+            if (name == null) return null;
+            using var stream = assembly.GetManifestResourceStream(name);
+            if (stream == null) return null;
+            using var source = Image.FromStream(stream);
+            return new Bitmap(source);
+        }
+        catch { return null; }
     }
 
     TabPage VersionsPage()
@@ -210,41 +308,176 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Моды") { BackColor = Color.FromArgb(18, 19, 23) };
         var toolbar = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12) };
-        var search = new TextBox { PlaceholderText = "Поиск модов на Modrinth…", Width = 390, Height = 34, Location = new Point(10, 14), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
+        var search = new TextBox { PlaceholderText = "Поиск модов Modrinth…", Width = 390, Height = 34, Location = new Point(10, 14), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
         var btn = new Button { Text = "Найти", Location = new Point(410, 13), Width = 90, Height = 34 };
         modLoader.DropDownStyle = ComboBoxStyle.DropDownList;
         modLoader.Items.Clear();
         modLoader.Items.AddRange(new object[] { "Fabric", "Quilt", "Forge" });
         modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", _ => "Fabric" };
         modLoader.Location = new Point(510, 14); modLoader.Width = 125; modLoader.Height = 34;
-        var hint = new Label { Text = "Карточки проектов · иконки и сведения загружаются из Modrinth", AutoSize = true, ForeColor = Color.Silver, Location = new Point(650, 21) };
+        var hint = new Label { Text = "Автор · описание · загрузки · иконка из Modrinth", AutoSize = true, ForeColor = Color.Silver, Location = new Point(650, 21) };
         toolbar.Controls.AddRange(new Control[] { search, btn, modLoader, hint });
         toolbar.Resize += (_, _) => { search.Width = Math.Max(180, toolbar.ClientSize.Width - 760); btn.Left = search.Right + 10; modLoader.Left = btn.Right + 10; hint.Left = modLoader.Right + 14; };
         btn.Click += async (_, _) => await SearchModsAsync(search.Text);
         search.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SearchModsAsync(search.Text); } };
-        modLoader.SelectedIndexChanged += (_, _) => {
+        modLoader.SelectedIndexChanged += (_, _) =>
+        {
             settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", _ => "fabric" };
             if (gameLoader.Items.Contains(modLoader.SelectedItem)) gameLoader.SelectedItem = modLoader.SelectedItem;
             SettingsService.Save(settings);
         };
+        modCards.Dock = DockStyle.Fill;
         p.Controls.Add(modCards);
         p.Controls.Add(toolbar);
         return p;
     }
 
+    TabPage CatalogPage(string title, string projectType)
+    {
+        var p = new TabPage(title) { BackColor = Color.FromArgb(18, 19, 23) };
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = 64, Padding = new Padding(12), BackColor = Color.FromArgb(18, 19, 23) };
+        var search = new TextBox { PlaceholderText = "Найти: название, автор или описание…", Location = new Point(12, 14), Width = 430, Height = 34 };
+        var find = new Button { Text = "Найти", Location = new Point(452, 13), Width = 95, Height = 34 };
+        var caption = new Label { Text = "Каталог Modrinth · авторы и описания из источника", AutoSize = true, ForeColor = Color.Silver, Location = new Point(565, 21) };
+        var results = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
+        find.Click += async (_, _) => await SearchProjectsAsync(search.Text, projectType, results);
+        search.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SearchProjectsAsync(search.Text, projectType, results); } };
+        toolbar.Controls.AddRange(new Control[] { search, find, caption });
+        p.Controls.Add(results);
+        p.Controls.Add(toolbar);
+        return p;
+    }
+
+    TabPage BuildsPage()
+    {
+        var p = new TabPage("Сборки") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
+        p.Controls.Add(new Label { Text = "МОИ СБОРКИ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 22) });
+        p.Controls.Add(new Label { Text = "Сохраняй отдельные профили версий и загрузчиков.", AutoSize = true, ForeColor = Color.Silver, Location = new Point(26, 60) });
+        var name = new TextBox { PlaceholderText = "Название новой сборки", Location = new Point(26, 102), Width = 300, Height = 34 };
+        var add = new Button { Text = "Сохранить текущий профиль", Location = new Point(340, 101), Width = 210, Height = 36 };
+        var list = new ListBox { Location = new Point(26, 156), Size = new Size(780, 360), BackColor = Color.FromArgb(27, 31, 39), ForeColor = Color.White, BorderStyle = BorderStyle.None };
+        void RefreshBuildList()
+        {
+            list.Items.Clear();
+            foreach (var saved in settings.SavedBuilds)
+            {
+                var parts = saved.Split('|');
+                list.Items.Add(parts.Length >= 3 ? $"{parts[0]}   ·   Minecraft {parts[1]}   ·   {parts[2]}" : saved);
+            }
+        }
+        add.Click += (_, _) =>
+        {
+            var buildName = string.IsNullOrWhiteSpace(name.Text) ? "Моя сборка " + (settings.SavedBuilds.Count + 1) : name.Text.Trim();
+            var gameVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
+            var loader = gameLoader.SelectedItem?.ToString() ?? "Fabric";
+            settings.SavedBuilds.Add(buildName + "|" + gameVersion + "|" + loader);
+            SettingsService.Save(settings);
+            RefreshBuildList();
+            status.Text = "Сборка сохранена";
+        };
+        var launchBuild = new Button { Text = "Запустить выбранную", Location = new Point(26, 535), Width = 190, Height = 40 };
+        launchBuild.Click += async (_, _) =>
+        {
+            if (list.SelectedIndex < 0 || list.SelectedIndex >= settings.SavedBuilds.Count) return;
+            var parts = settings.SavedBuilds[list.SelectedIndex].Split('|');
+            if (parts.Length < 3) return;
+            settings.LastVersion = parts[1];
+            if (gameLoader.Items.Contains(parts[2])) gameLoader.SelectedItem = parts[2];
+            version.SelectedItem = parts[1];
+            SettingsService.Save(settings);
+            ShowNavigationPage(0);
+            await LaunchAsync();
+        };
+        var remove = new Button { Text = "Удалить профиль", Location = new Point(230, 535), Width = 150, Height = 40 };
+        remove.Click += (_, _) =>
+        {
+            if (list.SelectedIndex < 0 || list.SelectedIndex >= settings.SavedBuilds.Count) return;
+            settings.SavedBuilds.RemoveAt(list.SelectedIndex);
+            SettingsService.Save(settings);
+            RefreshBuildList();
+        };
+        p.Controls.AddRange(new Control[] { name, add, list, launchBuild, remove });
+        RefreshBuildList();
+        return p;
+    }
+
+    TabPage NewsPage()
+    {
+        var p = new TabPage("Новости") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
+        p.Controls.Add(new Label { Text = "Новости и обновления", Font = new Font("Segoe UI Semibold", 20, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
+        p.Controls.Add(new Label { Text = "Здесь будут новости NovaCraft и обновления каталога. В этой версии новости не подменяются выдуманными публикациями.", AutoSize = false, Size = new Size(700, 64), ForeColor = Color.Silver, Location = new Point(26, 76) });
+        return p;
+    }
+
+    TabPage AccountPage()
+    {
+        var p = new TabPage("Аккаунт") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
+        p.Controls.Add(new Label { Text = "ПРОФИЛЬ ИГРОКА", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
+        p.Controls.Add(new Label { Text = "Сейчас доступен локальный ник. Подключение Ely.by ещё не реализовано — не буду выдавать офлайн-режим за авторизацию.", AutoSize = false, Size = new Size(760, 58), ForeColor = Color.Silver, Location = new Point(26, 70) });
+        p.Controls.Add(Labeled("Имя игрока", username, 26, 140, 340));
+        var save = new Button { Text = "Сохранить имя", Location = new Point(26, 215), Width = 150, Height = 38 };
+        save.Click += (_, _) => { settings.Username = username.Text.Trim(); SettingsService.Save(settings); status.Text = "Имя сохранено"; };
+        p.Controls.Add(save);
+        return p;
+    }
+
     TabPage SettingsPage()
     {
-        var p = new TabPage("Настройки") { BackColor = Color.FromArgb(18,19,23) };
-        p.Controls.Add(new Label { Text="Папка Minecraft", AutoSize=true, Location=new Point(22,25) });
-        gameDir.Text=settings.GameDirectory; gameDir.SetBounds(22,55,760,34);
-        var browse=new Button{Text="Выбрать…",Location=new Point(795,55),Width=100};
-        browse.Click += (_,_) => {
-            using var d=new FolderBrowserDialog{Description="Выберите папку Minecraft",SelectedPath=gameDir.Text};
-            if(d.ShowDialog()==DialogResult.OK) gameDir.Text=d.SelectedPath;
+        var p = new TabPage("Настройки") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(22) };
+        p.AutoScroll = true;
+        p.Controls.Add(new Label { Text = "НАСТРОЙКИ ИГРЫ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(22, 18) });
+
+        p.Controls.Add(new Label { Text = "Папка Minecraft", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 68) });
+        gameDir.Text = settings.GameDirectory; gameDir.SetBounds(24, 94, 590, 34);
+        var browse = new Button { Text = "Выбрать…", Location = new Point(625, 93), Width = 110, Height = 36 };
+        browse.Click += (_, _) =>
+        {
+            using var d = new FolderBrowserDialog { Description = "Выберите папку Minecraft", SelectedPath = gameDir.Text };
+            if (d.ShowDialog() == DialogResult.OK) gameDir.Text = d.SelectedPath;
         };
-        var save=new Button{Text="Сохранить",Location=new Point(22,110),Width=150,Height=40};
-        save.Click += (_,_)=>SaveSettings();
-        p.Controls.AddRange(new Control[]{gameDir,browse,save}); return p;
+
+        p.Controls.Add(new Label { Text = "Java (оставь пустым для автоматического выбора и установки)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 145) });
+        javaPathInput = new TextBox { Text = settings.JavaPath, Location = new Point(24, 171), Width = 590, Height = 34 };
+        var javaBrowse = new Button { Text = "Найти javaw.exe", Location = new Point(625, 170), Width = 130, Height = 36 };
+        javaBrowse.Click += (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Filter = "Java executable|javaw.exe;java.exe|All files|*.*", Title = "Выберите Java" };
+            if (dialog.ShowDialog() == DialogResult.OK) javaPathInput.Text = dialog.FileName;
+        };
+
+        p.Controls.Add(new Label { Text = "Оперативная память для Minecraft (МБ)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 222) });
+        ram.Minimum = 1024; ram.Maximum = 16384; ram.Increment = 512; ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 16384);
+        ram.SetBounds(24, 248, 180, 34);
+
+        p.Controls.Add(new Label { Text = "Разрешение окна", AutoSize = true, ForeColor = Color.Silver, Location = new Point(245, 222) });
+        widthInput = new NumericUpDown { Minimum = 800, Maximum = 3840, Increment = 80, Value = Math.Clamp(settings.ScreenWidth, 800, 3840), Location = new Point(245, 248), Width = 100 };
+        heightInput = new NumericUpDown { Minimum = 600, Maximum = 2160, Increment = 60, Value = Math.Clamp(settings.ScreenHeight, 600, 2160), Location = new Point(355, 248), Width = 100 };
+        fullScreenInput = new CheckBox { Text = "Полный экран", Checked = settings.FullScreen, AutoSize = true, Location = new Point(480, 253), ForeColor = Color.White };
+        closeAfterLaunchInput = new CheckBox { Text = "Закрывать лаунчер после запуска игры", Checked = settings.CloseAfterLaunch, AutoSize = true, Location = new Point(24, 300), ForeColor = Color.White };
+        autoRepairInput = new CheckBox { Text = "Автоматически исправлять типовые ошибки запуска", Checked = settings.AutoRepair, AutoSize = true, Location = new Point(24, 334), ForeColor = Color.White };
+
+        p.Controls.Add(new Label { Text = "Дополнительные JVM-параметры (необязательно)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 380) });
+        jvmArgsInput = new TextBox { Text = settings.ExtraJvmArguments, Location = new Point(24, 406), Width = 710, Height = 34 };
+        var note = new Label { Text = "Не меняй параметры, если не знаешь их назначение. Неверные аргументы могут помешать запуску.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(155, 165, 184), Location = new Point(24, 445) };
+        var save = new Button { Text = "Сохранить настройки", Location = new Point(24, 500), Width = 190, Height = 42 };
+        save.Click += (_, _) => SaveSettings();
+
+        p.Controls.AddRange(new Control[] { gameDir, browse, javaPathInput, javaBrowse, ram, widthInput, heightInput, fullScreenInput, closeAfterLaunchInput, autoRepairInput, jvmArgsInput, note, save });
+        return p;
+    }
+
+    TabPage DiagnosticsPage()
+    {
+        var p = new TabPage("Исправление") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
+        p.Controls.Add(new Label { Text = "ПРОВЕРКА И АВТОИСПРАВЛЕНИЕ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 22) });
+        p.Controls.Add(new Label { Text = "Проверяются папка игры, доступ на запись, путь Java, параметры памяти и файлы выбранной версии. Повреждённые или отсутствующие официальные файлы можно восстановить повторной установкой.", AutoSize = false, Size = new Size(760, 70), ForeColor = Color.Silver, Location = new Point(26, 70) });
+        var result = new Label { Text = "Проверка ещё не запускалась.", AutoSize = false, Size = new Size(760, 90), ForeColor = Color.FromArgb(190, 205, 220), Location = new Point(26, 155), Padding = new Padding(10), BackColor = Color.FromArgb(27, 31, 39) };
+        var repair = new Button { Text = "Проверить и исправить", Location = new Point(26, 265), Width = 220, Height = 44 };
+        repair.Click += async (_, _) => await RunAutoRepairAsync(result);
+        var copy = new Button { Text = "Скопировать технический отчёт", Location = new Point(260, 265), Width = 235, Height = 44 };
+        copy.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(log.Text)) Clipboard.SetText(log.Text); status.Text = "Отчёт скопирован"; };
+        p.Controls.AddRange(new Control[] { result, repair, copy });
+        return p;
     }
 
     Control Labeled(string text, Control control, int x, int y, int width)
@@ -504,12 +737,23 @@ internal sealed class MainForm : Form
 
     void SaveSettings()
     {
-        settings.Username=username.Text.Trim(); settings.MaximumRamMb=(int)ram.Value;
-        settings.FpsBoost=boost.Checked; settings.GameDirectory=gameDir.Text.Trim();
-        settings.LastVersion=version.SelectedItem?.ToString()??settings.LastVersion;
+        settings.Username = username.Text.Trim();
+        settings.MaximumRamMb = (int)ram.Value;
+        settings.FpsBoost = boost.Checked;
+        settings.GameDirectory = gameDir.Text.Trim();
+        settings.LastVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
         settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
-        Directory.CreateDirectory(settings.GameDirectory); launcher=new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
-        SettingsService.Save(settings); status.Text="Настройки сохранены";
+        settings.JavaPath = javaPathInput?.Text.Trim() ?? settings.JavaPath;
+        settings.ScreenWidth = (int)(widthInput?.Value ?? settings.ScreenWidth);
+        settings.ScreenHeight = (int)(heightInput?.Value ?? settings.ScreenHeight);
+        settings.FullScreen = fullScreenInput?.Checked ?? settings.FullScreen;
+        settings.CloseAfterLaunch = closeAfterLaunchInput?.Checked ?? settings.CloseAfterLaunch;
+        settings.AutoRepair = autoRepairInput?.Checked ?? settings.AutoRepair;
+        settings.ExtraJvmArguments = jvmArgsInput?.Text.Trim() ?? settings.ExtraJvmArguments;
+        Directory.CreateDirectory(settings.GameDirectory);
+        launcher = new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
+        SettingsService.Save(settings);
+        status.Text = "Настройки сохранены";
     }
 
     void SetBusy(bool busy,string? message=null){play.Enabled=!busy;install.Enabled=!busy;Cursor=busy?Cursors.WaitCursor:Cursors.Default;if(message!=null)status.Text=message;}
