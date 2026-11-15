@@ -36,7 +36,7 @@ jobs:
           if (!(Test-Path $iscc)) { throw "Inno Setup compiler not found: $iscc" }
           & $iscc "installer\NovaCraft.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
-          if (!(Test-Path "installer-output\NovaCraft-1.14-Setup.exe")) { throw "Installer EXE was not created" }
+          if (!(Test-Path "installer\installer-output\NovaCraft-1.14-Setup.exe")) { throw "Installer EXE was not created at installer/installer-output" }
       - uses: actions/upload-artifact@v4
         with:
           name: NovaCraft-1.14-Windows
