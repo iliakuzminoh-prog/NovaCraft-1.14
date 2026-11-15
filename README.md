@@ -14,11 +14,17 @@ Features in the current build:
 - Mod downloads require explicit confirmation, HTTPS from the official Modrinth CDN, a valid JAR/ZIP signature, and a matching SHA-512 from Modrinth metadata. Files are written only after verification.
 - The launcher contains install paths for Vanilla, Fabric, Forge, and Quilt. Runtime verification of each loader is still required.
 - Microsoft/Mojang sign-in is excluded. Ely.by account authentication is the target; offline nickname mode remains a separate fallback.
+- Custom left navigation for Home, saved build profiles, mods, resource packs, shaders, datapacks, modpacks, news, account, settings, and diagnostics.
+- Original NovaCraft hero artwork embedded in the executable; no third-party watermark.
+- Flexible settings for RAM, Java executable path, game resolution, fullscreen, custom JVM arguments, launcher close behavior, and automatic repair.
+- Diagnostics for writable game folder, invalid Java path, RAM allocation, and repair/reinstall of selected version files. Common launch errors are translated into readable messages; this is not a guarantee against every possible Minecraft or mod error.
 - Dark Russian UI, no ads, no background service, no automatic startup.
 - Local settings under %LOCALAPPDATA%\NovaCraft.
 - GitHub Actions build produces a portable EXE ZIP.
 
 Microsoft/Mojang OAuth is intentionally excluded from NovaCraft 1.14. Ely.by authentication must use Ely.by's own authentication/session endpoints and authlib integration; a local offline nickname alone is not equivalent to an Ely.by account. The launcher does not include license-check bypass or game acquisition features.
+
+The UI is implemented independently in C# WinForms; it does not copy SKlauncher source code. The Modrinth catalog uses project metadata and icons from Modrinth's API. Non-mod catalog cards currently open their Modrinth project pages; one-click installation for resource packs, shaders, and datapacks is not yet implemented.
 
 The EXE is not padded with junk just to hit an arbitrary 100/300 MB number. A large file should contain useful runtime/dependencies. A bundled Java runtime can legitimately make a distribution much larger and will be added only as a real, verified component.
 
