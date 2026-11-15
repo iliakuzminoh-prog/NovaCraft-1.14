@@ -827,7 +827,7 @@ internal sealed class MainForm : Form
             using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
             if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024)) return;
-            var bytes = await ReadBoundedContentAsync(response.Content, 250 * 1024 * 1024);
+            var bytes = await ReadBoundedContentAsync(response.Content, 5 * 1024 * 1024);
             if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024) return;
             using var ms = new MemoryStream(bytes);
             using var source = Image.FromStream(ms);
