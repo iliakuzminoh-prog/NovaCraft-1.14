@@ -644,8 +644,8 @@ internal sealed class MainForm : Form
         try {
             status.Text="Получение списка версий…";
             var all=await launcher.GetAllVersionsAsync();
-            var releases=all.Where(v=>string.Equals(v.Type.ToString(),"release",StringComparison.OrdinalIgnoreCase))
-                .Select(v=>v.Name).Distinct().Take(100).ToList();
+            var releases=all?.Where(v=>v is not null && string.Equals(v.Type.ToString(),"release",StringComparison.OrdinalIgnoreCase))
+                .Select(v=>v!.Name).Distinct().Take(100).ToList() ?? new List<string>();
             version.Items.Clear(); foreach(var v in releases) version.Items.Add(v);
             version.SelectedItem = releases.Contains(settings.LastVersion) ? settings.LastVersion : releases.FirstOrDefault();
             if(version.Tag is ListBox list){list.Items.Clear();list.Items.AddRange(releases.ToArray());}
