@@ -432,6 +432,9 @@ internal sealed class MainForm : Form
                 var source = customMusicPath.Text;
                 if (string.IsNullOrWhiteSpace(source) || !File.Exists(source))
                     throw new InvalidOperationException("Сначала выбери существующий файл .ogg.");
+                var selectedGameVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
+                if (selectedGameVersion != "1.21.1")
+                    throw new InvalidOperationException("В этой версии генератор музыки формирует ресурс-пак для Minecraft 1.21.1 (pack_format 34). Выбери Minecraft 1.21.1, иначе игра может отклонить ресурс-пак.");
                 if (!string.Equals(Path.GetExtension(source), ".ogg", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidOperationException("Minecraft Java принимает этот ресурс-пак с аудио в формате OGG.");
                 var targetDir = Path.Combine(settings.GameDirectory, "resourcepacks");
@@ -949,7 +952,7 @@ internal sealed class MainForm : Form
                 throw new InvalidOperationException("Для установки модов выбери Fabric, Quilt или Forge. В Vanilla моды не загружаются.");
             status.Text="Получение версии мода…";
             var game=version.SelectedItem?.ToString()??throw new InvalidOperationException("Сначала выберите версию Minecraft.");
-            var loaderName = settings.ModLoader == "vanilla" ? "fabric" : settings.ModLoader;
+            var loaderName = settings.ModLoader;
             var gameFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game }));
             var loaderFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loaderName }));
             var url=$"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(project)}/version?game_versions={gameFilter}&loaders={loaderFilter}";
