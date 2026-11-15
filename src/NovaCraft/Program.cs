@@ -196,8 +196,8 @@ internal sealed class MainForm : Form
         var search = new TextBox { PlaceholderText = "Поиск модов Modrinth…", Width = 430, Location = new Point(22,18) };
         var btn = new Button { Text = "Найти", Location = new Point(465,17), Width = 90 };
         modLoader.DropDownStyle = ComboBoxStyle.DropDownList;
-        modLoader.Items.AddRange(new object[] { "Fabric", "Forge", "NeoForge" });
-        modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "neoforge" => "NeoForge", _ => "Fabric" };
+        modLoader.Items.AddRange(new object[] { "Fabric", "Quilt", "Forge" });
+        modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", _ => "Fabric" };
         modLoader.Location = new Point(565,17); modLoader.Width = 125;
         var get = new Button { Text = "Скачать выбранный", Location = new Point(700,17), Width = 160 };
         mods.SetBounds(22,62,1050,520); mods.View=View.Details; mods.FullRowSelect=true;
@@ -206,7 +206,7 @@ internal sealed class MainForm : Form
         btn.Click += async (_,_) => await SearchModsAsync(search.Text);
         get.Click += async (_,_) => await DownloadSelectedModAsync();
         modLoader.SelectedIndexChanged += (_,_) => {
-            settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "NeoForge" => "neoforge", _ => "fabric" };
+            settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", _ => "fabric" };
             SettingsService.Save(settings);
         };
         p.Controls.AddRange(new Control[]{search,btn,modLoader,get,mods}); return p;
@@ -391,7 +391,7 @@ internal sealed class MainForm : Form
         settings.Username=username.Text.Trim(); settings.MaximumRamMb=(int)ram.Value;
         settings.FpsBoost=boost.Checked; settings.GameDirectory=gameDir.Text.Trim();
         settings.LastVersion=version.SelectedItem?.ToString()??settings.LastVersion;
-        settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "NeoForge" => "neoforge", "Vanilla" => "vanilla", _ => "fabric" };
+        settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
         Directory.CreateDirectory(settings.GameDirectory); launcher=new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
         SettingsService.Save(settings); status.Text="Настройки сохранены";
     }
