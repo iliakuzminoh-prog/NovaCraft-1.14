@@ -1165,7 +1165,48 @@ internal sealed class MainForm : Form
 
 static class SettingsService
 {
-    static readonly string PathName=Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),"NovaCraft","settings.json");
-    public static LauncherSettings Load(){try{if(File.Exists(PathName))return JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(PathName))??new();}catch{}return new();}
-    public static void Save(LauncherSettings s){Directory.CreateDirectory(Path.GetDirectoryName(PathName)!);File.WriteAllText(PathName,JsonSerializer.Serialize(s,new JsonSerializerOptions{WriteIndented=true}));}
+    static readonly string PathName = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "settings.json");
+
+    public static LauncherSettings Load()
+    {
+        if (!File.Exists(PathName)) return new LauncherSettings();
+        try
+        {
+            var loaded = JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(PathName)) ?? new LauncherSettings();
+            if (string.IsNullOrWhiteSpace(loaded.GameDirectory))
+                loaded.GameDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
+            loaded.MaximumRamMb = Math.Clamp(loaded.MaximumRamMb, 1024, 8192);
+            loaded.ScreenWidth = Math.Clamp(loaded.ScreenWidth, 800, 3840);
+            loaded.ScreenHeight = Math.Clamp(loaded.ScreenHeight, 600, 2160);
+            if (loaded.ModLoader is not ("vanilla" or "fabric" or "forge" or "quilt"))
+                loaded.ModLoader = "fabric";
+            if (string.IsNullOrWhiteSpace(loaded.Username))
+                loaded.Username = "NovaPlayer";
+            loaded.SavedBuilds ??= new List<string>();
+            return loaded;
+        }
+        catch (Exception ex)
+        {
+            var backupMessage = "Не удалось сохранить резервную копию.";
+            try
+            {
+                var backup = PathName + ".corrupt-" + DateTime.Now.ToString("yyyyMMdd-HHmmss");
+                File.Copy(PathName, backup, false);
+                backupMessage = "Повреждённый файл сохранён как " + backup;
+            }
+            catch { }
+            MessageBox.Show("Файл настроек повреждён или имеет неверный формат. NovaCraft запустится с настройками по умолчанию.\n" + backupMessage + "\n\nПричина: " + ex.Message,
+                "Восстановление настроек", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return new LauncherSettings();
+        }
+    }
+
+    public static void Save(LauncherSettings s)
+    {
+        var directory = Path.GetDirectoryName(PathName)!;
+        Directory.CreateDirectory(directory);
+        var temporary = PathName + ".tmp";
+        File.WriteAllText(temporary, JsonSerializer.Serialize(s, new JsonSerializerOptions { WriteIndented = true }));
+        File.Move(temporary, PathName, true);
+    }
 }
