@@ -37,6 +37,30 @@ jobs:
           & $iscc "installer\NovaCraft.iss"
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
           if (!(Test-Path "installer\installer-output\NovaCraft-1.14-Setup.exe")) { throw "Installer EXE was not created at installer/installer-output" }
+      - name: Test installer install and uninstall
+        shell: pwsh
+        run: |
+          $setup = (Resolve-Path "installer/installer-output/NovaCraft-1.14-Setup.exe").Path
+          $testDir = Join-Path $env:RUNNER_TEMP "NovaCraft Installer Smoke Test"
+          $log = Join-Path $env:RUNNER_TEMP "novacraft-installer-test.log"
+          & $setup "/VERYSILENT" "/SUPPRESSMSGBOXES" "/NORESTART" "/DIR=$testDir" "/LOG=$log"
+          if ($LASTEXITCODE -ne 0) {
+            Get-Content $log -ErrorAction SilentlyContinue
+            throw "Installer returned exit code $LASTEXITCODE"
+          }
+          $installedExe = Join-Path $testDir "NovaCraft.exe"
+          $uninstaller = Join-Path $testDir "unins000.exe"
+          if (!(Test-Path $installedExe)) {
+            Get-Content $log -ErrorAction SilentlyContinue
+            throw "Smoke test failed: NovaCraft.exe was not installed"
+          }
+          if (!(Test-Path $uninstaller)) {
+            throw "Smoke test failed: uninstaller was not created"
+          }
+          & $uninstaller "/VERYSILENT" "/SUPPRESSMSGBOXES" "/NORESTART"
+          if ($LASTEXITCODE -ne 0) { throw "Uninstaller returned exit code $LASTEXITCODE" }
+          if (Test-Path $installedExe) { throw "Smoke test failed: NovaCraft.exe remains after uninstall" }
+          Write-Host "Installer smoke test passed: install, file verification, uninstall."
       - uses: actions/upload-artifact@v4
         with:
           name: NovaCraft-1.14-Windows
