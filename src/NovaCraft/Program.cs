@@ -419,6 +419,57 @@ internal sealed class MainForm : Form
         return p;
     }
 
+    TabPage SettingsPage()
+    {
+        var p = new TabPage("Настройки") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(22) };
+        p.AutoScroll = true;
+        p.Controls.Add(new Label { Text = "НАСТРОЙКИ ИГРЫ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(22, 18) });
+
+        p.Controls.Add(new Label { Text = "Папка Minecraft", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 68) });
+        gameDir.Text = settings.GameDirectory;
+        gameDir.SetBounds(24, 94, 590, 34);
+        var browse = new Button { Text = "Выбрать…", Location = new Point(625, 93), Width = 110, Height = 36 };
+        browse.Click += (_, _) =>
+        {
+            using var d = new FolderBrowserDialog { Description = "Выберите папку Minecraft", SelectedPath = gameDir.Text };
+            if (d.ShowDialog() == DialogResult.OK) gameDir.Text = d.SelectedPath;
+        };
+
+        p.Controls.Add(new Label { Text = "Java (оставь пустым для автоматического выбора)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 145) });
+        javaPathInput = new TextBox { Text = settings.JavaPath, Location = new Point(24, 171), Width = 590, Height = 34 };
+        var javaBrowse = new Button { Text = "Найти javaw.exe", Location = new Point(625, 170), Width = 130, Height = 36 };
+        javaBrowse.Click += (_, _) =>
+        {
+            using var dialog = new OpenFileDialog { Filter = "Java executable|javaw.exe;java.exe|All files|*.*", Title = "Выберите Java" };
+            if (dialog.ShowDialog() == DialogResult.OK) javaPathInput.Text = dialog.FileName;
+        };
+
+        p.Controls.Add(new Label { Text = "Оперативная память для Minecraft (МБ)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 222) });
+        ram.Minimum = 1024; ram.Maximum = 16384; ram.Increment = 512;
+        ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 16384);
+        ram.SetBounds(24, 248, 180, 34);
+
+        p.Controls.Add(new Label { Text = "Разрешение окна", AutoSize = true, ForeColor = Color.Silver, Location = new Point(245, 222) });
+        widthInput = new NumericUpDown { Minimum = 800, Maximum = 3840, Increment = 80, Value = Math.Clamp(settings.ScreenWidth, 800, 3840), Location = new Point(245, 248), Width = 100 };
+        heightInput = new NumericUpDown { Minimum = 600, Maximum = 2160, Increment = 60, Value = Math.Clamp(settings.ScreenHeight, 600, 2160), Location = new Point(355, 248), Width = 100 };
+        fullScreenInput = new CheckBox { Text = "Полный экран", Checked = settings.FullScreen, AutoSize = true, Location = new Point(480, 253), ForeColor = Color.White };
+        closeAfterLaunchInput = new CheckBox { Text = "Закрывать лаунчер после запуска игры", Checked = settings.CloseAfterLaunch, AutoSize = true, Location = new Point(24, 300), ForeColor = Color.White };
+        autoRepairInput = new CheckBox { Text = "Автоматически исправлять типовые ошибки запуска", Checked = settings.AutoRepair, AutoSize = true, Location = new Point(24, 334), ForeColor = Color.White };
+
+        p.Controls.Add(new Label { Text = "Дополнительные JVM-параметры (необязательно)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 380) });
+        jvmArgsInput = new TextBox { Text = settings.ExtraJvmArguments, Location = new Point(24, 406), Width = 710, Height = 34 };
+        var note = new Label { Text = "Не меняй параметры, если не знаешь их назначения: неверные аргументы могут помешать запуску.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(155, 165, 184), Location = new Point(24, 445) };
+        var save = new Button { Text = "Сохранить настройки", Location = new Point(24, 500), Width = 190, Height = 42 };
+        save.Click += (_, _) =>
+        {
+            try { SaveSettings(); }
+            catch (Exception ex) { Fail("Не удалось сохранить настройки", ex); }
+        };
+
+        p.Controls.AddRange(new Control[] { gameDir, browse, javaPathInput, javaBrowse, ram, widthInput, heightInput, fullScreenInput, closeAfterLaunchInput, autoRepairInput, jvmArgsInput, note, save });
+        return p;
+    }
+
     TabPage DiagnosticsPage()
     {
         var p = new TabPage("Исправление") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
