@@ -409,10 +409,55 @@ internal sealed class MainForm : Form
     TabPage AccountPage()
     {
         var p = new TabPage("Аккаунт") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
-        p.Controls.Add(new Label { Text = "ПРОФИЛЬ ИГРОКА", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
-        p.Controls.Add(new Label { Text = "Текущий локальный ник: " + settings.Username, AutoSize = true, ForeColor = Color.White, Location = new Point(26, 82) });
-        p.Controls.Add(new Label { Text = "Это офлайн-профиль. Подключение Ely.by ещё не реализовано — офлайн-режим не выдаётся за авторизацию.", AutoSize = false, Size = new Size(760, 58), ForeColor = Color.Silver, Location = new Point(26, 120) });
-        var openSettings = new Button { Text = "Изменить ник в настройках", Location = new Point(26, 195), Width = 210, Height = 40 };
+        p.Controls.Add(new Label { Text = "ПРОФИЛЬ И СКИНЫ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
+        p.Controls.Add(new Label { Text = "Локальный ник: " + settings.Username, AutoSize = true, ForeColor = Color.White, Location = new Point(26, 72) });
+        p.Controls.Add(new Label { Text = "Поиск скина Ely.by по нику", AutoSize = true, ForeColor = Color.Silver, Location = new Point(26, 116) });
+        var skinName = new TextBox { Text = settings.Username, Location = new Point(26, 145), Width = 260, Height = 34 };
+        var findSkin = new Button { Text = "Найти скин", Location = new Point(300, 143), Width = 130, Height = 38 };
+        var preview = new PictureBox { Location = new Point(26, 198), Size = new Size(256, 256), BackColor = Color.FromArgb(27, 30, 40), SizeMode = PictureBoxSizeMode.Zoom };
+        var skinStatus = new Label { Text = "Скин пока не загружен.", Location = new Point(300, 198), Size = new Size(480, 72), ForeColor = Color.Silver };
+        findSkin.Click += async (_, _) =>
+        {
+            var nick = skinName.Text.Trim();
+            if (nick.Length is < 1 or > 16 || nick.Any(ch => !char.IsLetterOrDigit(ch) && ch != '_'))
+            {
+                skinStatus.Text = "Проверь ник: допустимы латинские буквы, цифры и подчёркивание.";
+                return;
+            }
+            findSkin.Enabled = false;
+            skinStatus.Text = "Запрашиваю текстуру Ely.by…";
+            try
+            {
+                var url = "https://skinsystem.ely.by/skins/" + Uri.EscapeDataString(nick) + ".png?version=2&minecraft_version=1.21.1";
+                var bytes = await http.GetByteArrayAsync(url);
+                using var ms = new MemoryStream(bytes);
+                using var loaded = Image.FromStream(ms);
+                var copy = new Bitmap(loaded);
+                var old = preview.Image;
+                preview.Image = copy;
+                old?.Dispose();
+                var folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "skins");
+                Directory.CreateDirectory(folder);
+                var target = Path.Combine(folder, nick + ".png");
+                await File.WriteAllBytesAsync(target, bytes);
+                skinStatus.Text = "Текстура загружена и сохранена:\n" + target + "\nЭто просмотр/загрузка, не установка на аккаунт.";
+            }
+            catch (HttpRequestException ex)
+            {
+                skinStatus.Text = ex.Message.Contains("404", StringComparison.OrdinalIgnoreCase)
+                    ? "У этого ника не найден скин Ely.by."
+                    : "Не удалось получить скин: " + ex.Message;
+            }
+            catch (Exception ex) { skinStatus.Text = "Ошибка загрузки: " + ex.Message; }
+            finally { findSkin.Enabled = true; }
+        };
+        p.Controls.AddRange(new Control[] { skinName, findSkin, preview, skinStatus });
+        p.Controls.Add(new Label
+        {
+            Text = "Важно: Ely.by пока используется как источник текстур. Авторизация Ely.by и установка скина на твой аккаунт — отдельная функция, её нельзя имитировать офлайн-ником.",
+            AutoSize = false, Size = new Size(760, 70), ForeColor = Color.FromArgb(190, 175, 145), Location = new Point(26, 480)
+        });
+        var openSettings = new Button { Text = "Изменить ник в настройках", Location = new Point(26, 565), Width = 210, Height = 40 };
         openSettings.Click += (_, _) => ShowNavigationPage(8);
         p.Controls.Add(openSettings);
         return p;
