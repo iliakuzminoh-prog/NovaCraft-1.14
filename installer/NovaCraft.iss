@@ -19,11 +19,13 @@ Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
 UninstallDisplayIcon={app}\{#MyAppExeName}
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
 SetupLogging=yes
+UninstallLogging=yes
+RestartApplications=no
 CloseApplications=yes
 CloseApplicationsFilter=NovaCraft.exe
-RestartApplications=no
 UsePreviousAppDir=yes
 DirExistsWarning=no
 Uninstallable=yes
@@ -40,9 +42,6 @@ Name: "{app}"
 [Icons]
 Name: "{autoprograms}\NovaCraft 1.14"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"
 Name: "{autodesktop}\NovaCraft 1.14"; Filename: "{app}\{#MyAppExeName}"; WorkingDir: "{app}"; Tasks: desktopicon
-
-[Run]
-Filename: "{app}\{#MyAppExeName}"; Description: "Запустить NovaCraft 1.14 после установки"; WorkingDir: "{app}"; Flags: postinstall nowait skipifsilent unchecked
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\logs"
