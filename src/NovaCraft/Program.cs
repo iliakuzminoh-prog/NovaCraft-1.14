@@ -66,7 +66,7 @@ internal sealed class LauncherSettings
 internal sealed class MainForm : Form
 {
     readonly LauncherSettings settings;
-    MinecraftLauncher launcher;
+    MinecraftLauncher? launcher;
     readonly TextBox username = new();
     readonly ComboBox version = new();
     readonly ComboBox gameLoader = new();
@@ -99,8 +99,22 @@ internal sealed class MainForm : Form
     {
         settings = SettingsService.Load();
         http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaCraft/1.14 (https://github.com/iliakuzminoh-prog/NovaCraft-1.14)");
-        Directory.CreateDirectory(settings.GameDirectory);
-        launcher = new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
+        // Не создаём MinecraftLauncher в конструкторе: старый/недоступный путь игры
+        // не должен блокировать запуск самого лаунчера. Он создаётся только при
+        // установке/запуске игры, когда папка уже проверена.
+        try
+        {
+            Directory.CreateDirectory(settings.GameDirectory);
+        }
+        catch (Exception ex)
+        {
+            AppDiagnostics.Report(ex, "Settings.GameDirectory");
+            settings.GameDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NovaCraft",
+                "minecraft");
+            Directory.CreateDirectory(settings.GameDirectory);
+        }
 
         Text = "NovaCraft 1.14";
         Width = 1180; Height = 760; MinimumSize = new Size(980, 650);
@@ -694,7 +708,7 @@ internal sealed class MainForm : Form
         var loaderName = settings.ModLoader;
         if (loaderName == "vanilla")
         {
-            await launcher.InstallAsync(vanillaVersion);
+            await GetLauncher().InstallAsync(vanillaVersion);
             return vanillaVersion;
         }
 
@@ -721,7 +735,7 @@ internal sealed class MainForm : Form
         }
         else throw new InvalidOperationException("Неизвестный загрузчик.");
 
-        await launcher.InstallAsync(installedId);
+        await GetLauncher().InstallAsync(installedId);
         WriteLog("Загрузчик установлен: " + installedId);
         return installedId;
     }
@@ -782,7 +796,7 @@ internal sealed class MainForm : Form
             SaveSettings();
             SetBusy(true, "Подготовка игры…");
             launchVersion = await InstallSelectedLoaderAsync(v);
-            var process = await launcher.BuildProcessAsync(launchVersion, CreateLaunchOptions());
+            var process = await GetLauncher().BuildProcessAsync(launchVersion, CreateLaunchOptions());
             process.Start();
             WriteLog("Minecraft запущен: " + launchVersion);
             status.Text = "Игра запущена";
@@ -1110,9 +1124,21 @@ internal sealed class MainForm : Form
         settings.AutoRepair = autoRepairInput?.Checked ?? settings.AutoRepair;
         settings.ExtraJvmArguments = jvmArgsInput?.Text.Trim() ?? settings.ExtraJvmArguments;
         Directory.CreateDirectory(settings.GameDirectory);
-        launcher = new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
+        launcher = null;
         SettingsService.Save(settings);
         status.Text = "Настройки сохранены";
+    }
+
+    MinecraftLauncher GetLauncher()
+    {
+        if (launcher != null) return launcher;
+
+        if (string.IsNullOrWhiteSpace(settings.GameDirectory))
+            throw new InvalidOperationException("Не выбрана папка Minecraft.");
+
+        Directory.CreateDirectory(settings.GameDirectory);
+        launcher = new MinecraftLauncher(new MinecraftPath(settings.GameDirectory));
+        return launcher;
     }
 
     void SetBusy(bool busy,string? message=null){play.Enabled=!busy;install.Enabled=!busy;Cursor=busy?Cursors.WaitCursor:Cursors.Default;if(message!=null)status.Text=message;}
