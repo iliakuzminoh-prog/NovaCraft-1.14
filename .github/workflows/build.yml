@@ -58,6 +58,19 @@ jobs:
           if (!(Test-Path $uninstaller)) {
             throw "Smoke test failed: uninstaller was not created"
           }
+
+          # Real application smoke test: the installed GUI must stay alive long enough
+          # to prove that the executable itself starts, not only that the file was copied.
+          $app = Start-Process -FilePath $installedExe -WorkingDirectory $testDir -PassThru
+          Start-Sleep -Seconds 8
+          if ($app.HasExited) {
+            $startupLog = Join-Path $env:LOCALAPPDATA "NovaCraft\logs\startup-errors.log"
+            if (Test-Path $startupLog) { Get-Content $startupLog }
+            throw "Smoke test failed: NovaCraft.exe exited during startup (code $($app.ExitCode))"
+          }
+          Stop-Process -Id $app.Id -Force
+          Write-Host "Application smoke test passed: NovaCraft.exe started and stayed alive."
+
           $uninstall = Start-Process -FilePath $uninstaller -ArgumentList @("/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART") -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "Uninstaller returned exit code $($uninstall.ExitCode)" }
           if (Test-Path $installedExe) { throw "Smoke test failed: NovaCraft.exe remains after uninstall" }
