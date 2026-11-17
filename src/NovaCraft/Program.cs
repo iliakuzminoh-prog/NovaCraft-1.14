@@ -23,7 +23,26 @@ internal static class Program
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
-        Application.Run(new MainForm());
+        Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+        Application.ThreadException += (_, e) => AppDiagnostics.Report(e.Exception, "UI");
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            if (e.ExceptionObject is Exception ex)
+                AppDiagnostics.Report(ex, "AppDomain");
+        };
+        try
+        {
+            Application.Run(new MainForm());
+        }
+        catch (Exception ex)
+        {
+            AppDiagnostics.Report(ex, "Main");
+            MessageBox.Show(
+                "NovaCraft не смог запуститься. Подробный отчёт сохранён в папке NovaCraft в LocalAppData.\n\n" + ex.Message,
+                "NovaCraft — ошибка запуска",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Error);
+        }
     }
 }
 
@@ -85,22 +104,25 @@ internal sealed class MainForm : Form
 
         Text = "NovaCraft 1.14";
         Width = 1180; Height = 760; MinimumSize = new Size(980, 650);
+        try { Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
         BackColor = Color.FromArgb(18, 19, 23); ForeColor = Color.White;
         Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterScreen;
 
         BuildUi();
-        Shown += async (_, _) =>
+
+        // Лаунчер должен открываться даже при недоступном интернете.
+        // Сеть используется уже после отображения главного окна.
+        if (version.Items.Count == 0 && !string.IsNullOrWhiteSpace(settings.LastVersion))
         {
-            try
-            {
-                status.Text = "Подготовка NovaCraft…";
-                await RefreshVersionsAsync();
-                _ = LoadPopularModsAsync();
-            }
-            catch (Exception ex)
-            {
-                Fail("Не удалось подготовить каталог", ex);
-            }
+            version.Items.Add(settings.LastVersion);
+            version.SelectedIndex = 0;
+        }
+
+        Shown += (_, _) =>
+        {
+            status.Text = "Готов. Проверяю список версий в фоне…";
+            _ = RefreshVersionsAsync();
+            _ = LoadPopularModsAsync();
         };
     }
 
@@ -279,7 +301,7 @@ internal sealed class MainForm : Form
         feedPanel.Controls.Add(new Label { Text = "ПОПУЛЯРНЫЕ МОДЫ", Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold), AutoSize = true, Location = new Point(12, 2), ForeColor = Color.White });
         var seeAll = new Button { Text = "Весь каталог →", Width = 120, Height = 30, Anchor = AnchorStyles.Top | AnchorStyles.Right };
         seeAll.Location = new Point(Math.Max(12, feedPanel.ClientSize.Width - 140), 0);
-        seeAll.Click += (_, _) => ShowNavigationPage(2);
+        seeAll.Click += (_, _) => ShowNavigationPage(3);
         feedPanel.Resize += (_, _) => seeAll.Location = new Point(Math.Max(12, feedPanel.ClientSize.Width - 140), 0);
         feedPanel.Controls.Add(seeAll);
         popularFeed.Dock = DockStyle.Fill;
@@ -993,8 +1015,8 @@ internal sealed class MainForm : Form
             if (File.Exists(destination))
                 throw new IOException("Такой файл уже установлен: " + filename);
             var approval = MessageBox.Show(
-                "Проект: " + title + "\\nФайл: " + filename + "\\nMinecraft: " + game +
-                "\\nКаталог: " + folderName + "\\nИсточник: Modrinth CDN\\nПроверка: SHA-512.\\n\\nПродолжить загрузку?",
+                "Проект: " + title + "\nФайл: " + filename + "\nMinecraft: " + game +
+                "\nКаталог: " + folderName + "\nИсточник: Modrinth CDN\nПроверка: SHA-512.\n\nПродолжить загрузку?",
                 "Подтверждение установки", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (approval != DialogResult.Yes) return;
             using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
@@ -1180,6 +1202,30 @@ internal sealed class MainForm : Form
         MessageBox.Show(FriendlyError(ex), "NovaCraft — проблема", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
+}
+
+static class AppDiagnostics
+{
+    static readonly string DirectoryPath = Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "NovaCraft",
+        "logs");
+
+    public static void Report(Exception ex, string source)
+    {
+        try
+        {
+            Directory.CreateDirectory(DirectoryPath);
+            var file = Path.Combine(DirectoryPath, "startup-errors.log");
+            File.AppendAllText(
+                file,
+                $"[{DateTime.Now:yyyy-MM-dd HH:mm:ss}] {source}\n{ex}\n\n");
+        }
+        catch
+        {
+            // Ошибка журналирования не должна мешать закрытию приложения.
+        }
+    }
 }
 
 static class SettingsService
