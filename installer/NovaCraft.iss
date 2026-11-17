@@ -1,5 +1,5 @@
 #define MyAppName "NovaCraft 1.14"
-#define MyAppVersion "1.14.0"
+#define MyAppVersion "1.14.1"
 #define MyAppPublisher "NovaCraft"
 #define MyAppExeName "NovaCraft.exe"
 
