@@ -693,7 +693,7 @@ internal sealed class MainForm : Form
     {
         try {
             status.Text="Получение списка версий…";
-            var all=await launcher.GetAllVersionsAsync();
+            var all=await GetLauncher().GetAllVersionsAsync();
             var releases=all?.Where(v=>string.Equals(v?.Type?.ToString(),"release",StringComparison.OrdinalIgnoreCase))
                 .Select(v=>v!.Name).Distinct().Take(100).ToList() ?? new List<string>();
             version.Items.Clear(); foreach(var v in releases) version.Items.Add(v);
@@ -722,7 +722,7 @@ internal sealed class MainForm : Form
         }
         else if (loaderName == "forge")
         {
-            var forge = new ForgeInstaller(launcher);
+            var forge = new ForgeInstaller(GetLauncher());
             installedId = await forge.Install(vanillaVersion, new ForgeInstallOptions
             {
                 InstallerOutput = new Progress<string>(line => WriteLog(line))
@@ -819,8 +819,8 @@ internal sealed class MainForm : Form
                         ram.Value = Math.Clamp(settings.MaximumRamMb, (int)ram.Minimum, (int)ram.Maximum);
                     }
                     SettingsService.Save(settings);
-                    await launcher.InstallAsync(launchVersion);
-                    var repaired = await launcher.BuildProcessAsync(launchVersion, CreateLaunchOptions());
+                    await GetLauncher().InstallAsync(launchVersion);
+                    var repaired = await GetLauncher().BuildProcessAsync(launchVersion, CreateLaunchOptions());
                     repaired.Start();
                     status.Text = "Файлы восстановлены, игра запущена";
                     WriteLog("Автоисправление завершено: " + launchVersion);
