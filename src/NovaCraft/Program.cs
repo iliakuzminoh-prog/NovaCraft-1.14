@@ -89,16 +89,16 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterScreen;
 
         BuildUi();
-        Shown += async (_, _) => { await RefreshVersionsAsync(); await LoadPopularModsAsync(); };
+        Shown += async (_, _) =>\n        {\n            try\n            {\n                status.Text = "Подготовка NovaCraft…";\n                await RefreshVersionsAsync();\n                _ = LoadPopularModsAsync();\n            }\n            catch (Exception ex) { Fail("Не удалось подготовить каталог", ex); }\n        };
     }
 
     void BuildUi()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Color.FromArgb(24, 26, 34), Padding = new Padding(18, 8, 18, 8) };
-        header.Controls.Add(new Label { Text = "◆  NOVACRAFT", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, Location = new Point(18, 13), ForeColor = Color.White });
-        header.Controls.Add(new Label { Text = "Minecraft Java · лаунчер без рекламы и фоновых служб", AutoSize = true, Location = new Point(220, 23), ForeColor = Color.FromArgb(160, 170, 190) });
+        var header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.FromArgb(24, 26, 34), Padding = new Padding(18, 8, 18, 8) };
+        header.Controls.Add(new Label { Text = "◆  NOVACRAFT", Font = new Font("Segoe UI Semibold", 21, FontStyle.Bold), AutoSize = true, Location = new Point(18, 13), ForeColor = Color.White });
+        header.Controls.Add(new Label { Text = "Minecraft Java · лаунчер без рекламы и фоновых служб", AutoSize = true, Location = new Point(250, 26), ForeColor = Color.FromArgb(160, 170, 190) });
 
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 188, BackColor = Color.FromArgb(22, 24, 32), Padding = new Padding(10, 14, 10, 10) };
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 218, BackColor = Color.FromArgb(22, 24, 32), Padding = new Padding(10, 14, 10, 10) };
         var navScroll = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent };
         sidebar.Controls.Add(navScroll);
 
@@ -131,7 +131,7 @@ internal sealed class MainForm : Form
                 Height = 42,
                 Margin = new Padding(0, 2, 0, 4),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(12, 0, 4, 0),
+                Padding = new Padding(14, 0, 6, 0),
                 FlatStyle = FlatStyle.Flat,
                 BackColor = Color.FromArgb(22, 24, 32),
                 ForeColor = Color.FromArgb(190, 198, 215),
@@ -217,15 +217,15 @@ internal sealed class MainForm : Form
     TabPage HomePage()
     {
         var p = new TabPage("Главная") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12) };
-        var hero = new Panel { Dock = DockStyle.Top, Height = 250, BackColor = Color.FromArgb(35, 29, 58), Margin = new Padding(0, 0, 0, 12) };
+        var hero = new Panel { Dock = DockStyle.Top, Height = 220, BackColor = Color.FromArgb(35, 29, 58), Margin = new Padding(0, 0, 0, 12) };
         var artwork = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(35, 29, 58), Image = LoadHeroArt() };
         hero.Controls.Add(artwork);
 
         var lower = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(0, 12, 0, 0) };
-        var launchPanel = new Panel { Dock = DockStyle.Left, Width = 350, BackColor = Color.FromArgb(27, 30, 40), Padding = new Padding(18) };
-        var feedPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12, 0, 0, 0) };
+        var launchPanel = new Panel { Dock = DockStyle.Left, Width = 372, BackColor = Color.FromArgb(27, 30, 40), Padding = new Padding(18) };
+        var feedPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(16, 0, 0, 0) };
 
-        launchPanel.Controls.Add(new Label { Text = "БЫСТРЫЙ ЗАПУСК", Font = new Font("Segoe UI Semibold", 14, FontStyle.Bold), AutoSize = true, Location = new Point(18, 15), ForeColor = Color.White });
+        launchPanel.Controls.Add(new Label { Text = "ЗАПУСК ИГРЫ", Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold), AutoSize = true, Location = new Point(18, 15), ForeColor = Color.White });
         username.Text = settings.Username;
         launchPanel.Controls.Add(Labeled("Имя игрока", username, 18, 50, 300));
 
@@ -243,7 +243,7 @@ internal sealed class MainForm : Form
         };
         launchPanel.Controls.Add(Labeled("Загрузчик", gameLoader, 18, 186, 300));
 
-        boost.Text = "Профиль оптимизации JVM";
+        boost.Text = "Оптимизированный профиль JVM";
         boost.Checked = settings.FpsBoost;
         boost.AutoSize = true;
         boost.Location = new Point(20, 258);
@@ -251,16 +251,16 @@ internal sealed class MainForm : Form
 
         play.Text = "▶  ИГРАТЬ";
         play.Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold);
-        play.SetBounds(18, 292, 300, 48);
+        play.SetBounds(18, 292, 336, 50);
         play.Click += async (_, _) => await LaunchAsync();
         launchPanel.Controls.Add(play);
 
         install.Text = "Установить / восстановить версию";
-        install.SetBounds(18, 350, 300, 38);
+        install.SetBounds(18, 352, 336, 40);
         install.Click += async (_, _) => await InstallAsync();
         launchPanel.Controls.Add(install);
 
-        var ramInfo = new Label { Text = $"Память игры: {settings.MaximumRamMb} МБ  ·  Подробнее в настройках", AutoSize = true, ForeColor = Color.Silver, Location = new Point(18, 402) };
+        var ramInfo = new Label { Text = $"Память: {settings.MaximumRamMb} МБ  ·  Java подбирается автоматически", AutoSize = true, ForeColor = Color.Silver, Location = new Point(18, 402) };
         launchPanel.Controls.Add(ramInfo);
 
         feedPanel.Controls.Add(new Label { Text = "ПОПУЛЯРНЫЕ МОДЫ", Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold), AutoSize = true, Location = new Point(12, 2), ForeColor = Color.White });
@@ -606,9 +606,9 @@ internal sealed class MainForm : Form
         autoRepairInput = new CheckBox { Text = "Автоматически исправлять типовые ошибки запуска", Checked = settings.AutoRepair, AutoSize = true, Location = new Point(24, 264), ForeColor = Color.White };
 
         p.Controls.Add(new Label { Text = "Дополнительные JVM-параметры (необязательно)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 310) });
-        jvmArgsInput = new TextBox { Text = settings.ExtraJvmArguments, Location = new Point(24, 406), Width = 710, Height = 34 };
-        var note = new Label { Text = "Не меняй параметры, если не знаешь их назначения: неверные аргументы могут помешать запуску.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(155, 165, 184), Location = new Point(24, 445) };
-        var save = new Button { Text = "Сохранить настройки", Location = new Point(24, 500), Width = 190, Height = 42 };
+        jvmArgsInput = new TextBox { Text = settings.ExtraJvmArguments, Location = new Point(24, 340), Width = 710, Height = 34 };
+        var note = new Label { Text = "Не меняй параметры, если не знаешь их назначения: неверные аргументы могут помешать запуску.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(155, 165, 184), Location = new Point(24, 380) };
+        var save = new Button { Text = "Сохранить настройки", Location = new Point(24, 435), Width = 210, Height = 42 };
         save.Click += (_, _) =>
         {
             try { SaveSettings(); }
@@ -797,15 +797,15 @@ internal sealed class MainForm : Form
         var description = hit?["description"]?.ToString() ?? "Описание отсутствует";
         var author = hit?["author"]?.ToString() ?? "Автор не указан";
         var downloads = long.TryParse(hit?["downloads"]?.ToString(), out var count) ? count.ToString("N0") : "—";
-        var card = new Panel { Width = 326, Height = 174, Margin = new Padding(7), BackColor = Color.FromArgb(29, 33, 42), BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(10) };
-        icon = new PictureBox { Location = new Point(10, 10), Size = new Size(58, 58), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(42, 48, 60), BorderStyle = BorderStyle.FixedSingle };
+        var card = new Panel { Width = 350, Height = 190, Margin = new Padding(7), BackColor = Color.FromArgb(29, 33, 42), BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(10) };
+        icon = new PictureBox { Location = new Point(12, 12), Size = new Size(62, 62), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(42, 48, 60), BorderStyle = BorderStyle.FixedSingle };
         icon.Controls.Add(new Label { Text = projectType.ToUpperInvariant(), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(155, 166, 185), Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold) });
-        var name = new Label { Text = title, Location = new Point(78, 9), Size = new Size(224, 39), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true };
-        var by = new Label { Text = "Автор: " + author, Location = new Point(80, 49), Size = new Size(220, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
-        var desc = new Label { Text = description, Location = new Point(10, 78), Size = new Size(294, 48), ForeColor = Color.FromArgb(211, 216, 225), AutoEllipsis = true };
-        var stats = new Label { Text = downloads + " загрузок", Location = new Point(10, 137), Size = new Size(165, 25), ForeColor = Color.FromArgb(153, 166, 187) };
+        var name = new Label { Text = title, Location = new Point(86, 11), Size = new Size(246, 39), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true };
+        var by = new Label { Text = "Автор: " + author, Location = new Point(88, 51), Size = new Size(236, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
+        var desc = new Label { Text = description, Location = new Point(12, 84), Size = new Size(320, 52), ForeColor = Color.FromArgb(211, 216, 225), AutoEllipsis = true };
+        var stats = new Label { Text = downloads + " загрузок", Location = new Point(12, 148), Size = new Size(180, 25), ForeColor = Color.FromArgb(153, 166, 187) };
         var canInstallHere = projectType is "mod" or "resourcepack" or "shader" or "datapack";
-        var action = new Button { Text = canInstallHere ? "Установить" : "Открыть", Location = new Point(190, 133), Size = new Size(114, 30), Tag = projectId };
+        var action = new Button { Text = canInstallHere ? "Установить" : "Открыть", Location = new Point(220, 146), Size = new Size(112, 32), Tag = projectId };
         if (projectType == "mod")
         {
             action.Click += async (_, _) => { selectedModProject = projectId; selectedModTitle = title; await DownloadSelectedModAsync(); };
