@@ -89,7 +89,19 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterScreen;
 
         BuildUi();
-        Shown += async (_, _) =>\n        {\n            try\n            {\n                status.Text = "Подготовка NovaCraft…";\n                await RefreshVersionsAsync();\n                _ = LoadPopularModsAsync();\n            }\n            catch (Exception ex) { Fail("Не удалось подготовить каталог", ex); }\n        };
+        Shown += async (_, _) =>
+        {
+            try
+            {
+                status.Text = "Подготовка NovaCraft…";
+                await RefreshVersionsAsync();
+                _ = LoadPopularModsAsync();
+            }
+            catch (Exception ex)
+            {
+                Fail("Не удалось подготовить каталог", ex);
+            }
+        };
     }
 
     void BuildUi()
@@ -105,6 +117,7 @@ internal sealed class MainForm : Form
         var pages = new (string Name, TabPage Page)[]
         {
             ("⌂  Главная", HomePage()),
+            ("◈  Версии", VersionsPage()),
             ("▣  Сборки", BuildsPage()),
             ("✦  Моды", ModsPage()),
             ("▧  Ресурспаки", CatalogPage("Ресурспаки Modrinth", "resourcepack")),
@@ -127,7 +140,7 @@ internal sealed class MainForm : Form
             var button = new Button
             {
                 Text = item.Name,
-                Width = 166,
+                Width = 194,
                 Height = 42,
                 Margin = new Padding(0, 2, 0, 4),
                 TextAlign = ContentAlignment.MiddleLeft,
