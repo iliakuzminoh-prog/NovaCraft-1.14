@@ -75,7 +75,7 @@ internal sealed class MainForm : Form
     readonly CheckBox boost = new();
     readonly RichTextBox log = new();
     readonly Label status = new();
-    readonly Panel pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23) };
+    readonly TabControl pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(1, 1) };
     readonly List<TabPage> navigationPages = new();
     readonly List<Button> navigationButtons = new();
     TextBox? customMusicPath;
@@ -188,9 +188,8 @@ internal sealed class MainForm : Form
             }
 
             page.Dock = DockStyle.Fill;
-            page.Visible = false;
             navigationPages.Add(page);
-            pageHost.Controls.Add(page);
+            pageHost.TabPages.Add(page);
 
             var button = new Button
             {
@@ -230,10 +229,9 @@ internal sealed class MainForm : Form
     void ShowNavigationPage(int index)
     {
         if (index < 0 || index >= navigationPages.Count) return;
+        pageHost.SelectedIndex = index;
         for (var i = 0; i < navigationPages.Count; i++)
         {
-            navigationPages[i].Visible = i == index;
-            if (i == index) navigationPages[i].BringToFront();
             navigationButtons[i].BackColor = i == index ? Color.FromArgb(83, 47, 174) : Color.FromArgb(22, 24, 32);
             navigationButtons[i].ForeColor = i == index ? Color.White : Color.FromArgb(190, 198, 215);
         }
