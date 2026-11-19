@@ -1874,7 +1874,7 @@ internal sealed class MainForm : Form
     {
         var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId)
             ?? throw new InvalidOperationException("Активный профиль не найден. Создай или выбери профиль.");
-        var name = OfflineProfileRules.GetValidatedUsernameForLaunch(profile.Username);
+        var name = OfflineLaunchProfileRules.GetValidatedUsernameForLaunch(profile.Username);
         if (!Guid.TryParse(profile.Uuid, out _))
             profile.Uuid = OfflineProfileRules.OfflineUuid(name);
         SettingsService.Save(settings);
