@@ -164,6 +164,24 @@ internal sealed class MainForm : Form
         };
     }
 
+    static Bitmap LoadHeroArt()
+    {
+        var bitmap = new Bitmap(1100, 235);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using var background = new System.Drawing.Drawing2D.LinearGradientBrush(
+            new Rectangle(0, 0, bitmap.Width, bitmap.Height),
+            Color.FromArgb(48, 30, 92),
+            Color.FromArgb(20, 24, 54),
+            15f);
+        graphics.FillRectangle(background, 0, 0, bitmap.Width, bitmap.Height);
+        using var glow = new SolidBrush(Color.FromArgb(45, 128, 91, 235));
+        graphics.FillEllipse(glow, bitmap.Width - 330, -120, 420, 420);
+        using var glow2 = new SolidBrush(Color.FromArgb(35, 64, 180, 255));
+        graphics.FillEllipse(glow2, bitmap.Width - 160, 100, 260, 260);
+        return bitmap;
+    }
+
     static Panel ModernCard(int width, int height, string title, Color backColor)
     {
         var card = new Panel { Width=width, Height=height, BackColor=backColor, Margin=new Padding(7), Padding=new Padding(18) };
@@ -722,14 +740,21 @@ internal sealed class MainForm : Form
         game.Controls.Add(new Label{Text="Оперативная память",AutoSize=true,ForeColor=Color.Silver,Location=new Point(18,116)});
         ram.Minimum=1024;ram.Maximum=8192;ram.Increment=256;ram.Value=Math.Clamp(settings.MaximumRamMb,1024,8192);ram.SetBounds(150,112,170,34);game.Controls.Add(ram);
         game.Controls.Add(new Label{Text="МБ",AutoSize=true,ForeColor=Color.Silver,Location=new Point(325,120)});
-        
-        var launch=ModernCard(720,185,"ЗАПУСК",Color.FromArgb(25,28,45));launch.Location=new Point(24,310);
+        game.Controls.Add(new Label{Text="Разрешение",AutoSize=true,ForeColor=Color.Silver,Location=new Point(390,116)});
+        widthInput=new NumericUpDown{Minimum=800,Maximum=7680,Value=Math.Clamp(settings.ScreenWidth,800,7680),Width=85,Location=new Point(470,112)};
+        heightInput=new NumericUpDown{Minimum=600,Maximum=4320,Value=Math.Clamp(settings.ScreenHeight,600,4320),Width=85,Location=new Point(565,112)};
+        game.Controls.AddRange(new Control[]{widthInput,heightInput});
+
+        var launch=ModernCard(720,225,"ЗАПУСК",Color.FromArgb(25,28,45));launch.Location=new Point(24,310);
         fullScreenInput=new CheckBox{Text="Полный экран",Checked=settings.FullScreen,AutoSize=true,Location=new Point(18,48),ForeColor=Color.White};
         closeAfterLaunchInput=new CheckBox{Text="Закрывать NovaCraft после запуска Minecraft",Checked=settings.CloseAfterLaunch,AutoSize=true,Location=new Point(18,82),ForeColor=Color.White};
         autoRepairInput=new CheckBox{Text="Автоисправление типовых ошибок",Checked=settings.AutoRepair,AutoSize=true,Location=new Point(18,116),ForeColor=Color.White};
         launch.Controls.AddRange(new Control[]{fullScreenInput,closeAfterLaunchInput,autoRepairInput});
-        
-        var save=ModernButton("✓  Сохранить настройки",210,42);save.Location=new Point(24,520);save.Click+=(_,_)=>{try{SaveSettings();status.Text="Настройки сохранены";}catch(Exception ex){Fail("Не удалось сохранить настройки",ex);}};p.Controls.AddRange(new Control[]{game,launch,save});
+        launch.Controls.Add(new Label{Text="Дополнительные аргументы Java",AutoSize=true,ForeColor=Color.Silver,Location=new Point(18,151)});
+        jvmArgsInput=new TextBox{Text=settings.ExtraJvmArguments,Width=650,Location=new Point(18,174),BackColor=Color.FromArgb(34,37,58),ForeColor=Color.White};
+        launch.Controls.Add(jvmArgsInput);
+
+        var save=ModernButton("✓  Сохранить настройки",210,42);save.Location=new Point(24,560);save.Click+=(_,_)=>{try{SaveSettings();status.Text="Настройки сохранены";}catch(Exception ex){Fail("Не удалось сохранить настройки",ex);}};p.Controls.AddRange(new Control[]{game,launch,save});
         return p;
     }
 
