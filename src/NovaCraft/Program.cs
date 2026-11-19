@@ -1872,22 +1872,15 @@ internal sealed class MainForm : Form
 
     MSession CreateOfflineSessionForActiveProfile()
     {
-        var name = username.Text.Trim();
-        var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
-        if (profile == null)
-        {
-            profile = new OfflineProfile { Username = name, Uuid = OfflineProfileRules.OfflineUuid(name) };
-            settings.OfflineProfiles ??= new List<OfflineProfile>();
-            settings.OfflineProfiles.Add(profile);
-            settings.ActiveProfileId = profile.Id;
-        }
-        profile.Username = name;
+        var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId)
+            ?? throw new InvalidOperationException("Активный профиль не найден. Создай или выбери профиль.");
+        var name = OfflineProfileRules.GetValidatedUsernameForLaunch(profile.Username);
         if (!Guid.TryParse(profile.Uuid, out _))
             profile.Uuid = OfflineProfileRules.OfflineUuid(name);
         SettingsService.Save(settings);
         return new MSession
         {
-            Username = profile.Username,
+            Username = name,
             UUID = profile.Uuid,
             AccessToken = "0",
             Xuid = ""
@@ -1922,13 +1915,6 @@ internal sealed class MainForm : Form
     async Task LaunchAsync()
     {
         if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
-        var activeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
-        var nicknameValidation = NickValidator.Validate(activeProfile?.Username);
-        if (!nicknameValidation.ok)
-        {
-            MessageBox.Show(nicknameValidation.error, "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
         string launchVersion = v;
         try
         {
