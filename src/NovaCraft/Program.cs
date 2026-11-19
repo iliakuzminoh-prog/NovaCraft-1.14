@@ -63,6 +63,30 @@ internal sealed class LauncherSettings
     public List<string> SavedBuilds { get; set; } = new();
 }
 
+internal sealed class HiddenTabControl : TabControl
+{
+    const int TcmAdjustRect = 0x1328;
+
+    public HiddenTabControl()
+    {
+        Appearance = TabAppearance.FlatButtons;
+        SizeMode = TabSizeMode.Fixed;
+        ItemSize = new Size(1, 1);
+        Multiline = true;
+        Padding = new Point(0, 0);
+    }
+
+    protected override void WndProc(ref Message m)
+    {
+        if (m.Msg == TcmAdjustRect)
+        {
+            m.Result = IntPtr.Zero;
+            return;
+        }
+        base.WndProc(ref m);
+    }
+}
+
 internal sealed class MainForm : Form
 {
     readonly LauncherSettings settings;
@@ -75,7 +99,7 @@ internal sealed class MainForm : Form
     readonly CheckBox boost = new();
     readonly RichTextBox log = new();
     readonly Label status = new();
-    readonly TabControl pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Appearance = TabAppearance.FlatButtons, SizeMode = TabSizeMode.Fixed, ItemSize = new Size(1, 1) };
+    readonly HiddenTabControl pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23) };
     readonly List<TabPage> navigationPages = new();
     readonly List<Button> navigationButtons = new();
     TextBox? customMusicPath;
@@ -140,13 +164,26 @@ internal sealed class MainForm : Form
         };
     }
 
+    static Bitmap CreateNavIcon(string glyph)
+    {
+        var bitmap = new Bitmap(24, 24);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(Color.Transparent);
+        using var brush = new SolidBrush(Color.FromArgb(214, 220, 235));
+        using var font = new Font("Segoe UI Symbol", 13, FontStyle.Bold, GraphicsUnit.Point);
+        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        graphics.DrawString(glyph, font, brush, new RectangleF(0, 0, 24, 24), format);
+        return bitmap;
+    }
+
     void BuildUi()
     {
         var header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.FromArgb(24, 26, 34), Padding = new Padding(18, 8, 18, 8) };
         header.Controls.Add(new Label { Text = "◆  NOVACRAFT", Font = new Font("Segoe UI Semibold", 21, FontStyle.Bold), AutoSize = true, Location = new Point(18, 13), ForeColor = Color.White });
         header.Controls.Add(new Label { Text = "Minecraft Java · лаунчер без рекламы и фоновых служб", AutoSize = true, Location = new Point(250, 26), ForeColor = Color.FromArgb(160, 170, 190) });
 
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 218, BackColor = Color.FromArgb(22, 24, 32), Padding = new Padding(10, 14, 10, 10) };
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 238, BackColor = Color.FromArgb(20, 22, 30), Padding = new Padding(12, 14, 12, 10) };
         var navScroll = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent };
         sidebar.Controls.Add(navScroll);
 
@@ -191,20 +228,27 @@ internal sealed class MainForm : Form
             navigationPages.Add(page);
             pageHost.TabPages.Add(page);
 
+            var parts = item.Name.Split(new[] { "  " }, StringSplitOptions.None);
+            var glyph = parts.Length > 1 ? parts[0] : "◆";
+            var caption = parts.Length > 1 ? parts[1] : item.Name;
             var button = new Button
             {
-                Text = item.Name,
-                Width = 194,
-                Height = 42,
-                Margin = new Padding(0, 2, 0, 4),
+                Text = caption,
+                Width = 212,
+                Height = 44,
+                Margin = new Padding(0, 2, 0, 5),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Padding = new Padding(14, 0, 6, 0),
+                Image = CreateNavIcon(glyph),
+                ImageAlign = ContentAlignment.MiddleLeft,
+                TextImageRelation = TextImageRelation.ImageBeforeText,
+                Padding = new Padding(12, 0, 8, 0),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(22, 24, 32),
-                ForeColor = Color.FromArgb(190, 198, 215),
-                Font = new Font("Segoe UI", 9.5f)
+                BackColor = Color.FromArgb(20, 22, 30),
+                ForeColor = Color.FromArgb(198, 204, 220),
+                Font = new Font("Segoe UI Semibold", 9.5f)
             };
             button.FlatAppearance.BorderSize = 0;
+            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(35, 37, 50);
             var index = navigationPages.Count - 1;
             button.Click += (_, _) => ShowNavigationPage(index);
             navigationButtons.Add(button);
@@ -873,36 +917,107 @@ internal sealed class MainForm : Form
         var description = hit?["description"]?.ToString() ?? "Описание отсутствует";
         var author = hit?["author"]?.ToString() ?? "Автор не указан";
         var downloads = long.TryParse(hit?["downloads"]?.ToString(), out var count) ? count.ToString("N0") : "—";
-        var card = new Panel { Width = 350, Height = 190, Margin = new Padding(7), BackColor = Color.FromArgb(29, 33, 42), BorderStyle = BorderStyle.FixedSingle, Padding = new Padding(10) };
-        icon = new PictureBox { Location = new Point(12, 12), Size = new Size(62, 62), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(42, 48, 60), BorderStyle = BorderStyle.FixedSingle };
-        icon.Controls.Add(new Label { Text = projectType.ToUpperInvariant(), Dock = DockStyle.Fill, TextAlign = ContentAlignment.MiddleCenter, ForeColor = Color.FromArgb(155, 166, 185), Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold) });
-        var name = new Label { Text = title, Location = new Point(86, 11), Size = new Size(246, 39), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true };
-        var by = new Label { Text = "Автор: " + author, Location = new Point(88, 51), Size = new Size(236, 22), ForeColor = Color.FromArgb(164, 177, 198), AutoEllipsis = true };
-        var desc = new Label { Text = description, Location = new Point(12, 84), Size = new Size(320, 52), ForeColor = Color.FromArgb(211, 216, 225), AutoEllipsis = true };
-        var stats = new Label { Text = downloads + " загрузок", Location = new Point(12, 148), Size = new Size(180, 25), ForeColor = Color.FromArgb(153, 166, 187) };
+
+        var card = new Panel
+        {
+            Width = 372,
+            Height = 222,
+            Margin = new Padding(8),
+            BackColor = Color.FromArgb(27, 30, 41),
+            BorderStyle = BorderStyle.FixedSingle,
+            Padding = new Padding(14)
+        };
+
+        icon = new PictureBox
+        {
+            Location = new Point(14, 14),
+            Size = new Size(72, 72),
+            SizeMode = PictureBoxSizeMode.Zoom,
+            BackColor = Color.FromArgb(40, 44, 58),
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        icon.Controls.Add(new Label
+        {
+            Text = projectType == "mod" ? "MOD" : projectType.ToUpperInvariant(),
+            Dock = DockStyle.Fill,
+            TextAlign = ContentAlignment.MiddleCenter,
+            ForeColor = Color.FromArgb(170, 180, 205),
+            Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold)
+        });
+
+        var source = new Label
+        {
+            Text = "MODRINTH",
+            AutoSize = false,
+            Size = new Size(86, 22),
+            Location = new Point(98, 14),
+            TextAlign = ContentAlignment.MiddleCenter,
+            BackColor = Color.FromArgb(55, 83, 72),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold)
+        };
+        var name = new Label
+        {
+            Text = title,
+            Location = new Point(98, 41),
+            Size = new Size(242, 42),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 11.5f, FontStyle.Bold),
+            AutoEllipsis = true
+        };
+        var by = new Label
+        {
+            Text = "Автор: " + author,
+            Location = new Point(14, 94),
+            Size = new Size(330, 22),
+            ForeColor = Color.FromArgb(164, 177, 198),
+            AutoEllipsis = true
+        };
+        var desc = new Label
+        {
+            Text = description,
+            Location = new Point(14, 119),
+            Size = new Size(330, 44),
+            ForeColor = Color.FromArgb(211, 216, 225),
+            AutoEllipsis = true
+        };
+        var stats = new Label
+        {
+            Text = downloads + " загрузок",
+            Location = new Point(14, 177),
+            Size = new Size(150, 27),
+            ForeColor = Color.FromArgb(153, 166, 187),
+            Font = new Font("Segoe UI", 8.5f)
+        };
+
         var canInstallHere = projectType is "mod" or "resourcepack" or "shader" or "datapack";
-        var action = new Button { Text = canInstallHere ? "Установить" : "Открыть", Location = new Point(220, 146), Size = new Size(112, 32), Tag = projectId };
+        var action = new Button
+        {
+            Text = canInstallHere ? "Установить" : "Открыть",
+            Location = new Point(236, 173),
+            Size = new Size(108, 34),
+            Tag = projectId,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(83, 47, 174),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 9, FontStyle.Bold)
+        };
+        action.FlatAppearance.BorderSize = 0;
+
         if (projectType == "mod")
-        {
             action.Click += async (_, _) => { selectedModProject = projectId; selectedModTitle = title; await DownloadSelectedModAsync(); };
-        }
         else if (projectType is "resourcepack" or "shader")
-        {
             action.Click += async (_, _) => await DownloadCatalogArchiveAsync(projectId, title, projectType);
-        }
         else if (projectType == "datapack")
-        {
             action.Click += async (_, _) => await DownloadCatalogArchiveAsync(projectId, title, projectType, selectedDatapackWorldDirectory);
-        }
         else
-        {
             action.Click += (_, _) =>
             {
                 try { Process.Start(new ProcessStartInfo("https://modrinth.com/" + projectType + "/" + Uri.EscapeDataString(slug)) { UseShellExecute = true }); }
                 catch (Exception ex) { Fail("Не удалось открыть страницу проекта", ex); }
             };
-        }
-        card.Controls.AddRange(new Control[] { icon, name, by, desc, stats, action });
+
+        card.Controls.AddRange(new Control[] { icon, source, name, by, desc, stats, action });
         return card;
     }
 
@@ -975,7 +1090,14 @@ internal sealed class MainForm : Form
             status.Text = "Лента Modrinth временно недоступна";
             WriteLog("Лента популярных модов: " + ex.Message);
             popularFeed.Controls.Clear();
-            popularFeed.Controls.Add(new Label { Text = "Не удалось загрузить ленту Modrinth. Проверь подключение и повтори попытку позже.", AutoSize = false, Size = new Size(520, 60), ForeColor = Color.Silver, Padding = new Padding(12) });
+            var errorPanel = new Panel { Width = 720, Height = 120, BackColor = Color.FromArgb(27, 30, 41), Padding = new Padding(18) };
+            errorPanel.Controls.Add(new Label { Text = "Лента Modrinth сейчас недоступна", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), Location = new Point(18, 16) });
+            errorPanel.Controls.Add(new Label { Text = "Каталог не исчез — не удалось получить данные по сети. Нажми «Повторить».", AutoSize = true, ForeColor = Color.Silver, Location = new Point(18, 46) });
+            var retry = new Button { Text = "↻  Повторить", Width = 120, Height = 32, Location = new Point(18, 74), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(83, 47, 174), ForeColor = Color.White };
+            retry.FlatAppearance.BorderSize = 0;
+            retry.Click += async (_, _) => await LoadPopularModsAsync();
+            errorPanel.Controls.Add(retry);
+            popularFeed.Controls.Add(errorPanel);
         }
     }
 
