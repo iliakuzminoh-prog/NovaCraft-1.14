@@ -16,6 +16,18 @@ public static class OfflineProfileRules
     }
 }
 
+public static class OfflineLaunchProfileRules
+{
+    public static string GetValidatedUsernameForLaunch(string? profileUsername)
+    {
+        var validation = NickValidator.Validate(profileUsername);
+        if (!validation.ok)
+            throw new ArgumentException(validation.error, nameof(profileUsername));
+
+        return profileUsername!;
+    }
+}
+
 public static class NickValidator
 {
     public static (bool ok, string error) Validate(string? value)
