@@ -6,7 +6,6 @@ using System.IO.Compression;
 using System.Diagnostics;
 using CmlLib.Core;
 using CmlLib.Core.Auth;
-using CmlLib.Core.Auth.Microsoft;
 using CmlLib.Core.ProcessBuilder;
 using CmlLib.Core.ModLoaders.FabricMC;
 using CmlLib.Core.Installer.Forge;
@@ -59,7 +58,6 @@ internal sealed class LauncherSettings
     public int ScreenHeight { get; set; } = 720;
     public bool FullScreen { get; set; }
     public bool CloseAfterLaunch { get; set; }
-    public bool UseMicrosoftAccount { get; set; }
     public bool AutoRepair { get; set; } = true;
     public string ExtraJvmArguments { get; set; } = "";
     public List<string> SavedBuilds { get; set; } = new();
@@ -87,9 +85,6 @@ internal sealed class MainForm : Form
     CheckBox? closeAfterLaunchInput;
     CheckBox? autoRepairInput;
     TextBox? jvmArgsInput;
-    CheckBox? microsoftAccountInput;
-    MSession? microsoftSession;
-    readonly JELoginHandler loginHandler = JELoginHandlerBuilder.BuildDefault();
     readonly Button play = new();
     readonly Button install = new();
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
@@ -540,43 +535,7 @@ internal sealed class MainForm : Form
 
     TabPage AccountPage()
     {
-        var p = new TabPage("Аккаунт") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
-        p.AutoScroll = true;
-        p.Controls.Add(new Label { Text = "АККАУНТ MINECRAFT", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
-        var accountStatus = new Label { Text = "Не выполнен вход Microsoft. Лаунчер использует офлайн-сессию.", AutoSize = false, Size = new Size(760, 42), ForeColor = Color.Silver, Location = new Point(26, 68) };
-        var login = new Button { Text = "Войти через Microsoft", Location = new Point(26, 115), Width = 220, Height = 42 };
-        var logout = new Button { Text = "Выйти", Location = new Point(256, 115), Width = 110, Height = 42 };
-        login.Click += async (_, _) =>
-        {
-            login.Enabled = false; logout.Enabled = false; status.Text = "Открываю вход Microsoft…";
-            try
-            {
-                microsoftSession = await loginHandler.Authenticate();
-                if (microsoftSession == null) throw new InvalidOperationException("Microsoft не вернул игровую сессию.");
-                accountStatus.Text = "Выполнен вход: " + microsoftSession.Username;
-                username.Text = microsoftSession.Username;
-                settings.Username = microsoftSession.Username;
-                settings.UseMicrosoftAccount = true;
-                SettingsService.Save(settings);
-                if (microsoftAccountInput != null) microsoftAccountInput.Checked = true;
-                status.Text = "Microsoft: вход выполнен";
-            }
-            catch (Exception ex)
-            {
-                accountStatus.Text = "Вход не выполнен: " + FriendlyError(ex);
-                WriteLog("Microsoft login: " + ex);
-                status.Text = "Ошибка входа Microsoft";
-            }
-            finally { login.Enabled = true; logout.Enabled = true; }
-        };
-        logout.Click += async (_, _) =>
-        {
-            try { await loginHandler.Signout(); } catch (Exception ex) { WriteLog("Microsoft logout: " + ex); }
-            microsoftSession = null; settings.UseMicrosoftAccount = false; SettingsService.Save(settings);
-            accountStatus.Text = "Вход Microsoft отключён. Будет использована офлайн-сессия.";
-            if (microsoftAccountInput != null) microsoftAccountInput.Checked = false;
-        };
-        p.Controls.AddRange(new Control[] { accountStatus, login, logout });
+        var p = new TabPage("Скин") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
         p.Controls.Add(new Label { Text = "СКИН И ПРОЧЕЕ", Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(26, 180) });
         p.Controls.Add(new Label { Text = "Ниже остаётся локальный скин и инструкция для серверов с поддержкой SkinsRestorer.", AutoSize = false, Size = new Size(790, 42), ForeColor = Color.Silver, Location = new Point(26, 215) });
         p.AutoScroll = true;
@@ -801,12 +760,9 @@ internal sealed class MainForm : Form
 
     MLaunchOption CreateLaunchOptions()
     {
-        var session = settings.UseMicrosoftAccount && microsoftSession != null
-            ? microsoftSession
-            : MSession.CreateOfflineSession(username.Text.Trim());
         var option = new MLaunchOption
         {
-            Session = session,
+            Session = MSession.CreateOfflineSession(username.Text.Trim()),
             MaximumRamMb = settings.MaximumRamMb,
             ScreenWidth = settings.ScreenWidth,
             ScreenHeight = settings.ScreenHeight,
@@ -841,14 +797,6 @@ internal sealed class MainForm : Form
         {
             SaveSettings();
             SetBusy(true, "Подготовка игры…");
-            if (settings.UseMicrosoftAccount)
-            {
-                if (microsoftSession == null)
-                    microsoftSession = await loginHandler.Authenticate();
-                if (microsoftSession == null)
-                    throw new InvalidOperationException("Не удалось получить Microsoft-сессию. Открой раздел «Аккаунт» и выполни вход.");
-                username.Text = microsoftSession.Username;
-            }
             launchVersion = await InstallSelectedLoaderAsync(v);
             var process = await GetLauncher().BuildProcessAsync(launchVersion, CreateLaunchOptions());
             process.EnableRaisingEvents = true;
@@ -860,7 +808,7 @@ internal sealed class MainForm : Form
                 WriteLog("Minecraft завершился. ExitCode=" + process.ExitCode);
             }));
             process.Start();
-            WriteLog("Minecraft запущен: " + launchVersion + " | режим=" + (settings.UseMicrosoftAccount ? "Microsoft" : "Offline"));
+            WriteLog("Minecraft запущен: " + launchVersion + ");
             status.Text = "Игра запущена";
             if (settings.CloseAfterLaunch) BeginInvoke(new Action(Close));
         }
@@ -1278,8 +1226,6 @@ internal sealed class MainForm : Form
             return "Не удалось связаться с сервером загрузки. Проверь интернет-соединение и повтори попытку.";
         if (message.Contains("Access to the path", StringComparison.OrdinalIgnoreCase) || message.Contains("UnauthorizedAccess", StringComparison.OrdinalIgnoreCase))
             return "Нет доступа к папке игры. Выбери другую папку, в которую разрешена запись.";
-        if (message.Contains("MicrosoftOAuth", StringComparison.OrdinalIgnoreCase) || message.Contains("Xbox", StringComparison.OrdinalIgnoreCase))
-            return "Не удалось выполнить вход Microsoft. Открой раздел «Аккаунт», повтори вход и проверь, что в аккаунте есть Minecraft: Java Edition.";
         return "Произошла ошибка. Технические подробности сохранены во внутреннем отчёте.";
     }
 
