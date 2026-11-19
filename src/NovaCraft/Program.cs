@@ -270,7 +270,7 @@ internal sealed class MainForm : Form
             catch (Exception ex)
             {
                 AppDiagnostics.Report(ex, "BuildUi." + item.value.Name);
-                page = new TabPage(item.Name) { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
+                page = new TabPage(item.value.Name) { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
                 page.Controls.Add(new Label
                 {
                     Text = "Этот раздел не удалось загрузить. Сам NovaCraft продолжит работать.\n\nОшибка записана в LocalAppData\\NovaCraft\\logs\\startup-errors.log.",
