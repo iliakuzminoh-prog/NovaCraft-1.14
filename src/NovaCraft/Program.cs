@@ -1150,7 +1150,8 @@ internal sealed class MainForm : Form
         var profileList = new ListBox { Location = new Point(18, 48), Size = new Size(330, 130), BackColor = Color.FromArgb(17, 20, 31), ForeColor = Color.White, BorderStyle = BorderStyle.None };
         var profileName = new TextBox { PlaceholderText = "Новый ник", Location = new Point(370, 48), Width = 230, Height = 36 };
         var addProfile = ModernButton("+ Добавить", 120, 38); addProfile.Location = new Point(610, 47);
-        var deleteProfile = ModernButton("Удалить", 120, 38); deleteProfile.Location = new Point(610, 91); deleteProfile.BackColor = Color.FromArgb(42, 46, 62);
+        var renameProfile = ModernButton("Переименовать", 120, 38); renameProfile.Location = new Point(610, 91);
+        var deleteProfile = ModernButton("Удалить", 120, 38); deleteProfile.Location = new Point(610, 135); deleteProfile.BackColor = Color.FromArgb(42, 46, 62);
         var uuidLabel = new Label { Text = "", AutoSize = false, Size = new Size(450, 54), Location = new Point(370, 105), ForeColor = Color.FromArgb(156, 168, 191) };
 
         void EnsureProfiles()
@@ -1212,6 +1213,54 @@ internal sealed class MainForm : Form
             SelectProfile();
             status.Text = "Профиль создан";
         };
+        renameProfile.Click += (_, _) =>
+        {
+            if (profileList.SelectedIndex < 0) return;
+            var profile = settings.OfflineProfiles[profileList.SelectedIndex];
+            var dialog = new Form
+            {
+                Text = "Переименовать профиль",
+                ClientSize = new Size(360, 150),
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false
+            };
+            var input = new TextBox { Text = profile.Username, Location = new Point(20, 25), Width = 320 };
+            var ok = ModernButton("Сохранить", 120, 38); ok.Location = new Point(20, 75);
+            var cancel = ModernButton("Отмена", 120, 38); cancel.Location = new Point(160, 75); cancel.BackColor = Color.FromArgb(42, 46, 62);
+            ok.Click += (_, _) =>
+            {
+                var newName = input.Text.Trim();
+                var validation = NickValidator.Validate(newName);
+                if (!validation.ok)
+                {
+                    MessageBox.Show(dialog, validation.error, "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                if (settings.OfflineProfiles.Any(x => x.Id != profile.Id && string.Equals(x.Username, newName, StringComparison.OrdinalIgnoreCase)))
+                {
+                    MessageBox.Show(dialog, "Профиль с таким ником уже существует.", "Профиль", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
+                profile.Username = newName;
+                profile.Uuid = OfflineProfileRules.OfflineUuid(newName);
+                settings.Username = newName;
+                settings.ActiveProfileId = profile.Id;
+                username.Text = newName;
+                SettingsService.Save(settings);
+                dialog.DialogResult = DialogResult.OK;
+                dialog.Close();
+                RenderProfiles();
+                SelectProfile();
+            };
+            cancel.DialogResult = DialogResult.Cancel;
+            dialog.Controls.AddRange(new Control[] { input, ok, cancel });
+            dialog.AcceptButton = ok;
+            dialog.CancelButton = cancel;
+            dialog.ShowDialog(this);
+        };
+
         deleteProfile.Click += (_, _) =>
         {
             if (profileList.SelectedIndex < 0 || settings.OfflineProfiles.Count <= 1) return;
@@ -1223,7 +1272,7 @@ internal sealed class MainForm : Form
             RenderProfiles();
             SelectProfile();
         };
-        profileCard.Controls.AddRange(new Control[] { profileList, profileName, addProfile, deleteProfile, uuidLabel });
+        profileCard.Controls.AddRange(new Control[] { profileList, profileName, addProfile, renameProfile, deleteProfile, uuidLabel });
         p.Controls.Add(profileCard);
 
         var skinCard = ModernCard(860, 305, "ЛОКАЛЬНЫЙ СКИН", Color.FromArgb(22, 25, 39));
@@ -2530,6 +2579,7 @@ static class SettingsService
         try
         {
             var loaded = JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(PathName)) ?? new LauncherSettings();
+            loaded.SchemaVersion = Math.Max(loaded.SchemaVersion, 2);
             if (string.IsNullOrWhiteSpace(loaded.GameDirectory))
                 loaded.GameDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
             loaded.MaximumRamMb = Math.Clamp(loaded.MaximumRamMb, 1024, 8192);
