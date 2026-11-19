@@ -6,6 +6,7 @@ using System.Text;
 using System.IO.Compression;
 using System.Diagnostics;
 using CmlLib.Core;
+using NovaCraft.Services;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
 using CmlLib.Core.ModLoaders.FabricMC;
@@ -66,6 +67,7 @@ internal sealed class OfflineProfile
 
 internal sealed class LauncherSettings
 {
+    public int SchemaVersion { get; set; } = 2;
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
     public string Username { get; set; } = "NovaPlayer";
     public string ActiveProfileId { get; set; } = "";
@@ -168,6 +170,8 @@ internal sealed class MainForm : Form
         }
 
         Text = "NovaCraft 1.14";
+        username.ReadOnly = true;
+        username.TabStop = false;
         Width = 1180; Height = 760; MinimumSize = new Size(980, 650);
         try { Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
         BackColor = Color.FromArgb(18, 19, 23); ForeColor = Color.White;
@@ -1155,7 +1159,7 @@ internal sealed class MainForm : Form
             if (settings.OfflineProfiles.Count == 0)
             {
                 var name = string.IsNullOrWhiteSpace(settings.Username) ? "NovaPlayer" : settings.Username;
-                settings.OfflineProfiles.Add(new OfflineProfile { Username = name, Uuid = OfflineUuid(name).ToString() });
+                settings.OfflineProfiles.Add(new OfflineProfile { Username = name, Uuid = OfflineProfileRules.OfflineUuid(name) });
             }
             if (string.IsNullOrWhiteSpace(settings.ActiveProfileId) || !settings.OfflineProfiles.Any(x => x.Id == settings.ActiveProfileId))
                 settings.ActiveProfileId = settings.OfflineProfiles[0].Id;
@@ -1187,9 +1191,10 @@ internal sealed class MainForm : Form
         addProfile.Click += (_, _) =>
         {
             var name = profileName.Text.Trim();
-            if (name.Length is < 2 or > 16 || name.Any(char.IsControl) || name.Any(char.IsWhiteSpace))
+            var validation = NickValidator.Validate(name);
+            if (!validation.ok)
             {
-                MessageBox.Show("Ник должен содержать 2–16 символов без пробелов.", "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show(validation.error, "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             if (settings.OfflineProfiles.Any(x => string.Equals(x.Username, name, StringComparison.OrdinalIgnoreCase)))
@@ -1197,7 +1202,7 @@ internal sealed class MainForm : Form
                 MessageBox.Show("Профиль с таким ником уже существует.", "Профиль", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
-            var profile = new OfflineProfile { Username = name, Uuid = OfflineUuid(name).ToString() };
+            var profile = new OfflineProfile { Username = name, Uuid = OfflineProfileRules.OfflineUuid(name) };
             settings.OfflineProfiles.Add(profile);
             settings.ActiveProfileId = profile.Id;
             settings.Username = profile.Username;
@@ -1241,9 +1246,11 @@ internal sealed class MainForm : Form
 
         string GetSkinDestination(OfflineProfile profile)
         {
-            var folder = Path.Combine(settings.GameDirectory, "CustomSkinLoader", "LocalSkin", "skins");
+            var folder = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NovaCraft", "skins");
             Directory.CreateDirectory(folder);
-            return Path.Combine(folder, profile.Username + ".png");
+            return Path.Combine(folder, profile.Id + ".png");
         }
 
         EnsureProfiles();
@@ -1316,16 +1323,7 @@ internal sealed class MainForm : Form
         return p;
     }
 
-    static Guid OfflineUuid(string username)
-    {
-        // Minecraft Java uses UUID.nameUUIDFromBytes("OfflinePlayer:" + username)
-        // for offline profiles: MD5 + RFC 4122 version/variant bits.
-        using var md5 = MD5.Create();
-        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes("OfflinePlayer:" + username));
-        hash[6] = (byte)((hash[6] & 0x0F) | 0x30); // UUID version 3
-        hash[8] = (byte)((hash[8] & 0x3F) | 0x80); // RFC 4122 variant
-        return Guid.ParseExact(Convert.ToHexString(hash), "N");
-    }
+    static string OfflineUuid(string username) => OfflineProfileRules.OfflineUuid(username);
 
     async Task InstallCustomSkinLoaderAsync(Label result)
     {
@@ -1346,19 +1344,17 @@ internal sealed class MainForm : Form
             var filename = file?["filename"]?.ToString();
             if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(sha) || string.IsNullOrWhiteSpace(filename))
                 throw new InvalidOperationException("Для выбранной версии Minecraft и загрузчика совместимый CustomSkinLoader не найден.");
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != "cdn.modrinth.com")
-                throw new SecurityException("Загрузка Skin Bridge разрешена только с cdn.modrinth.com.");
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+                throw new SecurityException("Некорректная ссылка Skin Bridge.");
             result.Text = "Скачиваю Skin Bridge и проверяю SHA-512…";
-            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
-            var bytes = await ReadBoundedContentAsync(response.Content, 50 * 1024 * 1024);
-            var actual = SHA512.HashData(bytes);
-            if (!CryptographicOperations.FixedTimeEquals(actual, Convert.FromHexString(sha)))
-                throw new CryptographicException("SHA-512 Skin Bridge не совпадает с Modrinth.");
             var mods = Path.Combine(settings.GameDirectory, "mods");
-            Directory.CreateDirectory(mods);
-            var target = Path.Combine(mods, filename);
-            await File.WriteAllBytesAsync(target, bytes);
+            await DownloadService.DownloadVerifiedAsync(
+                http, uri, sha, mods, filename, new[] { ".jar" }, 50L * 1024 * 1024,
+                null, CancellationToken.None,
+                name => MessageBox.Show(
+                    "Установить Skin Bridge: " + name + "?",
+                    "Подтверждение установки",
+                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes);
             foreach (var profile in settings.OfflineProfiles)
             {
                 if (string.IsNullOrWhiteSpace(profile.SkinPath) || !File.Exists(profile.SkinPath)) continue;
@@ -1374,7 +1370,20 @@ internal sealed class MainForm : Form
     }
 
     string GetProfileSkinPath(OfflineProfile profile) =>
-        Path.Combine(settings.GameDirectory, "CustomSkinLoader", "LocalSkin", "skins", profile.Username + ".png");
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "NovaCraft", "skins", profile.Id + ".png");
+
+    void SyncActiveProfileSkinToGame()
+    {
+        var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+        if (profile == null || string.IsNullOrWhiteSpace(profile.SkinPath) || !File.Exists(profile.SkinPath))
+            return;
+
+        var targetDir = Path.Combine(settings.GameDirectory, "CustomSkinLoader", "LocalSkin", "skins");
+        Directory.CreateDirectory(targetDir);
+        var target = Path.Combine(targetDir, profile.Username + ".png");
+        File.Copy(profile.SkinPath, target, true);
+    }
 
     static void CreatePresetSkin(string path, string preset)
     {
@@ -1818,14 +1827,14 @@ internal sealed class MainForm : Form
         var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
         if (profile == null)
         {
-            profile = new OfflineProfile { Username = name, Uuid = OfflineUuid(name).ToString() };
+            profile = new OfflineProfile { Username = name, Uuid = OfflineProfileRules.OfflineUuid(name) };
             settings.OfflineProfiles ??= new List<OfflineProfile>();
             settings.OfflineProfiles.Add(profile);
             settings.ActiveProfileId = profile.Id;
         }
         profile.Username = name;
         if (!Guid.TryParse(profile.Uuid, out _))
-            profile.Uuid = OfflineUuid(name).ToString();
+            profile.Uuid = OfflineProfileRules.OfflineUuid(name);
         SettingsService.Save(settings);
         return new MSession
         {
@@ -1864,10 +1873,11 @@ internal sealed class MainForm : Form
     async Task LaunchAsync()
     {
         if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
-        var playerName = username.Text.Trim();
-        if (playerName.Length is < 2 or > 16 || playerName.Any(char.IsControl) || playerName.Any(char.IsWhiteSpace))
+        var activeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+        var nicknameValidation = NickValidator.Validate(activeProfile?.Username);
+        if (!nicknameValidation.ok)
         {
-            MessageBox.Show("Офлайн-ник должен содержать 2–16 символов без пробелов и управляющих символов. Латиница, кириллица, цифры, _ и - поддерживаются.", "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show(nicknameValidation.error, "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         string launchVersion = v;
@@ -1903,8 +1913,10 @@ internal sealed class MainForm : Form
                         errorText.Contains("Could not reserve enough space for object heap", StringComparison.OrdinalIgnoreCase) ||
                         errorText.Contains("Could not create Java Virtual Machine", StringComparison.OrdinalIgnoreCase))
                     {
-                        settings.MaximumRamMb = Math.Max(1024, Math.Min(settings.MaximumRamMb - 512, 2048));
+                        var oldRam = settings.MaximumRamMb;
+                        settings.MaximumRamMb = Math.Max(1024, oldRam - 512);
                         ram.Value = Math.Clamp(settings.MaximumRamMb, (int)ram.Minimum, (int)ram.Maximum);
+                        MessageBox.Show($"JVM не смогла выделить память. Лимит уменьшен с {oldRam} до {settings.MaximumRamMb} МБ.", "Автоисправление ОЗУ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     SettingsService.Save(settings);
                     await GetLauncher().InstallAsync(launchVersion);
@@ -2253,23 +2265,9 @@ internal sealed class MainForm : Form
                 "\nКаталог: " + folderName + "\nИсточник: Modrinth CDN\nПроверка: SHA-512.\n\nПродолжить загрузку?",
                 "Подтверждение установки", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (approval != DialogResult.Yes) return;
-            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
-            if (response.Content.Headers.ContentLength is long length && length > 250L * 1024 * 1024)
-                throw new InvalidDataException("Архив превышает защитный лимит 250 МБ.");
-            var bytes = await ReadBoundedContentAsync(response.Content, 250 * 1024 * 1024);
-            if (bytes.Length < 4 || bytes.Length > 250 * 1024 * 1024 || bytes[0] != (byte)'P' || bytes[1] != (byte)'K')
-                throw new InvalidDataException("Полученный файл не является допустимым ZIP-архивом.");
-            var actual = SHA512.HashData(bytes);
-            if (!CryptographicOperations.FixedTimeEquals(actual, Convert.FromHexString(expected)))
-                throw new CryptographicException("SHA-512 не совпадает с метаданными Modrinth. Файл не установлен.");
-            var temporary = destination + ".download";
-            try
-            {
-                await File.WriteAllBytesAsync(temporary, bytes);
-                File.Move(temporary, destination);
-            }
-            finally { if (File.Exists(temporary)) File.Delete(temporary); }
+            await DownloadService.DownloadVerifiedAsync(
+                http, uri, expected, targetDir, filename, new[] { ".zip" },
+                250L * 1024 * 1024, null, CancellationToken.None, _ => true);
             WriteLog("Установлен архив Modrinth: " + destination);
             status.Text = "Архив установлен: " + filename;
         }
@@ -2357,24 +2355,10 @@ internal sealed class MainForm : Form
                 var destination = Path.Combine(modsDir, name);
                 if (File.Exists(destination)) continue;
 
-                using var response = await http.GetAsync(downloadUri, HttpCompletionOption.ResponseHeadersRead);
-                response.EnsureSuccessStatusCode();
-                if (response.Content.Headers.ContentLength is long declaredLength && declaredLength > 250L * 1024 * 1024)
-                    throw new InvalidDataException("Файл превышает защитный лимит 250 МБ.");
-                var bytes = await ReadBoundedContentAsync(response.Content, 250 * 1024 * 1024);
-                if (bytes.Length < 4 || bytes[0] != (byte)'P' || bytes[1] != (byte)'K')
-                    throw new InvalidDataException("Загруженный файл не является допустимым JAR/ZIP.");
-                var actualSha512 = SHA512.HashData(bytes);
-                if (!CryptographicOperations.FixedTimeEquals(actualSha512, Convert.FromHexString(expectedSha512)))
-                    throw new CryptographicException("SHA-512 не совпадает с метаданными Modrinth.");
-
-                var temporary = destination + ".download";
-                try
-                {
-                    await File.WriteAllBytesAsync(temporary, bytes);
-                    File.Move(temporary, destination, true);
-                }
-                finally { if (File.Exists(temporary)) File.Delete(temporary); }
+                await DownloadService.DownloadVerifiedAsync(
+                    http, downloadUri, expectedSha512, modsDir, name, new[] { ".jar" },
+                    250L * 1024 * 1024, null, CancellationToken.None,
+                    _ => true);
                 WriteLog("Установлен мод/зависимость: " + name);
             }
 
@@ -2387,7 +2371,13 @@ internal sealed class MainForm : Form
     {
         if (string.IsNullOrWhiteSpace(gameDir.Text))
             throw new InvalidOperationException("Выбери папку Minecraft в настройках.");
-        settings.Username = username.Text.Trim();
+        var activeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+        if (activeProfile == null)
+            throw new InvalidOperationException("Активный профиль не найден.");
+        var nicknameValidation = NickValidator.Validate(activeProfile.Username);
+        if (!nicknameValidation.ok)
+            throw new InvalidOperationException(nicknameValidation.error);
+        settings.Username = activeProfile.Username;
         settings.MaximumRamMb = (int)ram.Value;
         settings.FpsBoost = boost.Checked;
         settings.GameDirectory = gameDir.Text.Trim();
@@ -2562,7 +2552,7 @@ static class SettingsService
             foreach (var profile in loaded.OfflineProfiles)
             {
                 if (!Guid.TryParse(profile.Uuid, out _))
-                    profile.Uuid = OfflineUuid(profile.Username).ToString();
+                    profile.Uuid = OfflineProfileRules.OfflineUuid(profile.Username);
             }
             return loaded;
         }
