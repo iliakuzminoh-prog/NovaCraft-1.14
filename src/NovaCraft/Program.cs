@@ -1118,90 +1118,293 @@ internal sealed class MainForm : Form
 
     TabPage AccountPage()
     {
-        var p = new TabPage("Скин") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
-        p.Controls.Add(new Label { Text = "СКИН И ПРОЧЕЕ", Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(26, 180) });
-        p.Controls.Add(new Label { Text = "Ниже остаётся локальный скин и инструкция для серверов с поддержкой SkinsRestorer.", AutoSize = false, Size = new Size(790, 42), ForeColor = Color.Silver, Location = new Point(26, 215) });
-        p.AutoScroll = true;
-        p.Controls.Add(new Label { Text = "МОЙ СКИН", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
-        p.Controls.Add(new Label { Text = "Выбери PNG-файл скина. Он сохранится в профиле NovaCraft на этом компьютере.", AutoSize = false, Size = new Size(790, 42), ForeColor = Color.Silver, Location = new Point(26, 68) });
-        var preview = new PictureBox { Location = new Point(26, 125), Size = new Size(256, 256), BackColor = Color.FromArgb(27, 30, 40), SizeMode = PictureBoxSizeMode.Zoom };
-        var skinStatus = new Label { Text = "Скин не выбран.", Location = new Point(305, 128), Size = new Size(470, 100), ForeColor = Color.Silver };
-        var choose = new Button { Text = "Выбрать PNG…", Location = new Point(305, 240), Width = 170, Height = 40 };
-        var remove = new Button { Text = "Убрать скин", Location = new Point(485, 240), Width = 140, Height = 40 };
-        var model = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(305, 292), Width = 180 };
-        model.Items.AddRange(new object[] { "Classic (обычные руки)", "Slim (узкие руки)" });
+        var p = new TabPage("Скины") { BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(24), AutoScroll = true };
+
+        p.Controls.Add(new Label
+        {
+            Text = "МОЙ СКИН",
+            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
+            AutoSize = true,
+            ForeColor = Color.White,
+            Location = new Point(24, 20)
+        });
+        p.Controls.Add(new Label
+        {
+            Text = "Выбери свой PNG или создай оригинальный стиль NovaCraft прямо в лаунчере.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(151, 161, 183),
+            Location = new Point(27, 61)
+        });
+
+        var previewCard = ModernCard(760, 290, "ПРЕДПРОСМОТР", Color.FromArgb(22, 25, 39));
+        previewCard.Location = new Point(24, 95);
+        var preview = new PictureBox
+        {
+            Location = new Point(22, 48),
+            Size = new Size(210, 210),
+            BackColor = Color.FromArgb(15, 18, 29),
+            SizeMode = PictureBoxSizeMode.Zoom
+        };
+        var skinStatus = new Label
+        {
+            Text = "Скин не выбран.",
+            Location = new Point(260, 55),
+            Size = new Size(470, 90),
+            ForeColor = Color.FromArgb(175, 185, 205),
+            Font = new Font("Segoe UI", 10)
+        };
+        var choose = ModernButton("Выбрать PNG…", 160, 40);
+        choose.Location = new Point(260, 150);
+        var remove = ModernButton("Убрать", 120, 40);
+        remove.Location = new Point(430, 150);
+        remove.BackColor = Color.FromArgb(38, 43, 58);
+        var model = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Location = new Point(260, 205),
+            Width = 190,
+            Height = 38
+        };
+        model.Items.AddRange(new object[] { "Classic · 4px", "Slim · 3px" });
         model.SelectedIndex = 0;
+        previewCard.Controls.AddRange(new Control[] { preview, skinStatus, choose, remove, model });
+        p.Controls.Add(previewCard);
+
         string skinFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "skins");
         string activeSkin = Path.Combine(skinFolder, "active.png");
+
         void LoadPreview(string path)
         {
             using var stream = File.OpenRead(path);
-            using var loaded = Image.FromStream(stream);
+            using var loaded = Image.FromStream(stream, false, true);
             var copy = new Bitmap(loaded);
             var old = preview.Image;
             preview.Image = copy;
             old?.Dispose();
         }
+
         if (File.Exists(activeSkin))
         {
-            try { LoadPreview(activeSkin); skinStatus.Text = "Активный скин: " + activeSkin; }
-            catch (Exception ex) { skinStatus.Text = "Не удалось открыть сохранённый скин: " + ex.Message; }
+            try { LoadPreview(activeSkin); skinStatus.Text = "Активный локальный скин: " + Path.GetFileName(activeSkin); }
+            catch (Exception ex) { skinStatus.Text = "Сохранённый скин повреждён: " + ex.Message; }
         }
+
         choose.Click += (_, _) =>
         {
-            using var dialog = new OpenFileDialog { Title = "Выбери PNG-скин Minecraft", Filter = "PNG изображение (*.png)|*.png", CheckFileExists = true };
+            using var dialog = new OpenFileDialog
+            {
+                Title = "Выбери PNG-скин Minecraft",
+                Filter = "Minecraft skin (*.png)|*.png",
+                CheckFileExists = true
+            };
             if (dialog.ShowDialog() != DialogResult.OK) return;
             try
             {
                 var info = new FileInfo(dialog.FileName);
-                if (info.Length is < 1 or > 5_000_000) throw new InvalidDataException("Размер PNG должен быть от 1 байта до 5 МБ.");
+                if (info.Length is < 1 or > 8_000_000)
+                    throw new InvalidDataException("PNG должен занимать от 1 байта до 8 МБ.");
+
                 using var stream = File.OpenRead(dialog.FileName);
                 using var image = Image.FromStream(stream, false, true);
-                bool validSize = (image.Width == 64 && image.Height == 64) || (image.Width == 64 && image.Height == 32) ||
-                    (image.Width == image.Height && image.Width is 128 or 256 or 512 or 1024) ||
-                    (image.Width == image.Height * 2 && image.Width is 128 or 256 or 512 or 1024);
-                if (!validSize) throw new InvalidDataException("Нужен PNG-скин 64×64 или 64×32 (допускается масштабированный вариант).");
+                var valid = (image.Width == 64 && image.Height == 64) || (image.Width == 64 && image.Height == 32);
+                if (!valid)
+                    throw new InvalidDataException("Для Java Edition нужен PNG 64×64 или старый 64×32.");
+
                 Directory.CreateDirectory(skinFolder);
                 File.Copy(dialog.FileName, activeSkin, true);
                 LoadPreview(activeSkin);
-                skinStatus.Text = "Скин выбран и сохранён:\n" + activeSkin;
+                skinStatus.Text = "Скин сохранён локально. Выбран " + (model.SelectedIndex == 1 ? "Slim" : "Classic") + ".";
             }
-            catch (Exception ex) { MessageBox.Show(ex.Message, "Некорректный скин", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+            catch (Exception ex)
+            {
+                WriteLog("Импорт скина: " + ex);
+                MessageBox.Show(ex.Message, "Некорректный скин", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
         };
+
         remove.Click += (_, _) =>
         {
             try
             {
                 if (File.Exists(activeSkin)) File.Delete(activeSkin);
-                var old = preview.Image; preview.Image = null; old?.Dispose();
+                var old = preview.Image;
+                preview.Image = null;
+                old?.Dispose();
                 skinStatus.Text = "Локальный скин удалён.";
             }
-            catch (Exception ex) { skinStatus.Text = "Не удалось удалить файл: " + ex.Message; }
+            catch (Exception ex) { skinStatus.Text = "Не удалось удалить скин: " + ex.Message; }
         };
-        p.Controls.AddRange(new Control[] { preview, skinStatus, choose, remove, model });
-        p.Controls.Add(new Label { Text = "ВИДИМОСТЬ НА ПИРАТСКИХ СЕРВЕРАХ", Font = new Font("Segoe UI Semibold", 13, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(26, 415) });
-        p.Controls.Add(new Label { Text = "Чтобы другие игроки увидели твой PNG, сервер должен поддерживать смену скинов, например через SkinsRestorer, и разрешать команду /skin url. Лаунчер не может сам записать скин на чужой сервер.", AutoSize = false, Size = new Size(790, 70), ForeColor = Color.Silver, Location = new Point(26, 450) });
-        var openStudio = new Button { Text = "Открыть официальный Skin Studio", Location = new Point(26, 535), Width = 260, Height = 40 };
+
+        var presets = ModernCard(760, 175, "ГОТОВЫЕ СТИЛИ NOVACRAFT", Color.FromArgb(22, 25, 39));
+        presets.Location = new Point(24, 405);
+        presets.Controls.Add(new Label
+        {
+            Text = "Оригинальные пресеты: тёмный street, cyber, emerald и purple. Файлы создаются локально.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(151, 161, 183),
+            Location = new Point(18, 48)
+        });
+
+        void ApplyPreset(string name)
+        {
+            try
+            {
+                Directory.CreateDirectory(skinFolder);
+                CreatePresetSkin(activeSkin, name);
+                LoadPreview(activeSkin);
+                model.SelectedIndex = 0;
+                skinStatus.Text = "Активен стиль NovaCraft: " + name + "\nClassic · 4px";
+                status.Text = "Скин «" + name + "» создан";
+            }
+            catch (Exception ex)
+            {
+                WriteLog("Пресет скина: " + ex);
+                MessageBox.Show("Не удалось создать скин: " + ex.Message, "Скин", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        }
+
+        var presetData = new[]
+        {
+            ("Night Runner", Color.FromArgb(42, 52, 82)),
+            ("Cyber Blue", Color.FromArgb(42, 101, 185)),
+            ("Emerald Scout", Color.FromArgb(37, 132, 93)),
+            ("Purple Neon", Color.FromArgb(109, 62, 168))
+        };
+        var presetX = 18;
+        foreach (var item in presetData)
+        {
+            var button = ModernButton(item.Item1, 165, 45);
+            button.Location = new Point(presetX, 95);
+            button.BackColor = item.Item2;
+            button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(item.Item2);
+            button.Click += (_, _) => ApplyPreset(item.Item1);
+            presets.Controls.Add(button);
+            presetX += 174;
+        }
+        p.Controls.Add(presets);
+
+        var server = ModernCard(760, 245, "СЕРВЕРЫ И СКИН", Color.FromArgb(22, 25, 39));
+        server.Location = new Point(24, 595);
+        server.Controls.Add(new Label
+        {
+            Text = "На сервере твой скин виден другим игрокам только если сервер поддерживает соответствующую систему скинов.",
+            AutoSize = false,
+            Size = new Size(700, 45),
+            ForeColor = Color.FromArgb(175, 185, 205),
+            Location = new Point(18, 48)
+        });
+        var openStudio = ModernButton("Открыть Skin Studio", 210, 40);
+        openStudio.Location = new Point(18, 105);
         openStudio.Click += (_, _) => GenOpenSkinStudio();
-        p.Controls.Add(openStudio);
-        p.Controls.Add(new Label { Text = "В Skin Studio загрузи active.png и сгенерируй команду /skin url. Выполнить её можно только на сервере с поддержкой SkinsRestorer и разрешением на эту команду. На остальных серверах другие игроки скин не увидят.", AutoSize = false, Size = new Size(790, 82), ForeColor = Color.FromArgb(190, 175, 145), Location = new Point(26, 590) });
-        p.Controls.Add(new Label { Text = "КОМАНДА ДЛЯ СЕРВЕРА (если уже есть URL текстуры)", AutoSize = true, ForeColor = Color.White, Location = new Point(26, 690) });
-        var textureUrl = new TextBox { Location = new Point(26, 720), Width = 560, Height = 34, PlaceholderText = "https://textures.minecraft.net/texture/…" };
-        var copyCommand = new Button { Text = "Скопировать /skin url", Location = new Point(600, 718), Width = 190, Height = 38 };
+        server.Controls.Add(openStudio);
+        server.Controls.Add(new Label
+        {
+            Text = "Если у тебя уже есть HTTPS URL текстуры:",
+            AutoSize = true,
+            ForeColor = Color.White,
+            Location = new Point(18, 160)
+        });
+        var textureUrl = new TextBox
+        {
+            Location = new Point(18, 188),
+            Width = 500,
+            Height = 34,
+            PlaceholderText = "https://textures.minecraft.net/texture/…"
+        };
+        var copyCommand = ModernButton("Скопировать команду", 190, 34);
+        copyCommand.Location = new Point(530, 188);
         copyCommand.Click += (_, _) =>
         {
             var url = textureUrl.Text.Trim();
             if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed) || parsed.Scheme != Uri.UriSchemeHttps)
             {
-                MessageBox.Show("Вставь корректный HTTPS URL текстуры.", "Проверка URL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                MessageBox.Show("Нужен корректный HTTPS URL текстуры.", "Проверка URL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                 return;
             }
             var variant = model.SelectedIndex == 1 ? " slim" : " classic";
             Clipboard.SetText("/skin url \"" + url.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"" + variant);
-            skinStatus.Text = "Команда скопирована. Используй её только на сервере с поддержкой SkinsRestorer.";
+            skinStatus.Text = "Команда скопирована.";
         };
-        p.Controls.AddRange(new Control[] { textureUrl, copyCommand });
+        server.Controls.AddRange(new Control[] { textureUrl, copyCommand });
+        p.Controls.Add(server);
+
         return p;
+    }
+
+
+    static void CreatePresetSkin(string path, string preset)
+    {
+        var accent = preset switch
+        {
+            "Cyber Blue" => Color.FromArgb(48, 132, 232),
+            "Emerald Scout" => Color.FromArgb(48, 174, 118),
+            "Purple Neon" => Color.FromArgb(151, 77, 232),
+            _ => Color.FromArgb(72, 88, 128)
+        };
+        var dark = Color.FromArgb(24, 27, 38);
+        var skin = Color.FromArgb(224, 170, 128);
+        var skinShadow = Color.FromArgb(186, 128, 94);
+        var white = Color.FromArgb(225, 232, 242);
+        var shoe = Color.FromArgb(16, 18, 25);
+
+        using var bitmap = new Bitmap(64, 64, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using var g = Graphics.FromImage(bitmap);
+        g.Clear(Color.Transparent);
+        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.None;
+        g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.NearestNeighbor;
+
+        void Box(int x, int y, int w, int h, int d, Color front, Color side, Color top)
+        {
+            using var f = new SolidBrush(front);
+            using var s = new SolidBrush(side);
+            using var t = new SolidBrush(top);
+            g.FillRectangle(t, x + d, y, w, d);
+            g.FillRectangle(s, x, y + d, d, h);
+            g.FillRectangle(f, x + d, y + d, w, h);
+            g.FillRectangle(s, x + d + w, y + d, d, h);
+            g.FillRectangle(s, x + d + w + d, y + d, w, h);
+            g.FillRectangle(t, x + d + w, y, w, d);
+        }
+
+        Box(0, 0, 8, 8, 8, skin, skinShadow, Color.FromArgb(244, 194, 151));
+        Box(16, 16, 8, 12, 4, accent, dark, Color.FromArgb(90, 105, 132));
+        Box(40, 16, 4, 12, 4, accent, dark, Color.FromArgb(90, 105, 132));
+        Box(32, 48, 4, 12, 4, accent, dark, Color.FromArgb(90, 105, 132));
+        Box(0, 16, 4, 12, 4, shoe, dark, Color.FromArgb(45, 49, 59));
+        Box(16, 48, 4, 12, 4, shoe, dark, Color.FromArgb(45, 49, 59));
+
+        using var hair = new SolidBrush(dark);
+        using var eye = new SolidBrush(white);
+        using var pupil = new SolidBrush(Color.FromArgb(30, 39, 55));
+        using var mouth = new SolidBrush(skinShadow);
+        g.FillRectangle(hair, 8, 8, 8, 3);
+        g.FillRectangle(hair, 8, 8, 2, 5);
+        g.FillRectangle(eye, 10, 11, 1, 1);
+        g.FillRectangle(eye, 13, 11, 1, 1);
+        g.FillRectangle(pupil, 10, 11, 1, 1);
+        g.FillRectangle(pupil, 13, 11, 1, 1);
+        g.FillRectangle(mouth, 11, 13, 4, 1);
+
+        Box(16, 32, 8, 12, 4, Color.FromArgb(
+            Math.Min(255, accent.R + 10),
+            Math.Min(255, accent.G + 10),
+            Math.Min(255, accent.B + 10)), accent, Color.FromArgb(115, 125, 150));
+        using var stripe = new SolidBrush(white);
+        g.FillRectangle(stripe, 20, 36, 8, 2);
+
+        // Outer hat layer: a simple dark cap with an accent stripe.
+        using var cap = new SolidBrush(dark);
+        g.FillRectangle(cap, 40, 8, 8, 3);
+        g.FillRectangle(cap, 40, 8, 2, 8);
+        using var capAccent = new SolidBrush(accent);
+        g.FillRectangle(capAccent, 40, 10, 8, 1);
+
+        using var accentBrush = new SolidBrush(accent);
+        g.FillRectangle(accentBrush, 44, 44, 4, 4);
+        g.FillRectangle(accentBrush, 52, 60, 4, 2);
+        g.FillRectangle(accentBrush, 20, 60, 4, 2);
+
+        bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
     }
 
     static void GenOpenSkinStudio()
