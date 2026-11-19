@@ -555,7 +555,7 @@ internal sealed class MainForm : Form
 
         p.Controls.Add(modCards);
         p.Controls.Add(top);
-        p.Shown += async (_, _) =>
+        p.Enter += async (_, _) =>
         {
             if (modCards.Controls.Count == 0)
             {
@@ -564,6 +564,12 @@ internal sealed class MainForm : Form
                 modFeedOffset = 0;
                 await LoadModFeedAsync(true);
             }
+        };
+        modCards.Scroll += async (_, e) =>
+        {
+            if (e.ScrollOrientation != ScrollOrientation.VerticalScroll) return;
+            var nearBottom = modCards.VerticalScroll.Value >= Math.Max(0, modCards.VerticalScroll.Maximum - modCards.ClientSize.Height - 180);
+            if (nearBottom) await LoadModFeedAsync(false);
         };
         return p;
     }
