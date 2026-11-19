@@ -164,6 +164,20 @@ internal sealed class MainForm : Form
         };
     }
 
+    static Panel ModernCard(int width, int height, string title, Color backColor)
+    {
+        var card = new Panel { Width=width, Height=height, BackColor=backColor, Margin=new Padding(7), Padding=new Padding(18) };
+        card.Controls.Add(new Label { Text=title, AutoSize=true, Location=new Point(18,14), ForeColor=Color.White, Font=new Font("Segoe UI Semibold",10.5f,FontStyle.Bold) });
+        return card;
+    }
+
+    static Button ModernButton(string text, int width, int height)
+    {
+        var b=new Button { Text=text, Width=width, Height=height, FlatStyle=FlatStyle.Flat, BackColor=Color.FromArgb(91,39,235), ForeColor=Color.White, Font=new Font("Segoe UI Semibold",9.5f,FontStyle.Bold) };
+        b.FlatAppearance.BorderSize=0;
+        return b;
+    }
+
     static Bitmap CreateNavIcon(string glyph)
     {
         var bitmap = new Bitmap(24, 24);
@@ -326,120 +340,135 @@ internal sealed class MainForm : Form
 
     TabPage HomePage()
     {
-        var p = new TabPage("Главная") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12) };
-        var hero = new Panel { Dock = DockStyle.Top, Height = 220, BackColor = Color.FromArgb(35, 29, 58), Margin = new Padding(0, 0, 0, 12) };
-        var artwork = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.FromArgb(35, 29, 58), Image = LoadHeroArt() };
-        hero.Controls.Add(artwork);
+        var p = new TabPage("Главная") { BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(18) };
 
-        var lower = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(0, 12, 0, 0) };
-        var launchPanel = new Panel { Dock = DockStyle.Left, Width = 372, BackColor = Color.FromArgb(27, 30, 40), Padding = new Padding(18) };
-        var feedPanel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(16, 0, 0, 0) };
-
-        launchPanel.Controls.Add(new Label { Text = "ЗАПУСК ИГРЫ", Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold), AutoSize = true, Location = new Point(18, 15), ForeColor = Color.White });
-        username.Text = settings.Username;
-        launchPanel.Controls.Add(Labeled("Имя игрока", username, 18, 50, 300));
-
-        version.DropDownStyle = ComboBoxStyle.DropDownList;
-        launchPanel.Controls.Add(Labeled("Версия Minecraft", version, 18, 118, 300));
-        gameLoader.DropDownStyle = ComboBoxStyle.DropDownList;
-        gameLoader.Items.Clear();
-        gameLoader.Items.AddRange(new object[] { "Vanilla", "Fabric", "Quilt", "Forge" });
-        gameLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", "vanilla" => "Vanilla", _ => "Fabric" };
-        gameLoader.SelectedIndexChanged += (_, _) =>
+        var top = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Color.FromArgb(13, 15, 25) };
+        var search = new TextBox
         {
-            settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
-            if (modLoader.Items.Contains(gameLoader.SelectedItem)) modLoader.SelectedItem = gameLoader.SelectedItem;
-            SettingsService.Save(settings);
+            PlaceholderText = "Поиск модов, сборок и версий…",
+            Font = new Font("Segoe UI", 10.5f),
+            ForeColor = Color.White,
+            BackColor = Color.FromArgb(29, 31, 49),
+            BorderStyle = BorderStyle.FixedSingle,
+            Location = new Point(8, 7),
+            Width = 590,
+            Height = 36
         };
-        launchPanel.Controls.Add(Labeled("Загрузчик", gameLoader, 18, 186, 300));
+        top.Controls.Add(search);
+        var settingsButton = new Button { Text = "⚙", Width = 42, Height = 36, Location = new Point(610, 7), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
+        settingsButton.FlatAppearance.BorderSize = 0;
+        settingsButton.Click += (_, _) => ShowNavigationPage(10);
+        top.Controls.Add(settingsButton);
 
-        boost.Text = "Оптимизированный профиль JVM";
-        boost.Checked = settings.FpsBoost;
-        boost.AutoSize = true;
-        boost.Location = new Point(20, 258);
-        launchPanel.Controls.Add(boost);
+        var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(0, 8, 0, 0), AutoScroll = true };
 
-        play.Text = "▶  ИГРАТЬ";
-        play.Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold);
-        play.SetBounds(18, 292, 336, 50);
-        play.Click += async (_, _) => await LaunchAsync();
-        launchPanel.Controls.Add(play);
+        var hero = new Panel { Dock = DockStyle.Top, Height = 235, BackColor = Color.FromArgb(39, 29, 76), Padding = new Padding(28) };
+        var artwork = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.StretchImage, BackColor = Color.FromArgb(39,29,76), Image = LoadHeroArt() };
+        hero.Controls.Add(artwork);
+        var heroShade = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(105, 12, 15, 28) };
+        hero.Controls.Add(heroShade);
+        var welcome = new Label { Text = "Добро пожаловать в\nNovaCraft!", AutoSize = true, Location = new Point(28, 24), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold) };
+        var subtitle = new Label { Text = "Современный лаунчер Minecraft Java", AutoSize = true, Location = new Point(31, 92), ForeColor = Color.FromArgb(224, 225, 240), Font = new Font("Segoe UI", 11) };
+        var playHero = new Button { Text = "▶  Играть", Location = new Point(28, 145), Width = 170, Height = 48, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(91, 39, 235), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold) };
+        playHero.FlatAppearance.BorderSize = 0;
+        playHero.Click += async (_, _) => await LaunchAsync();
+        hero.Controls.AddRange(new Control[] { welcome, subtitle, playHero });
 
-        install.Text = "Установить / восстановить версию";
-        install.SetBounds(18, 352, 336, 40);
-        install.Click += async (_, _) => await InstallAsync();
-        launchPanel.Controls.Add(install);
+        var content = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 14, 0, 30), BackColor = Color.FromArgb(13,15,25) };
 
-        var ramInfo = new Label { Text = $"Память: {settings.MaximumRamMb} МБ  ·  Java подбирается автоматически", AutoSize = true, ForeColor = Color.Silver, Location = new Point(18, 402) };
-        launchPanel.Controls.Add(ramInfo);
+        var latest = ModernCard(300, 185, "ПОСЛЕДНЯЯ ВЕРСИЯ", Color.FromArgb(25,28,45));
+        latest.Controls.Add(new Label { Text = "⬛  " + settings.LastVersion, AutoSize = true, Location = new Point(18, 45), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold) });
+        latest.Controls.Add(new Label { Text = "●  Установлена", AutoSize = true, Location = new Point(20, 86), ForeColor = Color.FromArgb(50, 225, 140), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) });
+        var check = ModernButton("↻  Проверить обновления", 230, 38);
+        check.Location = new Point(18, 124);
+        check.Click += async (_, _) => await RefreshVersionsAsync();
+        latest.Controls.Add(check);
 
-        feedPanel.Controls.Add(new Label { Text = "ПОПУЛЯРНЫЕ МОДЫ", Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold), AutoSize = true, Location = new Point(12, 2), ForeColor = Color.White });
-        var seeAll = new Button { Text = "Весь каталог →", Width = 120, Height = 30, Anchor = AnchorStyles.Top | AnchorStyles.Right };
-        seeAll.Location = new Point(Math.Max(12, feedPanel.ClientSize.Width - 140), 0);
-        seeAll.Click += (_, _) => ShowNavigationPage(3);
-        feedPanel.Resize += (_, _) => seeAll.Location = new Point(Math.Max(12, feedPanel.ClientSize.Width - 140), 0);
-        feedPanel.Controls.Add(seeAll);
-        popularFeed.Dock = DockStyle.Fill;
-        popularFeed.Padding = new Padding(4, 40, 4, 4);
-        feedPanel.Controls.Add(popularFeed);
-
-        lower.Controls.Add(feedPanel);
-        lower.Controls.Add(launchPanel);
-        p.Controls.Add(lower);
-        p.Controls.Add(hero);
-        return p;
-    }
-
-    Image? LoadHeroArt()
-    {
-        try
+        var quick = ModernCard(300, 185, "БЫСТРЫЙ ЗАПУСК", Color.FromArgb(25,28,45));
+        var quickVersion = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(18, 42), Width = 250, Height = 32, BackColor = Color.FromArgb(34,37,58), ForeColor = Color.White };
+        quickVersion.Items.Add(settings.LastVersion);
+        quickVersion.SelectedIndex = 0;
+        var quickLoader = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(18, 82), Width = 250, Height = 32, BackColor = Color.FromArgb(34,37,58), ForeColor = Color.White };
+        quickLoader.Items.AddRange(new object[]{"Fabric","Forge","Quilt","Vanilla"});
+        quickLoader.SelectedItem = gameLoader.SelectedItem?.ToString() ?? "Fabric";
+        var quickPlay = ModernButton("▶  Запустить", 250, 38);
+        quickPlay.Location = new Point(18, 126);
+        quickPlay.Click += async (_, _) =>
         {
-            var assembly = typeof(Program).Assembly;
-            var name = assembly.GetManifestResourceNames().FirstOrDefault(x => x.EndsWith("novacraft-hero.webp", StringComparison.OrdinalIgnoreCase));
-            if (name == null) return null;
-            using var stream = assembly.GetManifestResourceStream(name);
-            if (stream == null) return null;
-            using var source = Image.FromStream(stream);
-            return new Bitmap(source);
+            if (quickVersion.SelectedItem is string v) version.SelectedItem = v;
+            if (quickLoader.SelectedItem is string l && gameLoader.Items.Contains(l)) gameLoader.SelectedItem = l;
+            await LaunchAsync();
+        };
+        quick.Controls.AddRange(new Control[]{quickVersion,quickLoader,quickPlay});
+
+        var buildsCard = ModernCard(610, 185, "ПОПУЛЯРНЫЕ СБОРКИ", Color.FromArgb(25,28,45));
+        var buildFlow = new FlowLayoutPanel { Location = new Point(14, 43), Size = new Size(580, 120), AutoScroll = true, WrapContents = false, BackColor = Color.Transparent };
+        if (settings.SavedBuilds.Count == 0)
+        {
+            buildFlow.Controls.Add(new Label { Text = "Здесь появятся твои сохранённые профили.\nСоздай первую сборку во вкладке «Сборки».", AutoSize = true, ForeColor = Color.Silver, Padding = new Padding(10,15,0,0) });
         }
-        catch { return null; }
+        else
+        {
+            foreach (var saved in settings.SavedBuilds.Take(4))
+            {
+                var parts = saved.Split('|');
+                var b = new Panel { Width = 175, Height = 100, BackColor = Color.FromArgb(33,37,61), Margin = new Padding(4) };
+                b.Controls.Add(new Label { Text = parts[0], Location = new Point(10,10), Size = new Size(150,40), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold), AutoEllipsis = true });
+                b.Controls.Add(new Label { Text = parts.Length>1 ? parts[1] : "", Location = new Point(10,54), AutoSize = true, ForeColor = Color.FromArgb(170,180,205) });
+                buildFlow.Controls.Add(b);
+            }
+        }
+        buildsCard.Controls.Add(buildFlow);
+
+        var modsCard = ModernCard(930, 185, "НОВЫЕ МОДЫ", Color.FromArgb(25,28,45));
+        var modInfo = new Label { Text = "Каталог Modrinth\nИконки, авторы, описания и загрузки\nзагружаются из реального каталога.", AutoSize = true, Location = new Point(18, 46), ForeColor = Color.FromArgb(195,200,220), Font = new Font("Segoe UI", 10) };
+        modsCard.Controls.Add(modInfo);
+        var modsOpen = ModernButton("Открыть каталог →", 180, 38);
+        modsOpen.Location = new Point(18, 122);
+        modsOpen.Click += (_, _) => ShowNavigationPage(3);
+        modsCard.Controls.Add(modsOpen);
+
+        content.Controls.AddRange(new Control[] { latest, quick, buildsCard, modsCard });
+        body.Controls.Add(content);
+        p.Controls.Add(body);
+        p.Controls.Add(top);
+        return p;
     }
 
     TabPage VersionsPage()
     {
-        var p = new TabPage("Версии") { BackColor = Color.FromArgb(18,19,23) };
-        p.Controls.Add(new Label { Text = "Релизные версии из официального манифеста Minecraft.", AutoSize = true, Location = new Point(22,20), ForeColor = Color.LightGray });
-        var list = new ListBox { Location = new Point(22,55), Size = new Size(1050,520), BackColor = Color.FromArgb(25,27,32), ForeColor = Color.White, BorderStyle = BorderStyle.None };
-        list.DoubleClick += (_,_) => { if (list.SelectedItem is string s) { version.Text=s; status.Text="Выбрана версия "+s; } };
-        p.Controls.Add(list); version.Tag = list; return p;
+        var p = new TabPage("Версии") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24) };
+        p.Controls.Add(new Label { Text = "Версии Minecraft", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 24, FontStyle.Bold), Location = new Point(24,20) });
+        p.Controls.Add(new Label { Text = "Официальные релизные версии. Выбери версию для запуска или установки.", AutoSize = true, ForeColor = Color.FromArgb(160,170,195), Location = new Point(27,62) });
+
+        var search = new TextBox { PlaceholderText = "Поиск версии…", Location = new Point(27,102), Width = 420, Height = 38, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
+        var list = new ListView { Location = new Point(27,154), Size = new Size(900,520), View = View.Tile, TileSize = new Size(850,64), FullRowSelect = true, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(18,21,34), ForeColor = Color.White };
+        list.DoubleClick += (_,_) => { if (list.SelectedItems.Count>0) { version.Text=list.SelectedItems[0].Text; status.Text="Выбрана версия "+version.Text; } };
+        search.TextChanged += (_,_) => {
+            var q=search.Text.Trim();
+            foreach(ListViewItem item in list.Items) item.BackColor = string.IsNullOrWhiteSpace(q) || item.Text.Contains(q,StringComparison.OrdinalIgnoreCase) ? Color.FromArgb(25,29,46) : Color.FromArgb(13,15,25);
+        };
+        p.Controls.AddRange(new Control[]{search,list});
+        version.Tag = list;
+        return p;
     }
 
     TabPage ModsPage()
     {
-        var p = new TabPage("Моды") { BackColor = Color.FromArgb(18, 19, 23) };
-        var toolbar = new Panel { Dock = DockStyle.Top, Height = 64, BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(12) };
-        var search = new TextBox { PlaceholderText = "Поиск модов Modrinth…", Width = 390, Height = 34, Location = new Point(10, 14), Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right };
-        var btn = new Button { Text = "Найти", Location = new Point(410, 13), Width = 90, Height = 34 };
-        modLoader.DropDownStyle = ComboBoxStyle.DropDownList;
-        modLoader.Items.Clear();
-        modLoader.Items.AddRange(new object[] { "Fabric", "Quilt", "Forge" });
-        modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", _ => "Fabric" };
-        modLoader.Location = new Point(510, 14); modLoader.Width = 125; modLoader.Height = 34;
-        var hint = new Label { Text = "Автор · описание · загрузки · иконка из Modrinth", AutoSize = true, ForeColor = Color.Silver, Location = new Point(650, 21) };
-        toolbar.Controls.AddRange(new Control[] { search, btn, modLoader, hint });
-        toolbar.Resize += (_, _) => { search.Width = Math.Max(180, toolbar.ClientSize.Width - 760); btn.Left = search.Right + 10; modLoader.Left = btn.Right + 10; hint.Left = modLoader.Right + 14; };
-        btn.Click += async (_, _) => await SearchModsAsync(search.Text);
-        search.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SearchModsAsync(search.Text); } };
-        modLoader.SelectedIndexChanged += (_, _) =>
-        {
-            settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", _ => "fabric" };
-            if (gameLoader.Items.Contains(modLoader.SelectedItem)) gameLoader.SelectedItem = modLoader.SelectedItem;
-            SettingsService.Save(settings);
-        };
-        modCards.Dock = DockStyle.Fill;
-        p.Controls.Add(modCards);
-        p.Controls.Add(toolbar);
-        return p;
+        var p = new TabPage("Моды") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(18) };
+        var title = new Label { Text = "Моды", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 24, FontStyle.Bold), Location = new Point(18,18) };
+        var source = new Label { Text = "Modrinth", AutoSize = true, ForeColor = Color.FromArgb(93,224,160), Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold), Location = new Point(100,27) };
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = 115, BackColor = Color.FromArgb(13,15,25) };
+        toolbar.Controls.Add(title); toolbar.Controls.Add(source);
+        var search = new TextBox { PlaceholderText = "Поиск модов…", Location = new Point(18,70), Width = 420, Height = 36, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
+        var btn = ModernButton("Найти",95,36); btn.Location=new Point(450,70);
+        modLoader.DropDownStyle=ComboBoxStyle.DropDownList; modLoader.Items.Clear(); modLoader.Items.AddRange(new object[]{"Fabric","Quilt","Forge"}); modLoader.SelectedItem=settings.ModLoader switch{"forge"=>"Forge","quilt"=>"Quilt",_=>"Fabric"}; modLoader.SetBounds(555,70,130,36);
+        toolbar.Controls.AddRange(new Control[]{search,btn,modLoader});
+        btn.Click += async (_,_)=>await SearchModsAsync(search.Text);
+        search.KeyDown += async (_,e)=>{if(e.KeyCode==Keys.Enter){e.SuppressKeyPress=true;await SearchModsAsync(search.Text);}};
+        modLoader.SelectedIndexChanged += (_,_)=>{settings.ModLoader=modLoader.SelectedItem?.ToString() switch{"Forge"=>"forge","Quilt"=>"quilt",_=>"fabric"};if(gameLoader.Items.Contains(modLoader.SelectedItem))gameLoader.SelectedItem=modLoader.SelectedItem;SettingsService.Save(settings);};
+        modCards.Dock=DockStyle.Fill; modCards.Padding=new Padding(6); modCards.BackColor=Color.FromArgb(13,15,25);
+        p.Controls.Add(modCards); p.Controls.Add(toolbar); return p;
     }
 
     TabPage CatalogPage(string title, string projectType)
@@ -478,55 +507,45 @@ internal sealed class MainForm : Form
 
     TabPage BuildsPage()
     {
-        var p = new TabPage("Сборки") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
-        p.Controls.Add(new Label { Text = "МОИ СБОРКИ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 22) });
-        p.Controls.Add(new Label { Text = "Сохраняй отдельные профили версий и загрузчиков.", AutoSize = true, ForeColor = Color.Silver, Location = new Point(26, 60) });
-        var name = new TextBox { PlaceholderText = "Название новой сборки", Location = new Point(26, 102), Width = 300, Height = 34 };
-        var add = new Button { Text = "Сохранить текущий профиль", Location = new Point(340, 101), Width = 210, Height = 36 };
-        var list = new ListBox { Location = new Point(26, 156), Size = new Size(780, 360), BackColor = Color.FromArgb(27, 31, 39), ForeColor = Color.White, BorderStyle = BorderStyle.None };
+        var p = new TabPage("Сборки") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24) };
+        p.Controls.Add(new Label { Text = "Мои сборки", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 24, FontStyle.Bold), Location = new Point(24,20) });
+        p.Controls.Add(new Label { Text = "Профили версий, загрузчиков и настроек запуска.", AutoSize = true, ForeColor = Color.FromArgb(160,170,195), Location = new Point(27,62) });
+
+        var name = new TextBox { PlaceholderText = "Название новой сборки", Location = new Point(27,102), Width = 350, Height = 38, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
+        var add = ModernButton("+  Сохранить текущий профиль", 235, 38); add.Location = new Point(390,102);
+        var list = new ListView { Location = new Point(27,158), Size = new Size(900,420), View = View.Tile, TileSize = new Size(850,72), FullRowSelect = true, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(18,21,34), ForeColor = Color.White };
+
         void RefreshBuildList()
         {
             list.Items.Clear();
             foreach (var saved in settings.SavedBuilds)
             {
-                var parts = saved.Split('|');
-                list.Items.Add(parts.Length >= 3 ? $"{parts[0]}   ·   Minecraft {parts[1]}   ·   {parts[2]}" : saved);
+                var parts=saved.Split('|');
+                var item=new ListViewItem(parts.Length>=3 ? parts[0] : saved);
+                item.SubItems.Add(parts.Length>=3 ? $"Minecraft {parts[1]} · {parts[2]}" : "");
+                list.Items.Add(item);
             }
         }
-        add.Click += (_, _) =>
-        {
-            var buildName = string.IsNullOrWhiteSpace(name.Text) ? "Моя сборка " + (settings.SavedBuilds.Count + 1) : name.Text.Trim();
-            var gameVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
-            var loader = gameLoader.SelectedItem?.ToString() ?? "Fabric";
-            settings.SavedBuilds.Add(buildName + "|" + gameVersion + "|" + loader);
-            SettingsService.Save(settings);
-            RefreshBuildList();
-            status.Text = "Сборка сохранена";
+
+        add.Click += (_,_) => {
+            var buildName=string.IsNullOrWhiteSpace(name.Text) ? "Моя сборка "+(settings.SavedBuilds.Count+1) : name.Text.Trim();
+            var gv=version.SelectedItem?.ToString() ?? settings.LastVersion;
+            var loader=gameLoader.SelectedItem?.ToString() ?? "Fabric";
+            settings.SavedBuilds.Add(buildName+"|"+gv+"|"+loader);
+            SettingsService.Save(settings); RefreshBuildList(); status.Text="Сборка сохранена";
         };
-        var launchBuild = new Button { Text = "Запустить выбранную", Location = new Point(26, 535), Width = 190, Height = 40 };
-        launchBuild.Click += async (_, _) =>
-        {
-            if (list.SelectedIndex < 0 || list.SelectedIndex >= settings.SavedBuilds.Count) return;
-            var parts = settings.SavedBuilds[list.SelectedIndex].Split('|');
-            if (parts.Length < 3) return;
-            settings.LastVersion = parts[1];
-            if (gameLoader.Items.Contains(parts[2])) gameLoader.SelectedItem = parts[2];
-            version.SelectedItem = parts[1];
-            SettingsService.Save(settings);
-            ShowNavigationPage(0);
-            await LaunchAsync();
+        var launch=ModernButton("▶  Запустить выбранную",210,40); launch.Location=new Point(27,600);
+        launch.Click += async (_,_) => {
+            if(list.SelectedIndices.Count==0) return;
+            var index=list.SelectedIndices[0]; if(index<0||index>=settings.SavedBuilds.Count) return;
+            var parts=settings.SavedBuilds[index].Split('|'); if(parts.Length<3) return;
+            settings.LastVersion=parts[1]; version.SelectedItem=parts[1]; if(gameLoader.Items.Contains(parts[2])) gameLoader.SelectedItem=parts[2];
+            SettingsService.Save(settings); ShowNavigationPage(0); await LaunchAsync();
         };
-        var remove = new Button { Text = "Удалить профиль", Location = new Point(230, 535), Width = 150, Height = 40 };
-        remove.Click += (_, _) =>
-        {
-            if (list.SelectedIndex < 0 || list.SelectedIndex >= settings.SavedBuilds.Count) return;
-            settings.SavedBuilds.RemoveAt(list.SelectedIndex);
-            SettingsService.Save(settings);
-            RefreshBuildList();
-        };
-        p.Controls.AddRange(new Control[] { name, add, list, launchBuild, remove });
-        RefreshBuildList();
-        return p;
+        var remove=new Button{Text="Удалить профиль",Width=170,Height=40,Location=new Point(250,600),FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(35,39,57),ForeColor=Color.White};
+        remove.FlatAppearance.BorderSize=0;
+        remove.Click += (_,_) => { if(list.SelectedIndices.Count==0)return; var i=list.SelectedIndices[0]; if(i<0||i>=settings.SavedBuilds.Count)return; settings.SavedBuilds.RemoveAt(i); SettingsService.Save(settings); RefreshBuildList(); };
+        p.Controls.AddRange(new Control[]{name,add,list,launch,remove}); RefreshBuildList(); return p;
     }
 
     TabPage NewsPage()
@@ -690,44 +709,27 @@ internal sealed class MainForm : Form
 
     TabPage SettingsPage()
     {
-        var p = new TabPage("Настройки") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(22) };
-        p.AutoScroll = true;
-        p.Controls.Add(new Label { Text = "НАСТРОЙКИ ИГРЫ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(22, 18) });
+        var p = new TabPage("Настройки") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
+        p.Controls.Add(new Label { Text="Настройки",AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI Semibold",24,FontStyle.Bold),Location=new Point(24,20)});
+        p.Controls.Add(new Label { Text="Производительность, игра и внешний вид NovaCraft.",AutoSize=true,ForeColor=Color.FromArgb(160,170,195),Location=new Point(27,62)});
 
-        p.Controls.Add(new Label { Text = "Папка Minecraft", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 68) });
-        gameDir.Text = settings.GameDirectory;
-        gameDir.SetBounds(24, 94, 590, 34);
-        var browse = new Button { Text = "Выбрать…", Location = new Point(625, 93), Width = 110, Height = 36 };
-        browse.Click += (_, _) =>
-        {
-            using var d = new FolderBrowserDialog { Description = "Выберите папку Minecraft", SelectedPath = gameDir.Text };
-            if (d.ShowDialog() == DialogResult.OK) gameDir.Text = d.SelectedPath;
-        };
-
-        p.Controls.Add(new Label { Text = "Оперативная память для Minecraft (МБ)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 145) });
-        ram.Minimum = 1024; ram.Maximum = 8192; ram.Increment = 256;
-        ram.Value = Math.Clamp(settings.MaximumRamMb, 1024, 8192);
-        ram.SetBounds(24, 171, 180, 34);
-        p.Controls.Add(new Label { Text = "CmlLib отвечает за подбор Java при запуске; ручной путь Java в NovaCraft не настраивается.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(150, 190, 165), Location = new Point(24, 210) });
-
-        p.Controls.Add(new Label { Text = "Разрешение окна", AutoSize = true, ForeColor = Color.Silver, Location = new Point(245, 145) });
-        widthInput = new NumericUpDown { Minimum = 800, Maximum = 3840, Increment = 80, Value = Math.Clamp(settings.ScreenWidth, 800, 3840), Location = new Point(245, 171), Width = 100 };
-        heightInput = new NumericUpDown { Minimum = 600, Maximum = 2160, Increment = 60, Value = Math.Clamp(settings.ScreenHeight, 600, 2160), Location = new Point(355, 171), Width = 100 };
-        fullScreenInput = new CheckBox { Text = "Полный экран", Checked = settings.FullScreen, AutoSize = true, Location = new Point(480, 176), ForeColor = Color.White };
-        closeAfterLaunchInput = new CheckBox { Text = "Закрывать лаунчер после запуска игры", Checked = settings.CloseAfterLaunch, AutoSize = true, Location = new Point(24, 230), ForeColor = Color.White };
-        autoRepairInput = new CheckBox { Text = "Автоматически исправлять типовые ошибки запуска", Checked = settings.AutoRepair, AutoSize = true, Location = new Point(24, 264), ForeColor = Color.White };
-
-        p.Controls.Add(new Label { Text = "Дополнительные JVM-параметры (необязательно)", AutoSize = true, ForeColor = Color.Silver, Location = new Point(24, 310) });
-        jvmArgsInput = new TextBox { Text = settings.ExtraJvmArguments, Location = new Point(24, 340), Width = 710, Height = 34 };
-        var note = new Label { Text = "Не меняй параметры, если не знаешь их назначения: неверные аргументы могут помешать запуску.", AutoSize = false, Size = new Size(720, 38), ForeColor = Color.FromArgb(155, 165, 184), Location = new Point(24, 380) };
-        var save = new Button { Text = "Сохранить настройки", Location = new Point(24, 435), Width = 210, Height = 42 };
-        save.Click += (_, _) =>
-        {
-            try { SaveSettings(); }
-            catch (Exception ex) { Fail("Не удалось сохранить настройки", ex); }
-        };
-
-        p.Controls.AddRange(new Control[] { gameDir, browse, ram, widthInput, heightInput, fullScreenInput, closeAfterLaunchInput, autoRepairInput, jvmArgsInput, note, save });
+        var game=ModernCard(720,190,"ИГРА",Color.FromArgb(25,28,45)); game.Location=new Point(24,105);
+        game.Controls.Add(new Label{Text="Папка Minecraft",AutoSize=true,ForeColor=Color.Silver,Location=new Point(18,44)});
+        gameDir.Text=settings.GameDirectory; gameDir.SetBounds(18,68,520,34);
+        var browse=new Button{Text="Выбрать…",Width=105,Height=34,Location=new Point(548,68),FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(38,43,63),ForeColor=Color.White};browse.FlatAppearance.BorderSize=0;
+        browse.Click+=(_,_)=>{using var d=new FolderBrowserDialog{Description="Выберите папку Minecraft",SelectedPath=gameDir.Text};if(d.ShowDialog()==DialogResult.OK)gameDir.Text=d.SelectedPath;};
+        game.Controls.AddRange(new Control[]{gameDir,browse});
+        game.Controls.Add(new Label{Text="Оперативная память",AutoSize=true,ForeColor=Color.Silver,Location=new Point(18,116)});
+        ram.Minimum=1024;ram.Maximum=8192;ram.Increment=256;ram.Value=Math.Clamp(settings.MaximumRamMb,1024,8192);ram.SetBounds(150,112,170,34);game.Controls.Add(ram);
+        game.Controls.Add(new Label{Text="МБ",AutoSize=true,ForeColor=Color.Silver,Location=new Point(325,120)});
+        
+        var launch=ModernCard(720,185,"ЗАПУСК",Color.FromArgb(25,28,45));launch.Location=new Point(24,310);
+        fullScreenInput=new CheckBox{Text="Полный экран",Checked=settings.FullScreen,AutoSize=true,Location=new Point(18,48),ForeColor=Color.White};
+        closeAfterLaunchInput=new CheckBox{Text="Закрывать NovaCraft после запуска Minecraft",Checked=settings.CloseAfterLaunch,AutoSize=true,Location=new Point(18,82),ForeColor=Color.White};
+        autoRepairInput=new CheckBox{Text="Автоисправление типовых ошибок",Checked=settings.AutoRepair,AutoSize=true,Location=new Point(18,116),ForeColor=Color.White};
+        launch.Controls.AddRange(new Control[]{fullScreenInput,closeAfterLaunchInput,autoRepairInput});
+        
+        var save=ModernButton("✓  Сохранить настройки",210,42);save.Location=new Point(24,520);save.Click+=(_,_)=>{try{SaveSettings();status.Text="Настройки сохранены";}catch(Exception ex){Fail("Не удалось сохранить настройки",ex);}};p.Controls.AddRange(new Control[]{game,launch,save});
         return p;
     }
 
