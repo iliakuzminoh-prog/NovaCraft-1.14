@@ -47,4 +47,23 @@ public sealed class OfflineProfileRulesTests
         var result = NickValidator.Validate(name);
         Assert.Equal(name.Length >= 3, result.ok);
     }
+    [Fact]
+    public void LaunchUsernameComesFromValidatedProfileValue()
+    {
+        const string activeProfileUsername = "ProfileOwner";
+        Assert.Equal(activeProfileUsername,
+            OfflineLaunchProfileRules.GetValidatedUsernameForLaunch(activeProfileUsername));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    [InlineData("bad name")]
+    [InlineData("name-with-dash")]
+    public void LaunchUsernameRejectsInvalidProfileValue(string? profileUsername)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            OfflineLaunchProfileRules.GetValidatedUsernameForLaunch(profileUsername));
+    }
+
 }
