@@ -117,6 +117,10 @@ internal sealed class MainForm : Form
     string? selectedModProject;
     string? selectedModTitle;
     string? selectedDatapackWorldDirectory;
+    string modFeedQuery = "";
+    string modFeedSort = "downloads";
+    int modFeedOffset;
+    bool modFeedLoading;
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromMinutes(3) };
 
     public MainForm()
@@ -211,11 +215,11 @@ internal sealed class MainForm : Form
 
     void BuildUi()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 72, BackColor = Color.FromArgb(24, 26, 34), Padding = new Padding(18, 8, 18, 8) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.FromArgb(17, 19, 30), Padding = new Padding(18, 8, 18, 8) };
         header.Controls.Add(new Label { Text = "◆  NOVACRAFT", Font = new Font("Segoe UI Semibold", 21, FontStyle.Bold), AutoSize = true, Location = new Point(18, 13), ForeColor = Color.White });
         header.Controls.Add(new Label { Text = "Minecraft Java · лаунчер без рекламы и фоновых служб", AutoSize = true, Location = new Point(250, 26), ForeColor = Color.FromArgb(160, 170, 190) });
 
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 238, BackColor = Color.FromArgb(20, 22, 30), Padding = new Padding(12, 14, 12, 10) };
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 252, BackColor = Color.FromArgb(15, 17, 27), Padding = new Padding(12, 14, 12, 10) };
         var navScroll = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent };
         sidebar.Controls.Add(navScroll);
 
@@ -266,8 +270,8 @@ internal sealed class MainForm : Form
             var button = new Button
             {
                 Text = caption,
-                Width = 212,
-                Height = 44,
+                Width = 226,
+                Height = 46,
                 Margin = new Padding(0, 2, 0, 5),
                 TextAlign = ContentAlignment.MiddleLeft,
                 Image = CreateNavIcon(glyph),
@@ -275,12 +279,12 @@ internal sealed class MainForm : Form
                 TextImageRelation = TextImageRelation.ImageBeforeText,
                 Padding = new Padding(12, 0, 8, 0),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(20, 22, 30),
+                BackColor = Color.FromArgb(15, 17, 27),
                 ForeColor = Color.FromArgb(198, 204, 220),
                 Font = new Font("Segoe UI Semibold", 9.5f)
             };
             button.FlatAppearance.BorderSize = 0;
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(35, 37, 50);
+            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 34, 61);
             var index = navigationPages.Count - 1;
             button.Click += (_, _) => ShowNavigationPage(index);
             navigationButtons.Add(button);
@@ -308,7 +312,7 @@ internal sealed class MainForm : Form
         pageHost.SelectedIndex = index;
         for (var i = 0; i < navigationPages.Count; i++)
         {
-            navigationButtons[i].BackColor = i == index ? Color.FromArgb(83, 47, 174) : Color.FromArgb(22, 24, 32);
+            navigationButtons[i].BackColor = i == index ? Color.FromArgb(92, 48, 224) : Color.FromArgb(22, 24, 35);
             navigationButtons[i].ForeColor = i == index ? Color.White : Color.FromArgb(190, 198, 215);
         }
     }
@@ -473,20 +477,95 @@ internal sealed class MainForm : Form
 
     TabPage ModsPage()
     {
-        var p = new TabPage("Моды") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(18) };
-        var title = new Label { Text = "Моды", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 24, FontStyle.Bold), Location = new Point(18,18) };
-        var source = new Label { Text = "Modrinth", AutoSize = true, ForeColor = Color.FromArgb(93,224,160), Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold), Location = new Point(100,27) };
-        var toolbar = new Panel { Dock = DockStyle.Top, Height = 115, BackColor = Color.FromArgb(13,15,25) };
-        toolbar.Controls.Add(title); toolbar.Controls.Add(source);
-        var search = new TextBox { PlaceholderText = "Поиск модов…", Location = new Point(18,70), Width = 420, Height = 36, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
-        var btn = ModernButton("Найти",95,36); btn.Location=new Point(450,70);
-        modLoader.DropDownStyle=ComboBoxStyle.DropDownList; modLoader.Items.Clear(); modLoader.Items.AddRange(new object[]{"Fabric","Quilt","Forge"}); modLoader.SelectedItem=settings.ModLoader switch{"forge"=>"Forge","quilt"=>"Quilt",_=>"Fabric"}; modLoader.SetBounds(555,70,130,36);
-        toolbar.Controls.AddRange(new Control[]{search,btn,modLoader});
-        btn.Click += async (_,_)=>await SearchModsAsync(search.Text);
-        search.KeyDown += async (_,e)=>{if(e.KeyCode==Keys.Enter){e.SuppressKeyPress=true;await SearchModsAsync(search.Text);}};
-        modLoader.SelectedIndexChanged += (_,_)=>{settings.ModLoader=modLoader.SelectedItem?.ToString() switch{"Forge"=>"forge","Quilt"=>"quilt",_=>"fabric"};if(gameLoader.Items.Contains(modLoader.SelectedItem))gameLoader.SelectedItem=modLoader.SelectedItem;SettingsService.Save(settings);};
-        modCards.Dock=DockStyle.Fill; modCards.Padding=new Padding(6); modCards.BackColor=Color.FromArgb(13,15,25);
-        p.Controls.Add(modCards); p.Controls.Add(toolbar); return p;
+        var p = new TabPage("Моды") { BackColor = Color.FromArgb(12, 14, 23), Padding = new Padding(20) };
+
+        var top = new Panel { Dock = DockStyle.Top, Height = 126, BackColor = Color.FromArgb(12,14,23) };
+        top.Controls.Add(new Label
+        {
+            Text = "Моды",
+            AutoSize = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
+            Location = new Point(4, 2)
+        });
+        top.Controls.Add(new Label
+        {
+            Text = "Тысячи проектов из Modrinth — с настоящими иконками, авторами, рейтингом и загрузкой",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(153, 163, 184),
+            Location = new Point(7, 43),
+            Font = new Font("Segoe UI", 9.5f)
+        });
+
+        var search = new TextBox
+        {
+            PlaceholderText = "⌕  Найти мод…",
+            Location = new Point(4, 78),
+            Width = 420,
+            Height = 38,
+            BackColor = Color.FromArgb(27, 30, 47),
+            ForeColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        var searchButton = ModernButton("Найти", 92, 38);
+        searchButton.Location = new Point(432, 78);
+
+        modLoader.DropDownStyle = ComboBoxStyle.DropDownList;
+        modLoader.Items.Clear();
+        modLoader.Items.AddRange(new object[] { "Fabric", "Forge", "Quilt" });
+        modLoader.SelectedItem = settings.ModLoader switch { "forge" => "Forge", "quilt" => "Quilt", _ => "Fabric" };
+        modLoader.SetBounds(534, 78, 130, 38);
+
+        var sort = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            BackColor = Color.FromArgb(27,30,47),
+            ForeColor = Color.White,
+            Location = new Point(676,78),
+            Width = 170,
+            Height = 38
+        };
+        sort.Items.AddRange(new object[] { "Популярные", "Новые", "Обновлённые" });
+        sort.SelectedIndex = 0;
+
+        top.Controls.AddRange(new Control[] { search, searchButton, modLoader, sort });
+
+        modCards.Dock = DockStyle.Fill;
+        modCards.Padding = new Padding(4, 8, 10, 40);
+        modCards.BackColor = Color.FromArgb(12,14,23);
+        modCards.WrapContents = true;
+
+        async Task Reload()
+        {
+            modFeedQuery = search.Text.Trim();
+            modFeedSort = sort.SelectedIndex switch { 1 => "newest", 2 => "updated", _ => "downloads" };
+            modFeedOffset = 0;
+            await LoadModFeedAsync(true);
+        }
+
+        searchButton.Click += async (_, _) => await Reload();
+        search.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await Reload(); } };
+        sort.SelectedIndexChanged += async (_, _) => await Reload();
+        modLoader.SelectedIndexChanged += (_, _) =>
+        {
+            settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", _ => "fabric" };
+            if (gameLoader.Items.Contains(modLoader.SelectedItem)) gameLoader.SelectedItem = modLoader.SelectedItem;
+            SettingsService.Save(settings);
+        };
+
+        p.Controls.Add(modCards);
+        p.Controls.Add(top);
+        p.Shown += async (_, _) =>
+        {
+            if (modCards.Controls.Count == 0)
+            {
+                modFeedQuery = "";
+                modFeedSort = "downloads";
+                modFeedOffset = 0;
+                await LoadModFeedAsync(true);
+            }
+        };
+        return p;
     }
 
     TabPage CatalogPage(string title, string projectType)
@@ -944,76 +1023,64 @@ internal sealed class MainForm : Form
         var description = hit?["description"]?.ToString() ?? "Описание отсутствует";
         var author = hit?["author"]?.ToString() ?? "Автор не указан";
         var downloads = long.TryParse(hit?["downloads"]?.ToString(), out var count) ? count.ToString("N0") : "—";
+        var follows = long.TryParse(hit?["follows"]?.ToString(), out var followCount) ? followCount.ToString("N0") : "—";
 
         var card = new Panel
         {
-            Width = 372,
-            Height = 222,
-            Margin = new Padding(8),
-            BackColor = Color.FromArgb(27, 30, 41),
-            BorderStyle = BorderStyle.FixedSingle,
+            Width = 410,
+            Height = 214,
+            Margin = new Padding(7),
+            BackColor = Color.FromArgb(24, 27, 42),
             Padding = new Padding(14)
         };
 
         icon = new PictureBox
         {
             Location = new Point(14, 14),
-            Size = new Size(72, 72),
+            Size = new Size(70, 70),
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(40, 44, 58),
-            BorderStyle = BorderStyle.FixedSingle
+            BackColor = Color.FromArgb(35, 39, 58)
         };
-        icon.Controls.Add(new Label
-        {
-            Text = projectType == "mod" ? "MOD" : projectType.ToUpperInvariant(),
-            Dock = DockStyle.Fill,
-            TextAlign = ContentAlignment.MiddleCenter,
-            ForeColor = Color.FromArgb(170, 180, 205),
-            Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold)
-        });
 
         var source = new Label
         {
             Text = "MODRINTH",
-            AutoSize = false,
-            Size = new Size(86, 22),
-            Location = new Point(98, 14),
-            TextAlign = ContentAlignment.MiddleCenter,
-            BackColor = Color.FromArgb(55, 83, 72),
-            ForeColor = Color.White,
+            AutoSize = true,
+            Location = new Point(96, 15),
+            ForeColor = Color.FromArgb(78, 220, 151),
             Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold)
         };
         var name = new Label
         {
             Text = title,
-            Location = new Point(98, 41),
-            Size = new Size(242, 42),
+            Location = new Point(96, 34),
+            Size = new Size(292, 28),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 11.5f, FontStyle.Bold),
+            Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold),
             AutoEllipsis = true
         };
         var by = new Label
         {
             Text = "Автор: " + author,
-            Location = new Point(14, 94),
-            Size = new Size(330, 22),
-            ForeColor = Color.FromArgb(164, 177, 198),
+            Location = new Point(96, 62),
+            Size = new Size(292, 20),
+            ForeColor = Color.FromArgb(148, 160, 184),
             AutoEllipsis = true
         };
         var desc = new Label
         {
             Text = description,
-            Location = new Point(14, 119),
-            Size = new Size(330, 44),
-            ForeColor = Color.FromArgb(211, 216, 225),
+            Location = new Point(14, 93),
+            Size = new Size(382, 43),
+            ForeColor = Color.FromArgb(202, 208, 222),
             AutoEllipsis = true
         };
         var stats = new Label
         {
-            Text = downloads + " загрузок",
-            Location = new Point(14, 177),
-            Size = new Size(150, 27),
-            ForeColor = Color.FromArgb(153, 166, 187),
+            Text = "↓ " + downloads + "    ★ " + follows,
+            Location = new Point(14, 145),
+            Size = new Size(180, 24),
+            ForeColor = Color.FromArgb(143, 157, 181),
             Font = new Font("Segoe UI", 8.5f)
         };
 
@@ -1021,13 +1088,13 @@ internal sealed class MainForm : Form
         var action = new Button
         {
             Text = canInstallHere ? "Установить" : "Открыть",
-            Location = new Point(236, 173),
-            Size = new Size(108, 34),
+            Location = new Point(270, 143),
+            Size = new Size(126, 38),
             Tag = projectId,
             FlatStyle = FlatStyle.Flat,
-            BackColor = Color.FromArgb(83, 47, 174),
+            BackColor = Color.FromArgb(92, 48, 224),
             ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 9, FontStyle.Bold)
+            Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold)
         };
         action.FlatAppearance.BorderSize = 0;
 
@@ -1047,6 +1114,7 @@ internal sealed class MainForm : Form
         card.Controls.AddRange(new Control[] { icon, source, name, by, desc, stats, action });
         return card;
     }
+
 
     static async Task<byte[]> ReadBoundedContentAsync(HttpContent content, int maxBytes)
     {
@@ -1125,6 +1193,47 @@ internal sealed class MainForm : Form
             retry.Click += async (_, _) => await LoadPopularModsAsync();
             errorPanel.Controls.Add(retry);
             popularFeed.Controls.Add(errorPanel);
+        }
+    }
+
+    async Task LoadModFeedAsync(bool reset)
+    {
+        if (modFeedLoading) return;
+        modFeedLoading = true;
+        try
+        {
+            status.Text = modFeedOffset == 0 ? "Загружаю моды Modrinth…" : "Загружаю ещё моды…";
+            var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { "project_type:mod" } }));
+            var query = string.IsNullOrWhiteSpace(modFeedQuery) ? "" : "&query=" + Uri.EscapeDataString(modFeedQuery);
+            var url = "https://api.modrinth.com/v2/search?limit=24&offset=" + modFeedOffset +
+                      "&index=" + Uri.EscapeDataString(modFeedSort) + query + "&facets=" + facets;
+            var root = JsonNode.Parse(await http.GetStringAsync(url));
+            var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
+
+            if (reset) modCards.Controls.Clear();
+
+            using var gate = new SemaphoreSlim(4);
+            var iconTasks = new List<Task>();
+            foreach (var hit in hits)
+            {
+                var card = CreateProjectCard(hit!, out var picture, "mod");
+                modCards.Controls.Add(card);
+                iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
+            }
+
+            modFeedOffset += hits.Count;
+            await Task.WhenAll(iconTasks);
+            status.Text = hits.Count == 0
+                ? "Больше проектов не найдено"
+                : $"Показано модов: {modFeedOffset}";
+        }
+        catch (Exception ex)
+        {
+            Fail("Не удалось загрузить каталог модов Modrinth", ex);
+        }
+        finally
+        {
+            modFeedLoading = false;
         }
     }
 
