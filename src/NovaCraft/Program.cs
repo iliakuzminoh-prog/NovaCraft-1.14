@@ -528,7 +528,7 @@ internal sealed class MainForm : Form
 
         var content = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 14, 0, 30), BackColor = Color.FromArgb(13,15,25) };
 
-        var latest = ModernCard(300, 185, "ПОСЛЕДНЯЯ ВЕРСИЯ", Color.FromArgb(25,28,45));
+        var latest = ModernCard(440, 185, "ПОСЛЕДНЯЯ ВЕРСИЯ", Color.FromArgb(25,28,45));
         latest.Controls.Add(new Label { Text = "⬛  " + settings.LastVersion, AutoSize = true, Location = new Point(18, 45), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold) });
         latest.Controls.Add(new Label { Text = "●  Установлена", AutoSize = true, Location = new Point(20, 86), ForeColor = Color.FromArgb(50, 225, 140), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) });
         var check = ModernButton("↻  Проверить обновления", 230, 38);
@@ -536,7 +536,7 @@ internal sealed class MainForm : Form
         check.Click += async (_, _) => await RefreshVersionsAsync();
         latest.Controls.Add(check);
 
-        var quick = ModernCard(300, 185, "БЫСТРЫЙ ЗАПУСК", Color.FromArgb(25,28,45));
+        var quick = ModernCard(440, 185, "БЫСТРЫЙ ЗАПУСК", Color.FromArgb(25,28,45));
         var quickVersion = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(18, 42), Width = 250, Height = 32, BackColor = Color.FromArgb(34,37,58), ForeColor = Color.White };
         quickVersion.Items.Add(settings.LastVersion);
         quickVersion.SelectedIndex = 0;
@@ -553,8 +553,8 @@ internal sealed class MainForm : Form
         };
         quick.Controls.AddRange(new Control[]{quickVersion,quickLoader,quickPlay});
 
-        var buildsCard = ModernCard(610, 185, "ПОПУЛЯРНЫЕ СБОРКИ", Color.FromArgb(25,28,45));
-        var buildFlow = new FlowLayoutPanel { Location = new Point(14, 43), Size = new Size(580, 120), AutoScroll = true, WrapContents = false, BackColor = Color.Transparent };
+        var buildsCard = ModernCard(440, 185, "ПОПУЛЯРНЫЕ СБОРКИ", Color.FromArgb(25,28,45));
+        var buildFlow = new FlowLayoutPanel { Location = new Point(14, 43), Size = new Size(408, 120), AutoScroll = true, WrapContents = false, BackColor = Color.Transparent };
         if (settings.SavedBuilds.Count == 0)
         {
             buildFlow.Controls.Add(new Label { Text = "Здесь появятся твои сохранённые профили.\nСоздай первую сборку во вкладке «Сборки».", AutoSize = true, ForeColor = Color.Silver, Padding = new Padding(10,15,0,0) });
@@ -572,7 +572,7 @@ internal sealed class MainForm : Form
         }
         buildsCard.Controls.Add(buildFlow);
 
-        var modsCard = ModernCard(930, 185, "НОВЫЕ МОДЫ", Color.FromArgb(25,28,45));
+        var modsCard = ModernCard(440, 185, "НОВЫЕ МОДЫ", Color.FromArgb(25,28,45));
         var modInfo = new Label { Text = "Каталог Modrinth\nИконки, авторы, описания и загрузки\nзагружаются из реального каталога.", AutoSize = true, Location = new Point(18, 46), ForeColor = Color.FromArgb(195,200,220), Font = new Font("Segoe UI", 10) };
         modsCard.Controls.Add(modInfo);
         var modsOpen = ModernButton("Открыть каталог →", 180, 38);
