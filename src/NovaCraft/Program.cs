@@ -58,7 +58,7 @@ internal sealed class LauncherSettings
 {
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
     public string Username { get; set; } = "NovaPlayer";
-    public int MaximumRamMb { get; set; } = 1024;
+    public int MaximumRamMb { get; set; } = 2048;
     public bool FpsBoost { get; set; }
     public string LastVersion { get; set; } = "1.21.1";
     public string ModLoader { get; set; } = "fabric";
@@ -2148,7 +2148,7 @@ internal sealed class MainForm : Form
             File.Delete(testFile);
             notes.Add("Папка игры доступна для записи.");
 
-            notes.Add("Отдельная проверка Java не выполняется; её подбор при запуске выполняет CmlLib.");
+            notes.Add((await CheckJavaAsync()).Replace("\n", " "));
 
             var availableMb = (int)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024);
             var safeLimit = Math.Clamp((int)(availableMb * 0.55), 1024, 8192);
