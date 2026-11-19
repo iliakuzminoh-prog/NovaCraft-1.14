@@ -166,7 +166,6 @@ internal sealed class MainForm : Form
         {
             status.Text = "Готов. Проверяю список версий в фоне…";
             _ = RefreshVersionsAsync();
-            _ = LoadPopularModsAsync();
         };
     }
 
