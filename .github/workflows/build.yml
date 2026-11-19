@@ -15,6 +15,10 @@ jobs:
           dotnet-version: 8.0.x
       - name: Restore
         run: dotnet restore NovaCraft.sln
+      - name: Build with warnings as errors
+        run: dotnet build NovaCraft.sln -c Release -warnaserror --no-restore
+      - name: Test Stage A
+        run: dotnet test tests/NovaCraft.Tests/NovaCraft.Tests.csproj -c Release -warnaserror --no-restore
       - name: Publish
         run: dotnet publish src/NovaCraft/NovaCraft.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -o publish
       - name: Inspect EXE
