@@ -69,6 +69,7 @@ internal sealed class LauncherSettings
     public bool AutoRepair { get; set; } = true;
     public string ExtraJvmArguments { get; set; } = "";
     public List<string> SavedBuilds { get; set; } = new();
+    public List<string> FavoriteServers { get; set; } = new();
 }
 
 internal sealed class HiddenTabControl : TabControl
@@ -286,6 +287,8 @@ internal sealed class MainForm : Form
         header.Controls.Add(new Label { Text = "Minecraft Java · лаунчер без рекламы и фоновых служб", AutoSize = true, Location = new Point(250, 26), ForeColor = Color.FromArgb(160, 170, 190) });
 
         var sidebar = new Panel { Dock = DockStyle.Left, Width = 252, BackColor = Color.FromArgb(15, 17, 27), Padding = new Padding(12, 14, 12, 10) };
+        var navSearch = new TextBox { PlaceholderText = "⌕  Поиск раздела…", Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(28,31,47), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
+        sidebar.Controls.Add(navSearch);
         var navScroll = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent };
         sidebar.Controls.Add(navScroll);
 
@@ -300,7 +303,9 @@ internal sealed class MainForm : Form
             ("▦  Датапаки", () => CatalogPage("Датапаки Modrinth", "datapack")),
             ("▤  Каталог", () => CatalogPage("Сборки Modrinth", "modpack")),
             ("♫  Музыка", MusicPage),
-            ("♙  Аккаунт", AccountPage),
+            ("♙  Скины", AccountPage),
+            ("⚡  Производительность", PerformancePage),
+            ("◆  Сервера", ServersPage),
             ("⚙  Настройки", SettingsPage),
             ("✓  Исправление", DiagnosticsPage)
         };
@@ -401,6 +406,7 @@ internal sealed class MainForm : Form
         Controls.Add(header);
         Controls.Add(status);
         ApplyDarkTheme(this);
+        navSearch.TextChanged += (_, _) => { var q = navSearch.Text.Trim(); foreach (var button in navigationButtons) button.Visible = string.IsNullOrWhiteSpace(q) || button.Text.Contains(q, StringComparison.OrdinalIgnoreCase); };
         ShowNavigationPage(0);
     }
 
@@ -1411,6 +1417,44 @@ internal sealed class MainForm : Form
     {
         try { Process.Start(new ProcessStartInfo("https://skinsrestorer.net/skin-upload") { UseShellExecute = true }); }
         catch (Exception ex) { MessageBox.Show("Не удалось открыть Skin Studio: " + ex.Message); }
+    }
+
+    TabPage PerformancePage()
+    {
+        var p = new TabPage("Производительность") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
+        p.Controls.Add(new Label { Text = "ПРОИЗВОДИТЕЛЬНОСТЬ", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold), Location = new Point(24,18) });
+        p.Controls.Add(new Label { Text = "Готовые профили без опасных твиков Windows и без фоновых программ.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) });
+        var active = new Label { Text = "Текущий профиль: " + (settings.FpsBoost ? "FPS BOOST" : "Сбалансированный"), AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(28,105) };
+        p.Controls.Add(active);
+        var balanced = ModernCard(410, 180, "СБАЛАНСИРОВАННЫЙ", Color.FromArgb(23,27,42)); balanced.Location = new Point(24,145);
+        balanced.Controls.Add(new Label { Text = "Для обычной игры и слабых ПК.\nПамять: 2 ГБ\nFPS Boost: выключен", AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50) });
+        var b1 = ModernButton("Применить", 130, 38); b1.Location = new Point(18,125);
+        b1.Click += (_,_) => { settings.MaximumRamMb = 2048; settings.FpsBoost = false; SettingsService.Save(settings); active.Text = "Текущий профиль: Сбалансированный"; status.Text = "Профиль применён"; }; balanced.Controls.Add(b1);
+        var boostCard = ModernCard(410, 180, "FPS BOOST", Color.FromArgb(27,25,45)); boostCard.Location = new Point(455,145);
+        boostCard.Controls.Add(new Label { Text = "Для максимальной отзывчивости.\nПамять: 3 ГБ\nFPS Boost: включен", AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50) });
+        var b2 = ModernButton("Включить", 130, 38); b2.Location = new Point(18,125);
+        b2.Click += (_,_) => { settings.MaximumRamMb = 3072; settings.FpsBoost = true; SettingsService.Save(settings); active.Text = "Текущий профиль: FPS BOOST"; status.Text = "FPS Boost включён"; }; boostCard.Controls.Add(b2);
+        var safe = ModernCard(841, 175, "БЕЗОПАСНОСТЬ", Color.FromArgb(22,25,39)); safe.Location = new Point(24,345);
+        safe.Controls.Add(new Label { Text = "NovaCraft не меняет реестр, не отключает защиту Windows и не запускает скрытые процессы.\nПрофиль меняет только параметры запуска Minecraft.", AutoSize = true, ForeColor = Color.FromArgb(181,190,207), Location = new Point(18,52) });
+        p.Controls.AddRange(new Control[] { balanced, boostCard, safe }); return p;
+    }
+
+    TabPage ServersPage()
+    {
+        var p = new TabPage("Сервера") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
+        p.Controls.Add(new Label { Text = "СЕРВЕРА", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold), Location = new Point(24,18) });
+        p.Controls.Add(new Label { Text = "Избранные адреса — без встроенной авторизации и без отправки паролей.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) });
+        var address = new TextBox { PlaceholderText = "play.example.net:25565", Location = new Point(27,105), Width = 420, Height = 38 };
+        var add = ModernButton("+ Добавить", 120, 38); add.Location = new Point(457,105);
+        var list = new ListBox { Location = new Point(27,160), Size = new Size(550,260), BackColor = Color.FromArgb(22,25,39), ForeColor = Color.White, BorderStyle = BorderStyle.None };
+        foreach (var server in settings.FavoriteServers) list.Items.Add(server);
+        void SaveServers() { settings.FavoriteServers = list.Items.Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList(); SettingsService.Save(settings); }
+        add.Click += (_,_) => { var value = address.Text.Trim(); if (string.IsNullOrWhiteSpace(value) || value.Length > 255 || value.Contains(' ')) return; if (!list.Items.Cast<string>().Contains(value, StringComparer.OrdinalIgnoreCase)) list.Items.Add(value); address.Clear(); SaveServers(); };
+        var remove = ModernButton("Удалить выбранный", 170, 38); remove.Location = new Point(27,435);
+        remove.Click += (_,_) => { if (list.SelectedIndex >= 0) { list.Items.RemoveAt(list.SelectedIndex); SaveServers(); } };
+        var copy = ModernButton("Копировать адрес", 170, 38); copy.Location = new Point(207,435);
+        copy.Click += (_,_) => { if (list.SelectedItem is string value) Clipboard.SetText(value); };
+        p.Controls.AddRange(new Control[] { address, add, list, remove, copy }); return p;
     }
 
     TabPage SettingsPage()
