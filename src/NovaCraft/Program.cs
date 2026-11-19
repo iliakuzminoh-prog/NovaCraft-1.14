@@ -621,33 +621,151 @@ internal sealed class MainForm : Form
 
     TabPage CatalogPage(string title, string projectType)
     {
-        var p = new TabPage(title) { BackColor = Color.FromArgb(18, 19, 23) };
-        var toolbar = new Panel { Dock = DockStyle.Top, Height = 64, Padding = new Padding(12), BackColor = Color.FromArgb(18, 19, 23) };
-        var search = new TextBox { PlaceholderText = "Найти: название, автор или описание…", Location = new Point(12, 14), Width = 430, Height = 34 };
-        var find = new Button { Text = "Найти", Location = new Point(452, 13), Width = 95, Height = 34 };
-        var caption = new Label { Text = "Каталог Modrinth · авторы и описания из источника", AutoSize = true, ForeColor = Color.Silver, Location = new Point(565, 21) };
+        var p = new TabPage(title) { BackColor = Color.FromArgb(12,14,23), Padding = new Padding(20) };
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = Color.FromArgb(12,14,23) };
+
+        var heading = new Label
+        {
+            Text = title.Replace(" Modrinth", ""),
+            AutoSize = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 24, FontStyle.Bold),
+            Location = new Point(4, 2)
+        };
+        var description = new Label
+        {
+            Text = "Живая лента Modrinth · иконки, авторы, описания и новые страницы подгружаются автоматически",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(145,155,178),
+            Location = new Point(7, 40)
+        };
+        var search = new TextBox
+        {
+            PlaceholderText = "⌕  Найти проект…",
+            Location = new Point(4, 72),
+            Width = 420,
+            Height = 36
+        };
+        var find = ModernButton("Найти", 92, 36);
+        find.Location = new Point(432,72);
+
+        var sort = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Location = new Point(534,72),
+            Width = 160,
+            Height = 36,
+            BackColor = Color.FromArgb(27,30,47),
+            ForeColor = Color.White
+        };
+        sort.Items.AddRange(new object[] { "Популярные", "Новые", "Обновлённые" });
+        sort.SelectedIndex = 0;
+
+        var worldButton = (Button?)null;
+        var worldCaption = (Label?)null;
         if (projectType == "datapack")
         {
-            var chooseWorld = new Button { Text = "Папка мира…", Location = new Point(565, 13), Width = 125, Height = 34 };
-            chooseWorld.Click += (_, _) =>
+            worldButton = new Button { Text = "Папка мира…", Location = new Point(708,72), Width = 125, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,43,63), ForeColor = Color.White };
+            worldButton.FlatAppearance.BorderSize = 0;
+            worldCaption = new Label { Text = "Мир не выбран", AutoSize = true, ForeColor = Color.FromArgb(145,155,178), Location = new Point(842,82) };
+            worldButton.Click += (_, _) =>
             {
                 using var dialog = new FolderBrowserDialog { Description = "Выбери папку мира Minecraft, в которой находится level.dat", SelectedPath = selectedDatapackWorldDirectory ?? settings.GameDirectory };
                 if (dialog.ShowDialog() != DialogResult.OK) return;
                 if (!File.Exists(Path.Combine(dialog.SelectedPath, "level.dat")))
                 {
-                    MessageBox.Show("В выбранной папке не найден level.dat. Нужна папка конкретного мира Minecraft.", "Не папка мира", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    MessageBox.Show("В выбранной папке нет level.dat.", "Не папка мира", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
                 selectedDatapackWorldDirectory = dialog.SelectedPath;
-                caption.Text = "Мир: " + Path.GetFileName(dialog.SelectedPath);
+                worldCaption!.Text = "Мир: " + Path.GetFileName(dialog.SelectedPath);
             };
-            toolbar.Controls.Add(chooseWorld);
-            caption.Location = new Point(700, 21);
         }
-        var results = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
-        find.Click += async (_, _) => await SearchProjectsAsync(search.Text, projectType, results);
-        search.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await SearchProjectsAsync(search.Text, projectType, results); } };
-        toolbar.Controls.AddRange(new Control[] { search, find, caption });
+
+        toolbar.Controls.AddRange(new Control[] { heading, description, search, find, sort });
+        if (worldButton != null) toolbar.Controls.Add(worldButton);
+        if (worldCaption != null) toolbar.Controls.Add(worldCaption);
+
+        var results = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            WrapContents = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(4, 8, 10, 60),
+            BackColor = Color.FromArgb(12,14,23)
+        };
+
+        var offset = 0;
+        var loading = false;
+        var query = "";
+
+        async Task LoadPage(bool reset)
+        {
+            if (loading) return;
+            loading = true;
+            try
+            {
+                if (reset)
+                {
+                    offset = 0;
+                    results.Controls.Clear();
+                }
+
+                status.Text = offset == 0 ? "Загружаю каталог Modrinth…" : "Загружаю следующую страницу…";
+                var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { "project_type:" + projectType } }));
+                var index = sort.SelectedIndex switch { 1 => "newest", 2 => "updated", _ => "downloads" };
+                var q = string.IsNullOrWhiteSpace(query) ? "" : "&query=" + Uri.EscapeDataString(query);
+                var url = "https://api.modrinth.com/v2/search?limit=24&offset=" + offset + "&index=" + index + q + "&facets=" + facets;
+                var root = JsonNode.Parse(await http.GetStringAsync(url));
+                var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
+
+                using var gate = new SemaphoreSlim(4);
+                var iconTasks = new List<Task>();
+                foreach (var hit in hits)
+                {
+                    var card = CreateProjectCard(hit!, out var picture, projectType);
+                    results.Controls.Add(card);
+                    iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
+                }
+
+                offset += hits.Count;
+                await Task.WhenAll(iconTasks);
+                status.Text = hits.Count == 0 ? "Больше проектов не найдено" : "Загружено проектов: " + offset;
+            }
+            catch (Exception ex)
+            {
+                Fail("Каталог Modrinth недоступен", ex);
+            }
+            finally { loading = false; }
+        }
+
+        async Task Reload()
+        {
+            query = search.Text.Trim();
+            await LoadPage(true);
+        }
+
+        find.Click += async (_, _) => await Reload();
+        search.KeyDown += async (_, e) =>
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            e.SuppressKeyPress = true;
+            await Reload();
+        };
+        sort.SelectedIndexChanged += async (_, _) => await Reload();
+
+        results.Scroll += async (_, e) =>
+        {
+            if (e.ScrollOrientation != ScrollOrientation.VerticalScroll) return;
+            var nearBottom = results.VerticalScroll.Value >= Math.Max(0, results.VerticalScroll.Maximum - results.ClientSize.Height - 220);
+            if (nearBottom) await LoadPage(false);
+        };
+        p.Enter += async (_, _) =>
+        {
+            if (results.Controls.Count == 0) await LoadPage(true);
+        };
+
         p.Controls.Add(results);
         p.Controls.Add(toolbar);
         return p;
