@@ -1478,18 +1478,154 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Сервера") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
         p.Controls.Add(new Label { Text = "СЕРВЕРА", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold), Location = new Point(24,18) });
-        p.Controls.Add(new Label { Text = "Избранные адреса — без встроенной авторизации и без отправки паролей.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) });
-        var address = new TextBox { PlaceholderText = "play.example.net:25565", Location = new Point(27,105), Width = 420, Height = 38 };
-        var add = ModernButton("+ Добавить", 120, 38); add.Location = new Point(457,105);
-        var list = new ListBox { Location = new Point(27,160), Size = new Size(550,260), BackColor = Color.FromArgb(22,25,39), ForeColor = Color.White, BorderStyle = BorderStyle.None };
+        p.Controls.Add(new Label { Text = "Избранное, проверка доступности и быстрый запуск.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) });
+
+        var address = new TextBox { PlaceholderText = "play.example.net:25565", Location = new Point(27,105), Width = 390, Height = 38 };
+        var add = ModernButton("+ Добавить", 120, 38); add.Location = new Point(427,105);
+        var list = new ListBox { Location = new Point(27,160), Size = new Size(600,280), BackColor = Color.FromArgb(22,25,39), ForeColor = Color.White, BorderStyle = BorderStyle.None };
         foreach (var server in settings.FavoriteServers) list.Items.Add(server);
-        void SaveServers() { settings.FavoriteServers = list.Items.Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList(); SettingsService.Save(settings); }
-        add.Click += (_,_) => { var value = address.Text.Trim(); if (string.IsNullOrWhiteSpace(value) || value.Length > 255 || value.Contains(' ')) return; if (!list.Items.Cast<string>().Contains(value, StringComparer.OrdinalIgnoreCase)) list.Items.Add(value); address.Clear(); SaveServers(); };
-        var remove = ModernButton("Удалить выбранный", 170, 38); remove.Location = new Point(27,435);
-        remove.Click += (_,_) => { if (list.SelectedIndex >= 0) { list.Items.RemoveAt(list.SelectedIndex); SaveServers(); } };
-        var copy = ModernButton("Копировать адрес", 170, 38); copy.Location = new Point(207,435);
-        copy.Click += (_,_) => { if (list.SelectedItem is string value) Clipboard.SetText(value); };
-        p.Controls.AddRange(new Control[] { address, add, list, remove, copy }); return p;
+
+        var statusLabel = new Label { Text = "Выбери сервер и нажми «Проверить».", AutoSize = false, Size = new Size(600, 55), Location = new Point(27,455), ForeColor = Color.FromArgb(165,177,199) };
+        var ping = ModernButton("Проверить сервер", 170, 38); ping.Location = new Point(27,520);
+        var launch = ModernButton("▶  Запустить Minecraft", 205, 38); launch.Location = new Point(207,520);
+        var remove = ModernButton("Удалить выбранный", 170, 38); remove.Location = new Point(422,520); remove.BackColor = Color.FromArgb(42,46,62);
+
+        void SaveServers()
+        {
+            settings.FavoriteServers = list.Items.Cast<string>().Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            SettingsService.Save(settings);
+        }
+
+        static (string Host, int Port) ParseAddress(string value)
+        {
+            value = value.Trim();
+            var host = value;
+            var port = 25565;
+            var colon = value.LastIndexOf(':');
+            if (colon > 0 && int.TryParse(value[(colon + 1)..], out var parsed) && parsed is > 0 and <= 65535)
+            {
+                host = value[..colon];
+                port = parsed;
+            }
+            if (host.Length == 0 || host.Length > 253 || host.Contains(' ') || host.Contains('/') || host.Contains('\\'))
+                throw new InvalidDataException("Некорректный адрес сервера.");
+            return (host, port);
+        }
+
+        add.Click += (_,_) =>
+        {
+            try
+            {
+                var value = address.Text.Trim();
+                _ = ParseAddress(value);
+                if (!list.Items.Cast<string>().Contains(value, StringComparer.OrdinalIgnoreCase)) list.Items.Add(value);
+                address.Clear(); SaveServers();
+            }
+            catch (Exception ex) { MessageBox.Show(ex.Message, "Адрес сервера", MessageBoxButtons.OK, MessageBoxIcon.Warning); }
+        };
+
+        ping.Click += async (_,_) =>
+        {
+            if (list.SelectedItem is not string value) return;
+            try
+            {
+                var (host, port) = ParseAddress(value);
+                statusLabel.Text = "Проверяю " + host + ":" + port + "…";
+                var result = await QueryMinecraftServerAsync(host, port);
+                statusLabel.Text = result;
+            }
+            catch (Exception ex) { statusLabel.Text = "Сервер недоступен: " + ex.Message; }
+        };
+
+        launch.Click += async (_,_) =>
+        {
+            if (list.SelectedItem is not string value) return;
+            try
+            {
+                var (host, port) = ParseAddress(value);
+                var selectedVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
+                if (string.IsNullOrWhiteSpace(selectedVersion)) throw new InvalidOperationException("Сначала выбери версию Minecraft.");
+                SetBusy(true, "Подготавливаю подключение к " + host + ":" + port + "…");
+                await InstallSelectedLoaderAsync(selectedVersion);
+                var option = CreateLaunchOptions();
+                option.ServerIp = host;
+                option.ServerPort = port;
+                var process = await GetLauncher().BuildProcessAsync(selectedVersion, option);
+                process.Start();
+                status.Text = "Minecraft запущен";
+            }
+            catch (Exception ex) { Fail("Не удалось запустить сервер", ex); }
+            finally { SetBusy(false); }
+        };
+
+        remove.Click += (_,_) => { if (list.SelectedIndex >= 0) { list.Items.RemoveAt(list.SelectedIndex); SaveServers(); statusLabel.Text = "Сервер удалён из избранного."; } };
+        p.Controls.AddRange(new Control[] { address, add, list, statusLabel, ping, launch, remove });
+        return p;
+    }
+
+    async Task<string> QueryMinecraftServerAsync(string host, int port)
+    {
+        using var tcp = new System.Net.Sockets.TcpClient();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        await tcp.ConnectAsync(host, port, cts.Token);
+        using var stream = tcp.GetStream();
+
+        static void WriteVarInt(Stream stream, int value)
+        {
+            uint v = unchecked((uint)value);
+            do
+            {
+                var b = (byte)(v & 0x7F);
+                v >>= 7;
+                if (v != 0) b |= 0x80;
+                stream.WriteByte(b);
+            } while (v != 0);
+        }
+
+        static async Task<int> ReadVarIntAsync(Stream stream, CancellationToken token)
+        {
+            var result = 0; var shift = 0;
+            while (shift < 35)
+            {
+                var b = new byte[1];
+                var n = await stream.ReadAsync(b.AsMemory(0,1), token);
+                if (n == 0) throw new EndOfStreamException("Сервер закрыл соединение.");
+                result |= (b[0] & 0x7F) << shift;
+                if ((b[0] & 0x80) == 0) return result;
+                shift += 7;
+            }
+            throw new InvalidDataException("Некорректный VarInt.");
+        }
+
+        var hostBytes = Encoding.UTF8.GetBytes(host);
+        using var payload = new MemoryStream();
+        WriteVarInt(payload, 0);
+        WriteVarInt(payload, 765);
+        WriteVarInt(payload, hostBytes.Length); payload.Write(hostBytes);
+        payload.WriteByte((byte)(port >> 8)); payload.WriteByte((byte)port);
+        WriteVarInt(payload, 1);
+        WriteVarInt(stream, (int)payload.Length + 1); stream.WriteByte(0); payload.Position = 0; payload.CopyTo(stream);
+        WriteVarInt(stream, 1); stream.WriteByte(0);
+
+        await stream.FlushAsync(cts.Token);
+        _ = await ReadVarIntAsync(stream, cts.Token);
+        _ = await ReadVarIntAsync(stream, cts.Token);
+        var length = await ReadVarIntAsync(stream, cts.Token);
+        if (length <= 0 || length > 2_000_000) throw new InvalidDataException("Слишком большой ответ сервера.");
+        var data = new byte[length];
+        var read = 0;
+        while (read < length)
+        {
+            var n = await stream.ReadAsync(data.AsMemory(read, length-read), cts.Token);
+            if (n == 0) throw new EndOfStreamException("Неполный ответ сервера.");
+            read += n;
+        }
+        var json = Encoding.UTF8.GetString(data);
+        var node = JsonNode.Parse(json);
+        var description = node?["description"]?.ToString()?.Replace("\n"," ") ?? "Minecraft server";
+        var online = node?["players"]?["online"]?.ToString() ?? "?";
+        var max = node?["players"]?["max"]?.ToString() ?? "?";
+        return "Онлайн: " + online + "/" + max + " · " + description;
     }
 
     TabPage SettingsPage()
