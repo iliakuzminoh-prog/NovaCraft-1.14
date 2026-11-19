@@ -239,16 +239,37 @@ internal sealed class MainForm : Form
             ("✓  Исправление", DiagnosticsPage)
         };
 
-        foreach (var item in pages)
+        var sectionLabels = new Dictionary<int, string>
         {
+            [0] = "ИГРА",
+            [3] = "КОНТЕНТ",
+            [8] = "ИНСТРУМЕНТЫ"
+        };
+
+        foreach (var item in pages.Select((value, index) => (value, index)))
+        {
+            if (sectionLabels.TryGetValue(item.index, out var sectionTitle))
+            {
+                navScroll.Controls.Add(new Label
+                {
+                    Text = sectionTitle,
+                    Width = 226,
+                    Height = 24,
+                    Margin = new Padding(4, item.index == 0 ? 0 : 12, 0, 2),
+                    ForeColor = Color.FromArgb(104, 114, 137),
+                    Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold),
+                    TextAlign = ContentAlignment.BottomLeft
+                });
+            }
+
             TabPage page;
             try
             {
-                page = item.Factory();
+                page = item.value.Factory();
             }
             catch (Exception ex)
             {
-                AppDiagnostics.Report(ex, "BuildUi." + item.Name);
+                AppDiagnostics.Report(ex, "BuildUi." + item.value.Name);
                 page = new TabPage(item.Name) { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
                 page.Controls.Add(new Label
                 {
@@ -264,9 +285,9 @@ internal sealed class MainForm : Form
             navigationPages.Add(page);
             pageHost.TabPages.Add(page);
 
-            var parts = item.Name.Split(new[] { "  " }, StringSplitOptions.None);
+            var parts = item.value.Name.Split(new[] { "  " }, StringSplitOptions.None);
             var glyph = parts.Length > 1 ? parts[0] : "◆";
-            var caption = parts.Length > 1 ? parts[1] : item.Name;
+            var caption = parts.Length > 1 ? parts[1] : item.value.Name;
             var button = new Button
             {
                 Text = caption,
@@ -286,10 +307,34 @@ internal sealed class MainForm : Form
             button.FlatAppearance.BorderSize = 0;
             button.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 34, 61);
             var index = navigationPages.Count - 1;
+            var tooltip = new ToolTip { AutoPopDelay = 5000, InitialDelay = 350, ReshowDelay = 100 };
+            tooltip.SetToolTip(button, caption);
+            button.MouseEnter += (_, _) =>
+            {
+                if (pageHost.SelectedIndex != index)
+                    button.BackColor = Color.FromArgb(30, 27, 45);
+            };
+            button.MouseLeave += (_, _) =>
+            {
+                if (pageHost.SelectedIndex != index)
+                    button.BackColor = Color.FromArgb(22, 24, 35);
+            };
             button.Click += (_, _) => ShowNavigationPage(index);
             navigationButtons.Add(button);
             navScroll.Controls.Add(button);
         }
+
+        var sideFooter = new Label
+        {
+            Text = "NOVACRAFT 1.14\nMinecraft Java",
+            Dock = DockStyle.Bottom,
+            Height = 48,
+            ForeColor = Color.FromArgb(88, 97, 119),
+            Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft,
+            Padding = new Padding(10, 0, 0, 0)
+        };
+        sidebar.Controls.Add(sideFooter);
 
         status.Text = "Готов";
         status.Dock = DockStyle.Bottom;
@@ -610,45 +655,99 @@ internal sealed class MainForm : Form
 
     TabPage BuildsPage()
     {
-        var p = new TabPage("Сборки") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24) };
-        p.Controls.Add(new Label { Text = "Мои сборки", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 24, FontStyle.Bold), Location = new Point(24,20) });
-        p.Controls.Add(new Label { Text = "Профили версий, загрузчиков и настроек запуска.", AutoSize = true, ForeColor = Color.FromArgb(160,170,195), Location = new Point(27,62) });
+        var p = new TabPage("Сборки") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
 
-        var name = new TextBox { PlaceholderText = "Название новой сборки", Location = new Point(27,102), Width = 350, Height = 38, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
-        var add = ModernButton("+  Сохранить текущий профиль", 235, 38); add.Location = new Point(390,102);
-        var list = new ListView { Location = new Point(27,158), Size = new Size(900,420), View = View.Tile, TileSize = new Size(850,72), FullRowSelect = true, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(18,21,34), ForeColor = Color.White };
+        var title = new Label { Text = "Мои сборки", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 26, FontStyle.Bold), Location = new Point(24,18) };
+        var subtitle = new Label { Text = "Отдельные профили Minecraft, загрузчика и параметров запуска.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) };
+        p.Controls.AddRange(new Control[] { title, subtitle });
+
+        var createCard = new Panel
+        {
+            Location = new Point(24, 102),
+            Size = new Size(880, 112),
+            BackColor = Color.FromArgb(25,28,45),
+            Padding = new Padding(18)
+        };
+        createCard.Controls.Add(new Label { Text = "Создать профиль", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(18,12) });
+        var name = new TextBox { PlaceholderText = "Например: Survival Fabric", Location = new Point(18,48), Width = 300, Height = 36 };
+        var add = ModernButton("+  Сохранить текущий профиль", 240, 38); add.Location = new Point(334,47);
+        createCard.Controls.AddRange(new Control[] { name, add });
+        p.Controls.Add(createCard);
+
+        var list = new FlowLayoutPanel
+        {
+            Location = new Point(24, 232),
+            Size = new Size(900, 360),
+            AutoScroll = true,
+            WrapContents = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            BackColor = Color.Transparent,
+            Padding = new Padding(0)
+        };
+        p.Controls.Add(list);
 
         void RefreshBuildList()
         {
-            list.Items.Clear();
-            foreach (var saved in settings.SavedBuilds)
+            list.Controls.Clear();
+            if (settings.SavedBuilds.Count == 0)
             {
-                var parts=saved.Split('|');
-                var item=new ListViewItem(parts.Length>=3 ? parts[0] : saved);
-                item.SubItems.Add(parts.Length>=3 ? $"Minecraft {parts[1]} · {parts[2]}" : "");
-                list.Items.Add(item);
+                var empty = new Panel { Width = 860, Height = 150, BackColor = Color.FromArgb(22,25,38), Padding = new Padding(22) };
+                empty.Controls.Add(new Label { Text = "Пока нет сохранённых сборок", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(22,22) });
+                empty.Controls.Add(new Label { Text = "Выбери версию и загрузчик на главной, затем сохрани профиль здесь.", AutoSize = true, ForeColor = Color.FromArgb(155,164,184), Location = new Point(22,58) });
+                list.Controls.Add(empty);
+                return;
+            }
+
+            foreach (var saved in settings.SavedBuilds.Select((value,index) => (value,index)))
+            {
+                var parts = saved.value.Split('|');
+                var buildName = parts.Length >= 3 ? parts[0] : saved.value;
+                var buildVersion = parts.Length >= 3 ? parts[1] : settings.LastVersion;
+                var buildLoader = parts.Length >= 3 ? parts[2] : "Fabric";
+
+                var card = new Panel { Width = 275, Height = 145, Margin = new Padding(0,0,12,12), BackColor = Color.FromArgb(25,28,45), Padding = new Padding(16) };
+                card.Controls.Add(new Label { Text = buildName, Location = new Point(16,14), Size = new Size(235,26), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true });
+                card.Controls.Add(new Label { Text = "Minecraft " + buildVersion, AutoSize = true, Location = new Point(16,47), ForeColor = Color.FromArgb(166,176,198) });
+                card.Controls.Add(new Label { Text = "◆  " + buildLoader, AutoSize = true, Location = new Point(16,70), ForeColor = Color.FromArgb(101,214,173) });
+
+                var launch = ModernButton("▶  Запустить", 112, 34); launch.Location = new Point(16,100);
+                launch.Click += async (_,_) =>
+                {
+                    settings.LastVersion = buildVersion;
+                    if (gameLoader.Items.Contains(buildLoader)) gameLoader.SelectedItem = buildLoader;
+                    version.SelectedItem = buildVersion;
+                    SettingsService.Save(settings);
+                    ShowNavigationPage(0);
+                    await LaunchAsync();
+                };
+                var remove = new Button { Text = "Удалить", Width = 92, Height = 34, Location = new Point(138,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White };
+                remove.FlatAppearance.BorderSize = 0;
+                remove.Click += (_,_) =>
+                {
+                    if (saved.index < 0 || saved.index >= settings.SavedBuilds.Count) return;
+                    settings.SavedBuilds.RemoveAt(saved.index);
+                    SettingsService.Save(settings);
+                    RefreshBuildList();
+                };
+                card.Controls.AddRange(new Control[] { launch, remove });
+                list.Controls.Add(card);
             }
         }
 
-        add.Click += (_,_) => {
-            var buildName=string.IsNullOrWhiteSpace(name.Text) ? "Моя сборка "+(settings.SavedBuilds.Count+1) : name.Text.Trim();
-            var gv=version.SelectedItem?.ToString() ?? settings.LastVersion;
-            var loader=gameLoader.SelectedItem?.ToString() ?? "Fabric";
-            settings.SavedBuilds.Add(buildName+"|"+gv+"|"+loader);
-            SettingsService.Save(settings); RefreshBuildList(); status.Text="Сборка сохранена";
+        add.Click += (_,_) =>
+        {
+            var buildName = string.IsNullOrWhiteSpace(name.Text) ? "Моя сборка " + (settings.SavedBuilds.Count + 1) : name.Text.Trim();
+            var gv = version.SelectedItem?.ToString() ?? settings.LastVersion;
+            var loader = gameLoader.SelectedItem?.ToString() ?? "Fabric";
+            settings.SavedBuilds.Add(buildName + "|" + gv + "|" + loader);
+            SettingsService.Save(settings);
+            name.Clear();
+            RefreshBuildList();
+            status.Text = "Профиль сохранён";
         };
-        var launch=ModernButton("▶  Запустить выбранную",210,40); launch.Location=new Point(27,600);
-        launch.Click += async (_,_) => {
-            if(list.SelectedIndices.Count==0) return;
-            var index=list.SelectedIndices[0]; if(index<0||index>=settings.SavedBuilds.Count) return;
-            var parts=settings.SavedBuilds[index].Split('|'); if(parts.Length<3) return;
-            settings.LastVersion=parts[1]; version.SelectedItem=parts[1]; if(gameLoader.Items.Contains(parts[2])) gameLoader.SelectedItem=parts[2];
-            SettingsService.Save(settings); ShowNavigationPage(0); await LaunchAsync();
-        };
-        var remove=new Button{Text="Удалить профиль",Width=170,Height=40,Location=new Point(250,600),FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(35,39,57),ForeColor=Color.White};
-        remove.FlatAppearance.BorderSize=0;
-        remove.Click += (_,_) => { if(list.SelectedIndices.Count==0)return; var i=list.SelectedIndices[0]; if(i<0||i>=settings.SavedBuilds.Count)return; settings.SavedBuilds.RemoveAt(i); SettingsService.Save(settings); RefreshBuildList(); };
-        p.Controls.AddRange(new Control[]{name,add,list,launch,remove}); RefreshBuildList(); return p;
+
+        RefreshBuildList();
+        return p;
     }
 
     TabPage NewsPage()
