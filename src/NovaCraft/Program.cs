@@ -1318,10 +1318,13 @@ internal sealed class MainForm : Form
 
     static Guid OfflineUuid(string username)
     {
+        // Minecraft Java uses UUID.nameUUIDFromBytes("OfflinePlayer:" + username)
+        // for offline profiles: MD5 + RFC 4122 version/variant bits.
         using var md5 = MD5.Create();
-        var bytes = Encoding.UTF8.GetBytes("OfflinePlayer:" + username);
-        var hash = md5.ComputeHash(bytes);
-        return new Guid(hash);
+        var hash = md5.ComputeHash(Encoding.UTF8.GetBytes("OfflinePlayer:" + username));
+        hash[6] = (byte)((hash[6] & 0x0F) | 0x30); // UUID version 3
+        hash[8] = (byte)((hash[8] & 0x3F) | 0x80); // RFC 4122 variant
+        return Guid.ParseExact(Convert.ToHexString(hash), "N");
     }
 
     async Task InstallCustomSkinLoaderAsync(Label result)
