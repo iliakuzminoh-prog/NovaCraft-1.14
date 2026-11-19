@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Security;
 using System.Security.Cryptography;
+using System.Text;
 using System.IO.Compression;
 using System.Diagnostics;
 using CmlLib.Core;
@@ -54,10 +55,21 @@ internal static class Program
     }
 }
 
+internal sealed class OfflineProfile
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public string Username { get; set; } = "NovaPlayer";
+    public string Uuid { get; set; } = Guid.NewGuid().ToString();
+    public string SkinPath { get; set; } = "";
+    public bool Slim { get; set; }
+}
+
 internal sealed class LauncherSettings
 {
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
     public string Username { get; set; } = "NovaPlayer";
+    public string ActiveProfileId { get; set; } = "";
+    public List<OfflineProfile> OfflineProfiles { get; set; } = new();
     public int MaximumRamMb { get; set; } = 2048;
     public bool FpsBoost { get; set; }
     public string LastVersion { get; set; } = "1.21.1";
@@ -1126,217 +1138,240 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Скины") { BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(24), AutoScroll = true };
 
-        p.Controls.Add(new Label
-        {
-            Text = "МОЙ СКИН",
-            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
-            AutoSize = true,
-            ForeColor = Color.White,
-            Location = new Point(24, 20)
-        });
-        p.Controls.Add(new Label
-        {
-            Text = "Выбери свой PNG или создай оригинальный стиль NovaCraft прямо в лаунчере.",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(151, 161, 183),
-            Location = new Point(27, 61)
-        });
+        p.Controls.Add(new Label { Text = "ПРОФИЛИ И СКИНЫ", Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 20) });
+        p.Controls.Add(new Label { Text = "Офлайн-профили с постоянным UUID и локальными скинами. Никакой Microsoft-авторизации.", AutoSize = true, ForeColor = Color.FromArgb(151, 161, 183), Location = new Point(27, 61) });
 
-        var previewCard = ModernCard(760, 290, "ПРЕДПРОСМОТР", Color.FromArgb(22, 25, 39));
-        previewCard.Location = new Point(24, 95);
-        var preview = new PictureBox
-        {
-            Location = new Point(22, 48),
-            Size = new Size(210, 210),
-            BackColor = Color.FromArgb(15, 18, 29),
-            SizeMode = PictureBoxSizeMode.Zoom
-        };
-        var skinStatus = new Label
-        {
-            Text = "Скин не выбран.",
-            Location = new Point(260, 55),
-            Size = new Size(470, 90),
-            ForeColor = Color.FromArgb(175, 185, 205),
-            Font = new Font("Segoe UI", 10)
-        };
-        var choose = ModernButton("Выбрать PNG…", 160, 40);
-        choose.Location = new Point(260, 150);
-        var remove = ModernButton("Убрать", 120, 40);
-        remove.Location = new Point(430, 150);
-        remove.BackColor = Color.FromArgb(38, 43, 58);
-        var model = new ComboBox
-        {
-            DropDownStyle = ComboBoxStyle.DropDownList,
-            Location = new Point(260, 205),
-            Width = 190,
-            Height = 38
-        };
-        model.Items.AddRange(new object[] { "Classic · 4px", "Slim · 3px" });
-        model.SelectedIndex = 0;
-        previewCard.Controls.AddRange(new Control[] { preview, skinStatus, choose, remove, model });
-        p.Controls.Add(previewCard);
+        var profileCard = ModernCard(860, 205, "ОФЛАЙН-ПРОФИЛИ", Color.FromArgb(22, 25, 39));
+        profileCard.Location = new Point(24, 98);
+        var profileList = new ListBox { Location = new Point(18, 48), Size = new Size(330, 130), BackColor = Color.FromArgb(17, 20, 31), ForeColor = Color.White, BorderStyle = BorderStyle.None };
+        var profileName = new TextBox { PlaceholderText = "Новый ник", Location = new Point(370, 48), Width = 230, Height = 36 };
+        var addProfile = ModernButton("+ Добавить", 120, 38); addProfile.Location = new Point(610, 47);
+        var deleteProfile = ModernButton("Удалить", 120, 38); deleteProfile.Location = new Point(610, 91); deleteProfile.BackColor = Color.FromArgb(42, 46, 62);
+        var uuidLabel = new Label { Text = "", AutoSize = false, Size = new Size(450, 54), Location = new Point(370, 105), ForeColor = Color.FromArgb(156, 168, 191) };
 
-        string skinFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "skins");
-        string activeSkin = Path.Combine(skinFolder, "active.png");
+        void EnsureProfiles()
+        {
+            settings.OfflineProfiles ??= new List<OfflineProfile>();
+            if (settings.OfflineProfiles.Count == 0)
+            {
+                var name = string.IsNullOrWhiteSpace(settings.Username) ? "NovaPlayer" : settings.Username;
+                settings.OfflineProfiles.Add(new OfflineProfile { Username = name, Uuid = OfflineUuid(name).ToString() });
+            }
+            if (string.IsNullOrWhiteSpace(settings.ActiveProfileId) || !settings.OfflineProfiles.Any(x => x.Id == settings.ActiveProfileId))
+                settings.ActiveProfileId = settings.OfflineProfiles[0].Id;
+        }
+
+        void RenderProfiles()
+        {
+            EnsureProfiles();
+            profileList.Items.Clear();
+            foreach (var profile in settings.OfflineProfiles)
+                profileList.Items.Add(profile.Username + "  ·  " + profile.Uuid[..8]);
+            var activeIndex = settings.OfflineProfiles.FindIndex(x => x.Id == settings.ActiveProfileId);
+            profileList.SelectedIndex = Math.Max(0, activeIndex);
+            SettingsService.Save(settings);
+        }
+
+        void SelectProfile()
+        {
+            if (profileList.SelectedIndex < 0 || profileList.SelectedIndex >= settings.OfflineProfiles.Count) return;
+            var profile = settings.OfflineProfiles[profileList.SelectedIndex];
+            settings.ActiveProfileId = profile.Id;
+            settings.Username = profile.Username;
+            username.Text = profile.Username;
+            uuidLabel.Text = "Постоянный UUID:\n" + profile.Uuid + "\nСмена ника не создаёт новый профиль автоматически.";
+            SettingsService.Save(settings);
+        }
+
+        profileList.SelectedIndexChanged += (_, _) => SelectProfile();
+        addProfile.Click += (_, _) =>
+        {
+            var name = profileName.Text.Trim();
+            if (name.Length is < 2 or > 16 || name.Any(char.IsControl) || name.Any(char.IsWhiteSpace))
+            {
+                MessageBox.Show("Ник должен содержать 2–16 символов без пробелов.", "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            if (settings.OfflineProfiles.Any(x => string.Equals(x.Username, name, StringComparison.OrdinalIgnoreCase)))
+            {
+                MessageBox.Show("Профиль с таким ником уже существует.", "Профиль", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                return;
+            }
+            var profile = new OfflineProfile { Username = name, Uuid = OfflineUuid(name).ToString() };
+            settings.OfflineProfiles.Add(profile);
+            settings.ActiveProfileId = profile.Id;
+            settings.Username = profile.Username;
+            username.Text = profile.Username;
+            profileName.Clear();
+            RenderProfiles();
+            SelectProfile();
+            status.Text = "Профиль создан";
+        };
+        deleteProfile.Click += (_, _) =>
+        {
+            if (profileList.SelectedIndex < 0 || settings.OfflineProfiles.Count <= 1) return;
+            var profile = settings.OfflineProfiles[profileList.SelectedIndex];
+            if (MessageBox.Show("Удалить профиль «" + profile.Username + "»? Сохранённый UUID и привязанный к нему скин больше не будут активны.", "Удаление профиля", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
+            settings.OfflineProfiles.Remove(profile);
+            settings.ActiveProfileId = settings.OfflineProfiles[0].Id;
+            settings.Username = settings.OfflineProfiles[0].Username;
+            RenderProfiles();
+            SelectProfile();
+        };
+        profileCard.Controls.AddRange(new Control[] { profileList, profileName, addProfile, deleteProfile, uuidLabel });
+        p.Controls.Add(profileCard);
+
+        var skinCard = ModernCard(860, 305, "ЛОКАЛЬНЫЙ СКИН", Color.FromArgb(22, 25, 39));
+        skinCard.Location = new Point(24, 320);
+        var preview = new PictureBox { Location = new Point(18, 48), Size = new Size(220, 220), BackColor = Color.FromArgb(15,18,29), SizeMode = PictureBoxSizeMode.Zoom };
+        var skinStatus = new Label { Location = new Point(260, 55), Size = new Size(560, 70), ForeColor = Color.FromArgb(175,185,205), Text = "Выбери PNG. NovaCraft сохранит его в формате LocalSkin, который может использовать CustomSkinLoader." };
+        var choose = ModernButton("Выбрать PNG…", 160, 40); choose.Location = new Point(260, 140);
+        var bridge = ModernButton("Установить Skin Bridge", 210, 40); bridge.Location = new Point(430, 140);
+        var model = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(260, 195), Width = 190, Height = 36 };
+        model.Items.AddRange(new object[] { "Classic · 4px", "Slim · 3px" }); model.SelectedIndex = 0;
+        var openFolder = ModernButton("Открыть папку скинов", 190, 38); openFolder.Location = new Point(260, 240);
 
         void LoadPreview(string path)
         {
             using var stream = File.OpenRead(path);
-            using var loaded = Image.FromStream(stream, false, true);
-            var copy = new Bitmap(loaded);
-            var old = preview.Image;
-            preview.Image = copy;
-            old?.Dispose();
+            using var image = Image.FromStream(stream, false, true);
+            var copy = new Bitmap(image);
+            var old = preview.Image; preview.Image = copy; old?.Dispose();
         }
 
-        if (File.Exists(activeSkin))
+        string GetSkinDestination(OfflineProfile profile)
         {
-            try { LoadPreview(activeSkin); skinStatus.Text = "Активный локальный скин: " + Path.GetFileName(activeSkin); }
-            catch (Exception ex) { skinStatus.Text = "Сохранённый скин повреждён: " + ex.Message; }
+            var folder = Path.Combine(settings.GameDirectory, "CustomSkinLoader", "LocalSkin", "skins");
+            Directory.CreateDirectory(folder);
+            return Path.Combine(folder, profile.Username + ".png");
         }
+
+        EnsureProfiles();
+        RenderProfiles();
 
         choose.Click += (_, _) =>
         {
-            using var dialog = new OpenFileDialog
-            {
-                Title = "Выбери PNG-скин Minecraft",
-                Filter = "Minecraft skin (*.png)|*.png",
-                CheckFileExists = true
-            };
+            if (profileList.SelectedIndex < 0) return;
+            using var dialog = new OpenFileDialog { Title = "Выбери PNG-скин Minecraft", Filter = "Minecraft skin (*.png)|*.png", CheckFileExists = true };
             if (dialog.ShowDialog() != DialogResult.OK) return;
             try
             {
+                var profile = settings.OfflineProfiles[profileList.SelectedIndex];
                 var info = new FileInfo(dialog.FileName);
-                if (info.Length is < 1 or > 8_000_000)
-                    throw new InvalidDataException("PNG должен занимать от 1 байта до 8 МБ.");
-
+                if (info.Length is < 1 or > 8_000_000) throw new InvalidDataException("PNG должен занимать от 1 байта до 8 МБ.");
                 using var stream = File.OpenRead(dialog.FileName);
                 using var image = Image.FromStream(stream, false, true);
-                var valid = (image.Width == 64 && image.Height == 64) || (image.Width == 64 && image.Height == 32);
-                if (!valid)
-                    throw new InvalidDataException("Для Java Edition нужен PNG 64×64 или старый 64×32.");
-
-                Directory.CreateDirectory(skinFolder);
-                File.Copy(dialog.FileName, activeSkin, true);
-                LoadPreview(activeSkin);
-                skinStatus.Text = "Скин сохранён локально. Выбран " + (model.SelectedIndex == 1 ? "Slim" : "Classic") + ".";
+                if (!((image.Width == 64 && image.Height == 64) || (image.Width == 64 && image.Height == 32)))
+                    throw new InvalidDataException("Для Java Edition нужен PNG 64×64 или 64×32.");
+                var destination = GetSkinDestination(profile);
+                File.Copy(dialog.FileName, destination, true);
+                profile.SkinPath = destination;
+                profile.Slim = model.SelectedIndex == 1;
+                settings.ActiveProfileId = profile.Id;
+                settings.Username = profile.Username;
+                SettingsService.Save(settings);
+                LoadPreview(destination);
+                skinStatus.Text = "Скин установлен для «" + profile.Username + "». Путь: " + destination;
+                status.Text = "Локальный скин сохранён";
             }
-            catch (Exception ex)
-            {
-                WriteLog("Импорт скина: " + ex);
-                MessageBox.Show(ex.Message, "Некорректный скин", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
+            catch (Exception ex) { Fail("Не удалось установить локальный скин", ex); }
         };
 
-        remove.Click += (_, _) =>
+        model.SelectedIndexChanged += (_, _) =>
         {
-            try
-            {
-                if (File.Exists(activeSkin)) File.Delete(activeSkin);
-                var old = preview.Image;
-                preview.Image = null;
-                old?.Dispose();
-                skinStatus.Text = "Локальный скин удалён.";
-            }
-            catch (Exception ex) { skinStatus.Text = "Не удалось удалить скин: " + ex.Message; }
+            if (profileList.SelectedIndex < 0) return;
+            settings.OfflineProfiles[profileList.SelectedIndex].Slim = model.SelectedIndex == 1;
+            SettingsService.Save(settings);
         };
 
-        var presets = ModernCard(760, 175, "ГОТОВЫЕ СТИЛИ NOVACRAFT", Color.FromArgb(22, 25, 39));
-        presets.Location = new Point(24, 405);
-        presets.Controls.Add(new Label
+        bridge.Click += async (_, _) => await InstallCustomSkinLoaderAsync(skinStatus);
+        openFolder.Click += (_, _) =>
         {
-            Text = "Оригинальные пресеты: тёмный street, cyber, emerald и purple. Файлы создаются локально.",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(151, 161, 183),
-            Location = new Point(18, 48)
-        });
-
-        void ApplyPreset(string name)
-        {
-            try
-            {
-                Directory.CreateDirectory(skinFolder);
-                CreatePresetSkin(activeSkin, name);
-                LoadPreview(activeSkin);
-                model.SelectedIndex = 0;
-                skinStatus.Text = "Активен стиль NovaCraft: " + name + "\nClassic · 4px";
-                status.Text = "Скин «" + name + "» создан";
-            }
-            catch (Exception ex)
-            {
-                WriteLog("Пресет скина: " + ex);
-                MessageBox.Show("Не удалось создать скин: " + ex.Message, "Скин", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            }
-        }
-
-        var presetData = new[]
-        {
-            ("Night Runner", Color.FromArgb(42, 52, 82)),
-            ("Cyber Blue", Color.FromArgb(42, 101, 185)),
-            ("Emerald Scout", Color.FromArgb(37, 132, 93)),
-            ("Purple Neon", Color.FromArgb(109, 62, 168))
+            try { Directory.CreateDirectory(Path.Combine(settings.GameDirectory, "CustomSkinLoader", "LocalSkin", "skins")); Process.Start(new ProcessStartInfo("explorer.exe", Path.Combine(settings.GameDirectory, "CustomSkinLoader", "LocalSkin", "skins")) { UseShellExecute = true }); }
+            catch (Exception ex) { Fail("Не удалось открыть папку скинов", ex); }
         };
-        var presetX = 18;
-        foreach (var item in presetData)
-        {
-            var button = ModernButton(item.Item1, 165, 45);
-            button.Location = new Point(presetX, 95);
-            button.BackColor = item.Item2;
-            button.FlatAppearance.MouseOverBackColor = ControlPaint.Light(item.Item2);
-            button.Click += (_, _) => ApplyPreset(item.Item1);
-            presets.Controls.Add(button);
-            presetX += 174;
-        }
-        p.Controls.Add(presets);
 
-        var server = ModernCard(760, 245, "СЕРВЕРЫ И СКИН", Color.FromArgb(22, 25, 39));
-        server.Location = new Point(24, 595);
-        server.Controls.Add(new Label
+        profileList.SelectedIndexChanged += (_, _) =>
         {
-            Text = "На сервере твой скин виден другим игрокам только если сервер поддерживает соответствующую систему скинов.",
-            AutoSize = false,
-            Size = new Size(700, 45),
-            ForeColor = Color.FromArgb(175, 185, 205),
-            Location = new Point(18, 48)
-        });
-        var openStudio = ModernButton("Открыть Skin Studio", 210, 40);
-        openStudio.Location = new Point(18, 105);
-        openStudio.Click += (_, _) => GenOpenSkinStudio();
-        server.Controls.Add(openStudio);
-        server.Controls.Add(new Label
-        {
-            Text = "Если у тебя уже есть HTTPS URL текстуры:",
-            AutoSize = true,
-            ForeColor = Color.White,
-            Location = new Point(18, 160)
-        });
-        var textureUrl = new TextBox
-        {
-            Location = new Point(18, 188),
-            Width = 500,
-            Height = 34,
-            PlaceholderText = "https://textures.minecraft.net/texture/…"
-        };
-        var copyCommand = ModernButton("Скопировать команду", 190, 34);
-        copyCommand.Location = new Point(530, 188);
-        copyCommand.Click += (_, _) =>
-        {
-            var url = textureUrl.Text.Trim();
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var parsed) || parsed.Scheme != Uri.UriSchemeHttps)
+            if (profileList.SelectedIndex < 0) return;
+            var profile = settings.OfflineProfiles[profileList.SelectedIndex];
+            model.SelectedIndex = profile.Slim ? 1 : 0;
+            if (!string.IsNullOrWhiteSpace(profile.SkinPath) && File.Exists(profile.SkinPath))
             {
-                MessageBox.Show("Нужен корректный HTTPS URL текстуры.", "Проверка URL", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-                return;
+                try { LoadPreview(profile.SkinPath); } catch { }
             }
-            var variant = model.SelectedIndex == 1 ? " slim" : " classic";
-            Clipboard.SetText("/skin url \"" + url.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"" + variant);
-            skinStatus.Text = "Команда скопирована.";
+            else skinStatus.Text = "Для этого профиля локальный скин ещё не выбран.";
         };
-        server.Controls.AddRange(new Control[] { textureUrl, copyCommand });
-        p.Controls.Add(server);
 
+        p.Controls.Add(skinCard);
+        skinCard.Controls.AddRange(new Control[] { preview, skinStatus, choose, bridge, model, openFolder });
+
+        var info = new Label
+        {
+            Text = "Важно: сам Minecraft Java не умеет показывать произвольный локальный PNG в обычном offline-профиле. Поэтому NovaCraft использует официальный для этой задачи механизм CustomSkinLoader: он читает LocalSkin/<USERNAME>.png. Другие игроки увидят такой скин только если их клиент тоже поддерживает этот механизм.",
+            AutoSize = false, Size = new Size(850, 90), Location = new Point(24, 645),
+            ForeColor = Color.FromArgb(145, 155, 178)
+        };
+        p.Controls.Add(info);
         return p;
     }
 
+    static Guid OfflineUuid(string username)
+    {
+        using var md5 = MD5.Create();
+        var bytes = Encoding.UTF8.GetBytes("OfflinePlayer:" + username);
+        var hash = md5.ComputeHash(bytes);
+        return new Guid(hash);
+    }
+
+    async Task InstallCustomSkinLoaderAsync(Label result)
+    {
+        try
+        {
+            var game = version.SelectedItem?.ToString() ?? settings.LastVersion;
+            var loader = settings.ModLoader;
+            if (loader == "vanilla")
+                throw new InvalidOperationException("Для локальных скинов через Skin Bridge нужен Fabric, Forge или Quilt.");
+            var versionsUrl = "https://api.modrinth.com/v2/project/customskinloader/version?game_versions=" +
+                              Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game })) +
+                              "&loaders=" + Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loader })) +
+                              "&include_changelog=false";
+            var versions = JsonNode.Parse(await http.GetStringAsync(versionsUrl))?.AsArray();
+            var file = versions?.FirstOrDefault()?["files"]?.AsArray()?.FirstOrDefault();
+            var url = file?["url"]?.ToString();
+            var sha = file?["hashes"]?["sha512"]?.ToString();
+            var filename = file?["filename"]?.ToString();
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(sha) || string.IsNullOrWhiteSpace(filename))
+                throw new InvalidOperationException("Для выбранной версии Minecraft и загрузчика совместимый CustomSkinLoader не найден.");
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != "https" || uri.Host != "cdn.modrinth.com")
+                throw new SecurityException("Загрузка Skin Bridge разрешена только с cdn.modrinth.com.");
+            result.Text = "Скачиваю Skin Bridge и проверяю SHA-512…";
+            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
+            response.EnsureSuccessStatusCode();
+            var bytes = await ReadBoundedContentAsync(response.Content, 50 * 1024 * 1024);
+            var actual = SHA512.HashData(bytes);
+            if (!CryptographicOperations.FixedTimeEquals(actual, Convert.FromHexString(sha)))
+                throw new CryptographicException("SHA-512 Skin Bridge не совпадает с Modrinth.");
+            var mods = Path.Combine(settings.GameDirectory, "mods");
+            Directory.CreateDirectory(mods);
+            var target = Path.Combine(mods, filename);
+            await File.WriteAllBytesAsync(target, bytes);
+            foreach (var profile in settings.OfflineProfiles)
+            {
+                if (string.IsNullOrWhiteSpace(profile.SkinPath) || !File.Exists(profile.SkinPath)) continue;
+                var destination = GetProfileSkinPath(profile);
+                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+                File.Copy(profile.SkinPath, destination, true);
+            }
+            SettingsService.Save(settings);
+            result.Text = "Skin Bridge установлен. Локальный скин будет загружаться через CustomSkinLoader.";
+            status.Text = "Skin Bridge готов";
+        }
+        catch (Exception ex) { Fail("Не удалось установить Skin Bridge", ex); }
+    }
+
+    string GetProfileSkinPath(OfflineProfile profile) =>
+        Path.Combine(settings.GameDirectory, "CustomSkinLoader", "LocalSkin", "skins", profile.Username + ".png");
 
     static void CreatePresetSkin(string path, string preset)
     {
@@ -1638,11 +1673,35 @@ internal sealed class MainForm : Form
         finally{SetBusy(false);}
     }
 
+    MSession CreateOfflineSessionForActiveProfile()
+    {
+        var name = username.Text.Trim();
+        var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+        if (profile == null)
+        {
+            profile = new OfflineProfile { Username = name, Uuid = OfflineUuid(name).ToString() };
+            settings.OfflineProfiles ??= new List<OfflineProfile>();
+            settings.OfflineProfiles.Add(profile);
+            settings.ActiveProfileId = profile.Id;
+        }
+        profile.Username = name;
+        if (!Guid.TryParse(profile.Uuid, out _))
+            profile.Uuid = OfflineUuid(name).ToString();
+        SettingsService.Save(settings);
+        return new MSession
+        {
+            Username = profile.Username,
+            UUID = profile.Uuid,
+            AccessToken = "0",
+            Xuid = ""
+        };
+    }
+
     MLaunchOption CreateLaunchOptions()
     {
         var option = new MLaunchOption
         {
-            Session = MSession.CreateOfflineSession(username.Text.Trim()),
+            Session = CreateOfflineSessionForActiveProfile(),
             MaximumRamMb = settings.MaximumRamMb,
             ScreenWidth = settings.ScreenWidth,
             ScreenHeight = settings.ScreenHeight,
@@ -1667,9 +1726,9 @@ internal sealed class MainForm : Form
     {
         if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
         var playerName = username.Text.Trim();
-        if (playerName.Length is < 3 or > 16 || playerName.Any(c => !(c is >= 'A' and <= 'Z' or >= 'a' and <= 'z' or >= '0' and <= '9' or '_')))
+        if (playerName.Length is < 2 or > 16 || playerName.Any(char.IsControl) || playerName.Any(char.IsWhiteSpace))
         {
-            MessageBox.Show("Имя игрока должно содержать от 3 до 16 символов: только латинские буквы, цифры и знак подчёркивания.", "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            MessageBox.Show("Офлайн-ник должен содержать 2–16 символов без пробелов и управляющих символов. Латиница, кириллица, цифры, _ и - поддерживаются.", "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
         string launchVersion = v;
@@ -2296,6 +2355,20 @@ static class SettingsService
             if (string.IsNullOrWhiteSpace(loaded.Username))
                 loaded.Username = "NovaPlayer";
             loaded.SavedBuilds ??= new List<string>();
+            loaded.OfflineProfiles ??= new List<OfflineProfile>();
+            if (loaded.OfflineProfiles.Count == 0)
+            {
+                var profileName = string.IsNullOrWhiteSpace(loaded.Username) ? "NovaPlayer" : loaded.Username;
+                loaded.OfflineProfiles.Add(new OfflineProfile { Username = profileName, Uuid = OfflineUuid(profileName).ToString() });
+            }
+            if (string.IsNullOrWhiteSpace(loaded.ActiveProfileId) || !loaded.OfflineProfiles.Any(x => x.Id == loaded.ActiveProfileId))
+                loaded.ActiveProfileId = loaded.OfflineProfiles[0].Id;
+            loaded.Username = loaded.OfflineProfiles.First(x => x.Id == loaded.ActiveProfileId).Username;
+            foreach (var profile in loaded.OfflineProfiles)
+            {
+                if (!Guid.TryParse(profile.Uuid, out _))
+                    profile.Uuid = OfflineUuid(profile.Username).ToString();
+            }
             return loaded;
         }
         catch (Exception ex)
