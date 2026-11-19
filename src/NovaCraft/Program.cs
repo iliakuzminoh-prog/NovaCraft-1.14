@@ -1611,7 +1611,17 @@ internal sealed class MainForm : Form
         try
         {
             status.Text = modFeedOffset == 0 ? "Загружаю моды Modrinth…" : "Загружаю ещё моды…";
-            var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { "project_type:mod" } }));
+            var loaderFacet = settings.ModLoader switch
+            {
+                "forge" => "categories:forge",
+                "quilt" => "categories:quilt",
+                _ => "categories:fabric"
+            };
+            var selectedVersion = version.SelectedItem?.ToString();
+            var facetGroups = new List<string[]> { new[] { "project_type:mod" }, new[] { loaderFacet } };
+            if (!string.IsNullOrWhiteSpace(selectedVersion))
+                facetGroups.Add(new[] { "versions:" + selectedVersion });
+            var facets = Uri.EscapeDataString(JsonSerializer.Serialize(facetGroups));
             var query = string.IsNullOrWhiteSpace(modFeedQuery) ? "" : "&query=" + Uri.EscapeDataString(modFeedQuery);
             var url = "https://api.modrinth.com/v2/search?limit=24&offset=" + modFeedOffset +
                       "&index=" + Uri.EscapeDataString(modFeedSort) + query + "&facets=" + facets;
@@ -1653,7 +1663,21 @@ internal sealed class MainForm : Form
         try
         {
             status.Text = "Поиск в каталоге Modrinth…";
-            var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { "project_type:" + projectType } }));
+            var facetGroups = new List<string[]> { new[] { "project_type:" + projectType } };
+            if (projectType == "mod")
+            {
+                var loaderFacet = settings.ModLoader switch
+                {
+                    "forge" => "categories:forge",
+                    "quilt" => "categories:quilt",
+                    _ => "categories:fabric"
+                };
+                facetGroups.Add(new[] { loaderFacet });
+                var selectedVersion = version.SelectedItem?.ToString();
+                if (!string.IsNullOrWhiteSpace(selectedVersion))
+                    facetGroups.Add(new[] { "versions:" + selectedVersion });
+            }
+            var facets = Uri.EscapeDataString(JsonSerializer.Serialize(facetGroups));
             var url = "https://api.modrinth.com/v2/search?query=" + Uri.EscapeDataString(query) + "&facets=" + facets + "&index=relevance&limit=30";
             var root = JsonNode.Parse(await http.GetStringAsync(url));
             var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
