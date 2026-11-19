@@ -923,16 +923,28 @@ internal sealed class MainForm : Form
                     ShowNavigationPage(0);
                     await LaunchAsync();
                 };
-                var remove = new Button { Text = "Удалить", Width = 92, Height = 34, Location = new Point(138,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White };
+                var remove = new Button { Text = "Удалить", Width = 78, Height = 34, Location = new Point(138,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White, Cursor = Cursors.Hand };
                 remove.FlatAppearance.BorderSize = 0;
                 remove.Click += (_,_) =>
                 {
                     if (saved.index < 0 || saved.index >= settings.SavedBuilds.Count) return;
+                    if (MessageBox.Show("Удалить профиль «" + buildName + "»?", "Удаление сборки", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
                     settings.SavedBuilds.RemoveAt(saved.index);
                     SettingsService.Save(settings);
                     RefreshBuildList();
                 };
-                card.Controls.AddRange(new Control[] { launch, remove });
+                var folder = new Button { Text = "Папка", Width = 66, Height = 34, Location = new Point(222,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White, Cursor = Cursors.Hand };
+                folder.FlatAppearance.BorderSize = 0;
+                folder.Click += (_,_) =>
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(settings.GameDirectory);
+                        Process.Start(new ProcessStartInfo("explorer.exe", """ + settings.GameDirectory + """) { UseShellExecute = true });
+                    }
+                    catch (Exception ex) { Fail("Не удалось открыть папку Minecraft", ex); }
+                };
+                card.Controls.AddRange(new Control[] { launch, remove, folder });
                 list.Controls.Add(card);
             }
         }
