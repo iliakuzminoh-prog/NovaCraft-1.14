@@ -17,7 +17,7 @@ namespace NovaCraft;
 internal static class Program
 {
     [STAThread]
-    static void Main()
+    static void Main(string[] args)
     {
         ApplicationConfiguration.Initialize();
         Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
@@ -32,6 +32,14 @@ internal static class Program
         };
         try
         {
+            if (args.Any(a => string.Equals(a, "--smoke-test", StringComparison.OrdinalIgnoreCase)))
+            {
+                using var smoke = new MainForm();
+                smoke.CreateControl();
+                smoke.PerformLayout();
+                return;
+            }
+
             Application.Run(new MainForm());
         }
         catch (Exception ex)
@@ -1239,14 +1247,64 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Исправление") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
         p.Controls.Add(new Label { Text = "ПРОВЕРКА И АВТОИСПРАВЛЕНИЕ", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 22) });
-        p.Controls.Add(new Label { Text = "Проверяются папка игры, доступ на запись, параметры памяти и файлы выбранной версии. Отдельная диагностика Java не выполняется. Повреждённые или отсутствующие официальные файлы можно восстановить повторной установкой.", AutoSize = false, Size = new Size(760, 70), ForeColor = Color.Silver, Location = new Point(26, 70) });
+        p.Controls.Add(new Label { Text = "Проверяются папка игры, доступ на запись, память, Java и файлы выбранной версии. Ошибки не замалчиваются: подробности попадают в журнал NovaCraft.", AutoSize = false, Size = new Size(820, 70), ForeColor = Color.Silver, Location = new Point(26, 70) });
         var result = new Label { Text = "Проверка ещё не запускалась.", AutoSize = false, Size = new Size(760, 90), ForeColor = Color.FromArgb(190, 205, 220), Location = new Point(26, 155), Padding = new Padding(10), BackColor = Color.FromArgb(27, 31, 39) };
-        var repair = new Button { Text = "Проверить и исправить", Location = new Point(26, 265), Width = 220, Height = 44 };
+        var repair = ModernButton("Проверить и исправить", 220, 44);
+        repair.Location = new Point(26, 265);
         repair.Click += async (_, _) => await RunAutoRepairAsync(result);
-        var copy = new Button { Text = "Скопировать технический отчёт", Location = new Point(260, 265), Width = 235, Height = 44 };
-        copy.Click += (_, _) => { if (!string.IsNullOrWhiteSpace(log.Text)) Clipboard.SetText(log.Text); status.Text = "Отчёт скопирован"; };
-        p.Controls.AddRange(new Control[] { result, repair, copy });
+
+        var java = ModernButton("Проверить Java", 160, 44);
+        java.Location = new Point(260, 265);
+        java.Click += async (_, _) => result.Text = await CheckJavaAsync();
+
+        var copy = ModernButton("Скопировать отчёт", 190, 44);
+        copy.Location = new Point(438, 265);
+        copy.Click += (_, _) =>
+        {
+            if (!string.IsNullOrWhiteSpace(log.Text)) Clipboard.SetText(log.Text);
+            status.Text = "Технический отчёт скопирован";
+        };
+        p.Controls.AddRange(new Control[] { result, repair, java, copy });
         return p;
+    }
+
+    async Task<string> CheckJavaAsync()
+    {
+        try
+        {
+            var psi = new ProcessStartInfo
+            {
+                FileName = "java",
+                Arguments = "-version",
+                UseShellExecute = false,
+                RedirectStandardError = true,
+                RedirectStandardOutput = true,
+                CreateNoWindow = true
+            };
+            using var process = Process.Start(psi) ?? throw new InvalidOperationException("Java не найдена.");
+            var stderr = await process.StandardError.ReadToEndAsync();
+            var stdout = await process.StandardOutput.ReadToEndAsync();
+            await process.WaitForExitAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            var text = string.IsNullOrWhiteSpace(stderr) ? stdout : stderr;
+            if (process.ExitCode != 0) throw new InvalidOperationException(text.Trim());
+            var selected = version.SelectedItem?.ToString() ?? settings.LastVersion;
+            var required = selected.StartsWith("1.20.5", StringComparison.OrdinalIgnoreCase) ||
+                           selected.StartsWith("1.20.6", StringComparison.OrdinalIgnoreCase) ||
+                           selected.StartsWith("1.21", StringComparison.OrdinalIgnoreCase)
+                ? "Java 21"
+                : selected.StartsWith("1.18", StringComparison.OrdinalIgnoreCase) ||
+                  selected.StartsWith("1.19", StringComparison.OrdinalIgnoreCase) ||
+                  selected.StartsWith("1.20.", StringComparison.OrdinalIgnoreCase)
+                    ? "Java 17"
+                    : "Java 8+";
+            WriteLog("Java: " + text.Trim());
+            return "Java найдена. Для " + selected + " рекомендуется " + required + ".\n\n" + text.Trim();
+        }
+        catch (Exception ex)
+        {
+            WriteLog("Проверка Java: " + ex);
+            return "Java не удалось проверить автоматически.\n\n" + ex.Message;
+        }
     }
 
     Control Labeled(string text, Control control, int x, int y, int width)
