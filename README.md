@@ -4,6 +4,17 @@ Windows launcher for Minecraft Java Edition. The current implementation is a C# 
 
 ## Implemented in the current source
 
+### Stage A (2026-11-19)
+- Canonical Minecraft offline UUID calculation now matches Java UUID.nameUUIDFromBytes: MD5 with version 3 and RFC 4122 variant bits, without Guid byte-order conversion.
+- A single nickname validator enforces 3–16 ASCII characters from A-Z, a-z, 0-9 and underscore for profile creation, renaming and launch validation.
+- Nicknames are no longer silently copied from the home field into the active profile; renaming is an explicit profile action.
+- Local skin source files are keyed by profile ID under %LOCALAPPDATA%\\NovaCraft\\skins\\<profileId>.png and synchronized into the active game directory before launch.
+- Modrinth JAR/ZIP downloads and Skin Bridge downloads use the centralized verified download service with HTTPS/CDN host validation, filename/path checks, streaming SHA-512 verification, archive signatures, size limits, cancellation and atomic finalization.
+- settings.json carries SchemaVersion and legacy skin paths are migrated to the profile-ID skin location when possible.
+- Stage A xUnit tests cover the UUID control value, UUID version/variant bits, determinism and nickname validation.
+
+
+
 - Dark Russian-language interface with Home, Builds, Mods, Resource Packs, Shaders, Datapacks, Modpacks, Music, Skin, Settings and Diagnostics pages.
 - Self-contained Windows x64 executable; the installer allows choosing the installation folder, creates a Start Menu shortcut, optionally creates a desktop shortcut, and supports uninstall.
 - Minecraft game directory can be selected on any drive.
@@ -21,6 +32,14 @@ Windows launcher for Minecraft Java Edition. The current implementation is a C# 
 - Basic diagnostics for write access, RAM settings and reinstalling selected Minecraft/loader files. It does not repair every Java, mod or runtime crash.
 
 ## Not implemented / not verified
+
+- Stage B isolated instances and shared CmlLib storage have not been implemented yet.
+- Stage C interface restructuring into five navigation areas and DPI/layout verification has not been implemented yet.
+- Stage D dependency/update manifest management is only partially present; the centralized download path is implemented, but the full dependency graph and /version_files/update workflow are not complete.
+- Stage E .mrpack import/export is not implemented.
+- Stage F Java installation, worlds/screenshots management and full repair polish are not implemented yet.
+
+
 
 - Microsoft/Mojang authentication and online account sessions.
 - Universal skin visibility on third-party or offline-mode servers.
