@@ -808,7 +808,7 @@ internal sealed class MainForm : Form
                 WriteLog("Minecraft завершился. ExitCode=" + process.ExitCode);
             }));
             process.Start();
-            WriteLog("Minecraft запущен: " + launchVersion + ");
+            WriteLog("Minecraft запущен: " + launchVersion);
             status.Text = "Игра запущена";
             if (settings.CloseAfterLaunch) BeginInvoke(new Action(Close));
         }
