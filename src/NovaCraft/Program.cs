@@ -590,18 +590,97 @@ internal sealed class MainForm : Form
     TabPage VersionsPage()
     {
         var p = new TabPage("Версии") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24) };
-        p.Controls.Add(new Label { Text = "Версии Minecraft", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 24, FontStyle.Bold), Location = new Point(24,20) });
-        p.Controls.Add(new Label { Text = "Официальные релизные версии. Выбери версию для запуска или установки.", AutoSize = true, ForeColor = Color.FromArgb(160,170,195), Location = new Point(27,62) });
 
-        var search = new TextBox { PlaceholderText = "Поиск версии…", Location = new Point(27,102), Width = 420, Height = 38, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
-        var list = new ListView { Location = new Point(27,154), Size = new Size(900,520), View = View.Tile, TileSize = new Size(850,64), FullRowSelect = true, BorderStyle = BorderStyle.None, BackColor = Color.FromArgb(18,21,34), ForeColor = Color.White };
-        list.DoubleClick += (_,_) => { if (list.SelectedItems.Count>0) { version.Text=list.SelectedItems[0].Text; status.Text="Выбрана версия "+version.Text; } };
-        search.TextChanged += (_,_) => {
-            var q=search.Text.Trim();
-            foreach(ListViewItem item in list.Items) item.BackColor = string.IsNullOrWhiteSpace(q) || item.Text.Contains(q,StringComparison.OrdinalIgnoreCase) ? Color.FromArgb(25,29,46) : Color.FromArgb(13,15,25);
+        p.Controls.Add(new Label
+        {
+            Text = "Версии Minecraft",
+            AutoSize = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
+            Location = new Point(24,18)
+        });
+        p.Controls.Add(new Label
+        {
+            Text = "Быстрый выбор версии с понятным статусом и запуском в один клик.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(151,161,183),
+            Location = new Point(27,61)
+        });
+
+        var search = new TextBox
+        {
+            PlaceholderText = "⌕  Поиск версии…",
+            Location = new Point(27,96),
+            Width = 420,
+            Height = 38
         };
-        p.Controls.AddRange(new Control[]{search,list});
+
+        var refresh = ModernButton("↻  Обновить", 120, 38);
+        refresh.Location = new Point(455,96);
+        refresh.Click += async (_,_) => await RefreshVersionsAsync();
+
+        var selected = new Label
+        {
+            Text = "Выбрано: " + settings.LastVersion,
+            AutoSize = true,
+            ForeColor = Color.FromArgb(145,155,178),
+            Location = new Point(600,106)
+        };
+
+        var list = new ListView
+        {
+            Location = new Point(27,150),
+            Size = new Size(900,480),
+            View = View.Tile,
+            TileSize = new Size(850,72),
+            FullRowSelect = true,
+            HideSelection = false,
+            BorderStyle = BorderStyle.None,
+            BackColor = Color.FromArgb(18,21,34),
+            ForeColor = Color.White
+        };
+
+        void Render(string query)
+        {
+            var wanted = query.Trim();
+            var versions = list.Tag as List<string> ?? new List<string>();
+            list.BeginUpdate();
+            list.Items.Clear();
+            foreach (var item in versions.Where(v => string.IsNullOrWhiteSpace(wanted) || v.Contains(wanted, StringComparison.OrdinalIgnoreCase)))
+            {
+                var row = new ListViewItem(item);
+                row.SubItems.Add(item == settings.LastVersion ? "Последняя выбранная" : "Готово к установке");
+                row.ForeColor = Color.White;
+                list.Items.Add(row);
+            }
+            list.EndUpdate();
+            selected.Text = "Показано: " + list.Items.Count;
+        }
+
+        list.DoubleClick += async (_,_) =>
+        {
+            if (list.SelectedItems.Count == 0) return;
+            version.SelectedItem = list.SelectedItems[0].Text;
+            settings.LastVersion = list.SelectedItems[0].Text;
+            SettingsService.Save(settings);
+            selected.Text = "Выбрано: " + settings.LastVersion;
+            ShowNavigationPage(0);
+            await Task.CompletedTask;
+        };
+
+        list.SelectedIndexChanged += (_,_) =>
+        {
+            if (list.SelectedItems.Count == 0) return;
+            selected.Text = "Выбрано: " + list.SelectedItems[0].Text;
+        };
+
+        search.TextChanged += (_,_) => Render(search.Text);
+        refresh.Tag = Render;
+
+        p.Controls.AddRange(new Control[] { search, refresh, selected, list });
         version.Tag = list;
+        list.Tag = new List<string> { settings.LastVersion };
+        Render("");
         return p;
     }
 
@@ -1187,7 +1266,17 @@ internal sealed class MainForm : Form
                 .Select(v=>v!.Name).Distinct().Take(100).ToList() ?? new List<string>();
             version.Items.Clear(); foreach(var v in releases) version.Items.Add(v);
             version.SelectedItem = releases.Contains(settings.LastVersion) ? settings.LastVersion : releases.FirstOrDefault();
-            if(version.Tag is ListBox list){list.Items.Clear();list.Items.AddRange(releases.ToArray());}
+            if(version.Tag is ListView list)
+            {
+                list.Tag = releases;
+                list.Items.Clear();
+                foreach (var item in releases)
+                {
+                    var row = new ListViewItem(item);
+                    row.ForeColor = Color.White;
+                    list.Items.Add(row);
+                }
+            }
             WriteLog("Версий получено: "+releases.Count); status.Text="Готов";
         } catch(Exception ex){Fail("Не удалось получить список версий",ex);}
     }
