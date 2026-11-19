@@ -188,17 +188,74 @@ internal sealed class MainForm : Form
         return bitmap;
     }
 
+    static void RoundCorners(Control control, int radius = 14)
+    {
+        void Apply()
+        {
+            if (control.Width <= 0 || control.Height <= 0) return;
+            using var path = new System.Drawing.Drawing2D.GraphicsPath();
+            var d = radius * 2;
+            path.AddArc(0, 0, d, d, 180, 90);
+            path.AddArc(control.Width - d, 0, d, d, 270, 90);
+            path.AddArc(control.Width - d, control.Height - d, d, d, 0, 90);
+            path.AddArc(0, control.Height - d, d, d, 90, 90);
+            path.CloseFigure();
+            control.Region = new Region(path);
+        }
+        control.Resize += (_, _) => Apply();
+        Apply();
+    }
+
     static Panel ModernCard(int width, int height, string title, Color backColor)
     {
-        var card = new Panel { Width=width, Height=height, BackColor=backColor, Margin=new Padding(7), Padding=new Padding(18) };
-        card.Controls.Add(new Label { Text=title, AutoSize=true, Location=new Point(18,14), ForeColor=Color.White, Font=new Font("Segoe UI Semibold",10.5f,FontStyle.Bold) });
+        var card = new Panel
+        {
+            Width = width,
+            Height = height,
+            BackColor = backColor,
+            Margin = new Padding(7),
+            Padding = new Padding(18)
+        };
+        RoundCorners(card, 16);
+
+        var accent = new Panel
+        {
+            Location = new Point(18, 14),
+            Size = new Size(4, 22),
+            BackColor = Color.FromArgb(112, 74, 242)
+        };
+        RoundCorners(accent, 2);
+
+        card.Controls.Add(accent);
+        card.Controls.Add(new Label
+        {
+            Text = title,
+            AutoSize = true,
+            Location = new Point(32, 14),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 10.5f, FontStyle.Bold)
+        });
         return card;
     }
 
     static Button ModernButton(string text, int width, int height)
     {
-        var b=new Button { Text=text, Width=width, Height=height, FlatStyle=FlatStyle.Flat, BackColor=Color.FromArgb(91,39,235), ForeColor=Color.White, Font=new Font("Segoe UI Semibold",9.5f,FontStyle.Bold) };
-        b.FlatAppearance.BorderSize=0;
+        var b = new Button
+        {
+            Text = text,
+            Width = width,
+            Height = height,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(92, 48, 224),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
+            Cursor = Cursors.Hand,
+            Padding = new Padding(10, 0, 10, 0)
+        };
+        b.FlatAppearance.BorderSize = 0;
+        b.FlatAppearance.MouseOverBackColor = Color.FromArgb(111, 70, 235);
+        b.FlatAppearance.MouseDownBackColor = Color.FromArgb(76, 39, 185);
+        RoundCorners(b, 10);
         return b;
     }
 
@@ -414,9 +471,10 @@ internal sealed class MainForm : Form
             {
                 button.FlatStyle = FlatStyle.Flat;
                 button.FlatAppearance.BorderColor = Color.FromArgb(75, 87, 108);
-                button.BackColor = button.Text.Contains("ИГРАТЬ", StringComparison.OrdinalIgnoreCase)
-                    ? Color.FromArgb(38, 190, 143) : Color.FromArgb(38, 44, 56);
+                if (button.BackColor == SystemColors.Control)
+                    button.BackColor = Color.FromArgb(38, 44, 56);
                 button.ForeColor = Color.White;
+                button.Cursor = Cursors.Hand;
             }
             else if (c is ListView list)
             {
