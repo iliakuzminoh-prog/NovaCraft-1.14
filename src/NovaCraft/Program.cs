@@ -102,6 +102,8 @@ internal sealed class MainForm : Form
     readonly HiddenTabControl pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23) };
     readonly List<TabPage> navigationPages = new();
     readonly List<Button> navigationButtons = new();
+    readonly List<Func<TabPage>> navigationFactories = new();
+    readonly List<bool> navigationInitialized = new();
     TextBox? customMusicPath;
     NumericUpDown? widthInput;
     NumericUpDown? heightInput;
@@ -262,26 +264,13 @@ internal sealed class MainForm : Form
                 });
             }
 
-            TabPage page;
-            try
+            var page = new TabPage(item.value.Name)
             {
-                page = item.value.Factory();
-            }
-            catch (Exception ex)
-            {
-                AppDiagnostics.Report(ex, "BuildUi." + item.value.Name);
-                page = new TabPage(item.value.Name) { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
-                page.Controls.Add(new Label
-                {
-                    Text = "Этот раздел не удалось загрузить. Сам NovaCraft продолжит работать.\n\nОшибка записана в LocalAppData\\NovaCraft\\logs\\startup-errors.log.",
-                    AutoSize = false,
-                    Size = new Size(760, 100),
-                    ForeColor = Color.OrangeRed,
-                    Location = new Point(24, 24)
-                });
-            }
-
-            page.Dock = DockStyle.Fill;
+                BackColor = Color.FromArgb(13, 15, 25),
+                Padding = new Padding(24)
+            };
+            navigationFactories.Add(item.value.Factory);
+            navigationInitialized.Add(false);
             navigationPages.Add(page);
             pageHost.TabPages.Add(page);
 
@@ -354,10 +343,48 @@ internal sealed class MainForm : Form
     void ShowNavigationPage(int index)
     {
         if (index < 0 || index >= navigationPages.Count) return;
+
+        if (!navigationInitialized[index])
+        {
+            TabPage loaded;
+            try
+            {
+                loaded = navigationFactories[index]();
+            }
+            catch (Exception ex)
+            {
+                AppDiagnostics.Report(ex, "Navigation." + navigationPages[index].Text);
+                loaded = new TabPage(navigationPages[index].Text)
+                {
+                    BackColor = Color.FromArgb(13, 15, 25),
+                    Padding = new Padding(24)
+                };
+                loaded.Controls.Add(new Label
+                {
+                    Text = "Этот раздел временно недоступен.\n\nNovaCraft продолжит работать. Ошибка записана в LocalAppData\\NovaCraft\\logs\\startup-errors.log.",
+                    AutoSize = false,
+                    Size = new Size(820, 120),
+                    ForeColor = Color.OrangeRed,
+                    Font = new Font("Segoe UI", 10),
+                    Location = new Point(24, 24)
+                });
+            }
+
+            loaded.Dock = DockStyle.Fill;
+            var oldPage = navigationPages[index];
+            var selected = pageHost.SelectedIndex == index;
+            pageHost.TabPages.RemoveAt(index);
+            pageHost.TabPages.Insert(index, loaded);
+            navigationPages[index] = loaded;
+            navigationInitialized[index] = true;
+            oldPage.Dispose();
+            if (selected) pageHost.SelectedIndex = index;
+        }
+
         pageHost.SelectedIndex = index;
         for (var i = 0; i < navigationPages.Count; i++)
         {
-            navigationButtons[i].BackColor = i == index ? Color.FromArgb(92, 48, 224) : Color.FromArgb(22, 24, 35);
+            navigationButtons[i].BackColor = i == index ? Color.FromArgb(101, 61, 235) : Color.FromArgb(22, 24, 35);
             navigationButtons[i].ForeColor = i == index ? Color.White : Color.FromArgb(190, 198, 215);
         }
     }
