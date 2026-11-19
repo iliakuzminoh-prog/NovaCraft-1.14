@@ -150,28 +150,47 @@ internal sealed class MainForm : Form
         var navScroll = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent };
         sidebar.Controls.Add(navScroll);
 
-        var pages = new (string Name, TabPage Page)[]
+        var pages = new (string Name, Func<TabPage> Factory)[]
         {
-            ("⌂  Главная", HomePage()),
-            ("◈  Версии", VersionsPage()),
-            ("▣  Сборки", BuildsPage()),
-            ("✦  Моды", ModsPage()),
-            ("▧  Ресурспаки", CatalogPage("Ресурспаки Modrinth", "resourcepack")),
-            ("✧  Шейдеры", CatalogPage("Шейдеры Modrinth", "shader")),
-            ("▦  Датапаки", CatalogPage("Датапаки Modrinth", "datapack")),
-            ("▤  Каталог", CatalogPage("Сборки Modrinth", "modpack")),
-            ("♫  Музыка", MusicPage()),
-            ("♙  Аккаунт", AccountPage()),
-            ("⚙  Настройки", SettingsPage()),
-            ("✓  Исправление", DiagnosticsPage())
+            ("⌂  Главная", HomePage),
+            ("◈  Версии", VersionsPage),
+            ("▣  Сборки", BuildsPage),
+            ("✦  Моды", ModsPage),
+            ("▧  Ресурспаки", () => CatalogPage("Ресурспаки Modrinth", "resourcepack")),
+            ("✧  Шейдеры", () => CatalogPage("Шейдеры Modrinth", "shader")),
+            ("▦  Датапаки", () => CatalogPage("Датапаки Modrinth", "datapack")),
+            ("▤  Каталог", () => CatalogPage("Сборки Modrinth", "modpack")),
+            ("♫  Музыка", MusicPage),
+            ("♙  Аккаунт", AccountPage),
+            ("⚙  Настройки", SettingsPage),
+            ("✓  Исправление", DiagnosticsPage)
         };
 
         foreach (var item in pages)
         {
-            item.Page.Dock = DockStyle.Fill;
-            item.Page.Visible = false;
-            navigationPages.Add(item.Page);
-            pageHost.Controls.Add(item.Page);
+            TabPage page;
+            try
+            {
+                page = item.Factory();
+            }
+            catch (Exception ex)
+            {
+                AppDiagnostics.Report(ex, "BuildUi." + item.Name);
+                page = new TabPage(item.Name) { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(24) };
+                page.Controls.Add(new Label
+                {
+                    Text = "Этот раздел не удалось загрузить. Сам NovaCraft продолжит работать.\n\nОшибка записана в LocalAppData\\NovaCraft\\logs\\startup-errors.log.",
+                    AutoSize = false,
+                    Size = new Size(760, 100),
+                    ForeColor = Color.OrangeRed,
+                    Location = new Point(24, 24)
+                });
+            }
+
+            page.Dock = DockStyle.Fill;
+            page.Visible = false;
+            navigationPages.Add(page);
+            pageHost.Controls.Add(page);
 
             var button = new Button
             {
