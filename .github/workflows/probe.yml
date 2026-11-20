@@ -1,0 +1,39 @@
+name: Probe CmlLib API
+on:
+  workflow_dispatch:
+  push:
+    branches: [ 'stage/b-probe' ]
+jobs:
+  probe:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Restore
+        run: dotnet restore src/NovaCraft/NovaCraft.csproj
+      - name: Dump CmlLib public API
+        shell: pwsh
+        run: |
+          $root = Join-Path $env:USERPROFILE ".nuget\packages"
+          foreach ($pkg in @("cmllib.core","cmllib.core.installer.forge")) {
+            $dir = Get-ChildItem (Join-Path $root $pkg) -Directory | Select-Object -First 1
+            Write-Host "=== PACKAGE $pkg $($dir.Name)"
+            Get-ChildItem (Join-Path $dir.FullName "lib") -Recurse -File | ForEach-Object { Write-Host "  file: $($_.FullName.Substring($dir.FullName.Length))" }
+          }
+          $core = Get-ChildItem (Join-Path $root "cmllib.core") -Recurse -Filter "CmlLib.Core.dll" | Select-Object -First 1
+          Write-Host "=== LOAD $($core.FullName)"
+          $asm = [System.Reflection.Assembly]::LoadFrom($core.FullName)
+          try { $types = $asm.GetTypes() } catch [System.Reflection.ReflectionTypeLoadException] { $types = $_.Exception.Types | Where-Object { $_ } }
+          $want = @("MinecraftPath","MinecraftLauncher","MLaunchOption","MinecraftLauncherParameters","MSession")
+          foreach ($t in $types) {
+            if ($want -contains $t.Name) {
+              Write-Host "=== TYPE $($t.FullName)"
+              foreach ($c in $t.GetConstructors()) { Write-Host "  ctor: $($c.ToString())" }
+              foreach ($p in $t.GetProperties()) { Write-Host "  prop: $($p.PropertyType.Name) $($p.Name) { get=$($p.CanRead) set=$($p.CanWrite) }" }
+              foreach ($m in $t.GetMethods([System.Reflection.BindingFlags]'Public,Instance,Static,DeclaredOnly')) { if (-not $m.IsSpecialName) { Write-Host "  method: $($m.ToString())" } }
+            }
+          }
+          $xml = Get-ChildItem (Join-Path $root "cmllib.core") -Recurse -Filter "CmlLib.Core.xml" | Select-Object -First 1
+          if ($xml) { Write-Host "=== XMLDOC found: $($xml.FullName)"; Select-String -Path $xml.FullName -Pattern "MinecraftPath" | Select-Object -First 40 | ForEach-Object { Write-Host $_.Line.Trim() } }
