@@ -37,7 +37,7 @@ public sealed class InstanceStoreTests : IDisposable
             Path.GetFullPath(fabricMods),
             Path.GetFullPath(forgeMods));
         Assert.DoesNotContain(
-            Path.DirectorySeparatorChar + "forge-" ,
+            Path.DirectorySeparatorChar + "forge-",
             Path.GetFullPath(fabricMods),
             StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(
@@ -93,8 +93,10 @@ public sealed class InstanceStoreTests : IDisposable
         Assert.Equal(Path.GetFullPath(legacy), Path.GetFullPath(info.CustomGameDir!));
         Assert.True(File.Exists(userFile));
         Assert.Equal("keep-me", File.ReadAllText(userFile));
-        Assert.Empty(Directory.GetDirectories(store.InstancesDir, "*", SearchOption.AllDirectories)
-            .Where(path => !string.Equals(Path.GetFullPath(path), Path.GetFullPath(legacy), StringComparison.OrdinalIgnoreCase)));
+        Assert.DoesNotContain(
+            Path.Combine(store.InstancesDir, "legacy-game"),
+            Directory.GetDirectories(store.InstancesDir, "*", SearchOption.AllDirectories),
+            StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
