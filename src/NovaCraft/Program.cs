@@ -2381,14 +2381,24 @@ internal sealed class MainForm : Form
             {
                 var instanceStore = new InstanceStore(
                     Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft"));
-                var instance = instanceStore.Resolve(build.Id, build.MinecraftVersion, build.Loader);
-                instance.Id = build.Id;
-                instance.Name = build.Name;
-                instance.MinecraftVersion = build.MinecraftVersion;
-                instance.Loader = build.Loader;
-                instance.UsesSharedStorage = true;
-                instance.CustomGameDir = null;
-                instanceStore.Save(instance);
+                var instance = instanceStore.Load(build.Id);
+                if (instance is null)
+                {
+                    instance = new InstanceInfo
+                    {
+                        Id = build.Id,
+                        Name = build.Name,
+                        MinecraftVersion = build.MinecraftVersion,
+                        Loader = LoaderIds.Normalize(build.Loader),
+                        UsesSharedStorage = true
+                    };
+                    instanceStore.Save(instance);
+                }
+                else if (!InstanceStore.Matches(instance, build.MinecraftVersion, build.Loader))
+                {
+                    throw new InvalidDataException("Профиль сборки и его экземпляр Minecraft не совпадают.");
+                }
+
                 settings.GameDirectory = instanceStore.GameDir(instance);
                 Directory.CreateDirectory(settings.GameDirectory);
                 launcher = new MinecraftLauncher(instanceStore.CreateMinecraftPath(instance));
