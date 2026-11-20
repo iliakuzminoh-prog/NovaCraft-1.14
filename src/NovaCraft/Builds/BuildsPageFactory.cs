@@ -26,7 +26,7 @@ internal static class BuildsPageFactory
         {
             Dock = DockStyle.Fill,
             ColumnCount = 1,
-            RowCount = 3,
+            RowCount = 4,
             BackColor = Color.Transparent
         };
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -101,7 +101,6 @@ internal static class BuildsPageFactory
         root.Controls.Add(description, 0, 1);
         root.Controls.Add(toolbar, 0, 2);
         root.Controls.Add(list, 0, 3);
-        root.RowCount = 4;
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
@@ -184,7 +183,6 @@ internal static class BuildsPageFactory
                 TextAlign = ContentAlignment.MiddleLeft
             };
             var star = MakeButton(build.Favorite ? "★" : "☆", SystemIcons.Asterisk, 40);
-            star.ToolTipText("Избранное");
             star.Click += (_, _) =>
             {
                 build.Favorite = !build.Favorite;
