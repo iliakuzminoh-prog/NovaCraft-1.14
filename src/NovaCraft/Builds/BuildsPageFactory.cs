@@ -259,8 +259,9 @@ internal static class BuildsPageFactory
                 try
                 {
                     var copy = store.Duplicate(builds, build.Id);
-                    copy.GameDirectory = instanceStore.GameDir(
-                        instanceStore.Create(copy.Name, copy.MinecraftVersion, copy.Loader));
+                    var copyInstance = instanceStore.Create(copy.Name, copy.MinecraftVersion, copy.Loader);
+                    copy.Id = copyInstance.Id;
+                    copy.GameDirectory = instanceStore.GameDir(copyInstance);
                     Persist();
                     Refresh();
                 }
@@ -414,6 +415,7 @@ internal static class BuildsPageFactory
                     FpsBoost = settings.FpsBoost
                 };
 
+                build.Id = instance.Id;
                 store.Add(builds, build);
                 Persist();
                 name.Clear();
