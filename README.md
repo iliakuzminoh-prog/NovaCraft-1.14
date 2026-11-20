@@ -1,6 +1,6 @@
 # NovaCraft 1.14
 
-Windows launcher for Minecraft Java Edition. The current implementation is a C# WinForms application targeting .NET 8 (Windows x64).
+Windows launcher for Minecraft Java Edition. The current implementation is a C# WinForms application targeting .NET 8 (Windows x64). Stage B is being implemented incrementally; its instance layout is covered by regression tests before UI/runtime wiring is enabled.
 
 ## Implemented in the current source
 
@@ -33,7 +33,7 @@ Windows launcher for Minecraft Java Edition. The current implementation is a C# 
 
 ## Not implemented / not verified
 
-- Stage B isolated instances and shared CmlLib storage have not been implemented yet.
+- Stage B instance layout and shared CmlLib storage are implemented in `InstanceStore` and covered by regression tests; UI/runtime wiring to make every launch use the resolved instance is still not complete.
 - Stage C interface restructuring into five navigation areas and DPI/layout verification has not been implemented yet.
 - Stage D dependency/update manifest management is only partially present; the centralized download path is implemented, but the full dependency graph and /version_files/update workflow are not complete.
 - Stage E .mrpack import/export is not implemented.

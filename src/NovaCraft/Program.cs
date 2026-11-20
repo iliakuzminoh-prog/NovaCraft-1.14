@@ -7,6 +7,7 @@ using System.IO.Compression;
 using System.Diagnostics;
 using CmlLib.Core;
 using NovaCraft.Services;
+using NovaCraft.Builds;
 using CmlLib.Core.Auth;
 using CmlLib.Core.ProcessBuilder;
 using CmlLib.Core.ModLoaders.FabricMC;
@@ -63,6 +64,7 @@ internal sealed class OfflineProfile
     public string Uuid { get; set; } = Guid.NewGuid().ToString();
     public string SkinPath { get; set; } = "";
     public bool Slim { get; set; }
+    public string LegacyUuid { get; set; } = "";
 }
 
 internal sealed class LauncherSettings
@@ -71,6 +73,7 @@ internal sealed class LauncherSettings
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
     public string Username { get; set; } = "NovaPlayer";
     public string ActiveProfileId { get; set; } = "";
+    public string ActiveBuildId { get; set; } = "";
     public List<OfflineProfile> OfflineProfiles { get; set; } = new();
     public int MaximumRamMb { get; set; } = 2048;
     public bool FpsBoost { get; set; }
@@ -582,6 +585,36 @@ internal sealed class MainForm : Form
         };
         quick.Controls.AddRange(new Control[]{quickVersion,quickLoader,quickPlay});
 
+        var profileCardHome = ModernCard(440, 185, "АКТИВНЫЙ ПРОФИЛЬ", Color.FromArgb(25,28,45));
+        var homeSkin = new MinecraftSkinPreview { Dock = DockStyle.Left, Width = 118, Margin = new Padding(12, 42, 12, 12) };
+        var homeProfileName = new Label
+        {
+            Dock = DockStyle.Top,
+            Height = 42,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        var homeProfileInfo = new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = Color.FromArgb(165, 175, 198),
+            Text = "Офлайн-профиль\nСкин хранится локально",
+            Padding = new Padding(8, 4, 8, 4)
+        };
+        profileCardHome.Controls.Add(homeProfileInfo);
+        profileCardHome.Controls.Add(homeProfileName);
+        profileCardHome.Controls.Add(homeSkin);
+        var activeHomeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+        if (activeHomeProfile != null)
+        {
+            homeProfileName.Text = activeHomeProfile.Username;
+            if (!string.IsNullOrWhiteSpace(activeHomeProfile.SkinPath) && File.Exists(activeHomeProfile.SkinPath))
+            {
+                try { homeSkin.SetSkin(activeHomeProfile.SkinPath, activeHomeProfile.Slim); } catch { homeSkin.ClearSkin(); }
+            }
+        }
+
         var buildsCard = ModernCard(440, 185, "ПОПУЛЯРНЫЕ СБОРКИ", Color.FromArgb(25,28,45));
         var buildFlow = new FlowLayoutPanel { Location = new Point(14, 43), Size = new Size(408, 120), AutoScroll = true, WrapContents = false, BackColor = Color.Transparent };
         if (settings.SavedBuilds.Count == 0)
@@ -609,7 +642,7 @@ internal sealed class MainForm : Form
         modsOpen.Click += (_, _) => ShowNavigationPage(3);
         modsCard.Controls.Add(modsOpen);
 
-        content.Controls.AddRange(new Control[] { latest, quick, buildsCard, modsCard });
+        content.Controls.AddRange(new Control[] { latest, quick, profileCardHome, buildsCard, modsCard });
         body.Controls.Add(content);
         p.Controls.Add(body);
         p.Controls.Add(top);
@@ -704,7 +737,7 @@ internal sealed class MainForm : Form
         };
 
         search.TextChanged += (_,_) => Render(search.Text);
-        refresh.Tag = Render;
+        refresh.Tag = (Action<string>)Render;
 
         p.Controls.AddRange(new Control[] { search, refresh, selected, list });
         version.Tag = list;
@@ -964,114 +997,7 @@ internal sealed class MainForm : Form
         return p;
     }
 
-    TabPage BuildsPage()
-    {
-        var p = new TabPage("Сборки") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
-
-        var title = new Label { Text = "Мои сборки", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 26, FontStyle.Bold), Location = new Point(24,18) };
-        var subtitle = new Label { Text = "Отдельные профили Minecraft, загрузчика и параметров запуска.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) };
-        p.Controls.AddRange(new Control[] { title, subtitle });
-
-        var createCard = new Panel
-        {
-            Location = new Point(24, 102),
-            Size = new Size(880, 112),
-            BackColor = Color.FromArgb(25,28,45),
-            Padding = new Padding(18)
-        };
-        createCard.Controls.Add(new Label { Text = "Создать профиль", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(18,12) });
-        var name = new TextBox { PlaceholderText = "Например: Survival Fabric", Location = new Point(18,48), Width = 300, Height = 36 };
-        var add = ModernButton("+  Сохранить текущий профиль", 240, 38); add.Location = new Point(334,47);
-        createCard.Controls.AddRange(new Control[] { name, add });
-        p.Controls.Add(createCard);
-
-        var list = new FlowLayoutPanel
-        {
-            Location = new Point(24, 232),
-            Size = new Size(900, 360),
-            AutoScroll = true,
-            WrapContents = true,
-            FlowDirection = FlowDirection.LeftToRight,
-            BackColor = Color.Transparent,
-            Padding = new Padding(0)
-        };
-        p.Controls.Add(list);
-
-        void RefreshBuildList()
-        {
-            list.Controls.Clear();
-            if (settings.SavedBuilds.Count == 0)
-            {
-                var empty = new Panel { Width = 860, Height = 150, BackColor = Color.FromArgb(22,25,38), Padding = new Padding(22) };
-                empty.Controls.Add(new Label { Text = "Пока нет сохранённых сборок", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(22,22) });
-                empty.Controls.Add(new Label { Text = "Выбери версию и загрузчик на главной, затем сохрани профиль здесь.", AutoSize = true, ForeColor = Color.FromArgb(155,164,184), Location = new Point(22,58) });
-                list.Controls.Add(empty);
-                return;
-            }
-
-            foreach (var saved in settings.SavedBuilds.Select((value,index) => (value,index)))
-            {
-                var parts = saved.value.Split('|');
-                var buildName = parts.Length >= 3 ? parts[0] : saved.value;
-                var buildVersion = parts.Length >= 3 ? parts[1] : settings.LastVersion;
-                var buildLoader = parts.Length >= 3 ? parts[2] : "Fabric";
-
-                var card = new Panel { Width = 275, Height = 145, Margin = new Padding(0,0,12,12), BackColor = Color.FromArgb(25,28,45), Padding = new Padding(16) };
-                card.Controls.Add(new Label { Text = buildName, Location = new Point(16,14), Size = new Size(235,26), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true });
-                card.Controls.Add(new Label { Text = "Minecraft " + buildVersion, AutoSize = true, Location = new Point(16,47), ForeColor = Color.FromArgb(166,176,198) });
-                card.Controls.Add(new Label { Text = "◆  " + buildLoader, AutoSize = true, Location = new Point(16,70), ForeColor = Color.FromArgb(101,214,173) });
-
-                var launch = ModernButton("▶  Запустить", 112, 34); launch.Location = new Point(16,100);
-                launch.Click += async (_,_) =>
-                {
-                    settings.LastVersion = buildVersion;
-                    if (gameLoader.Items.Contains(buildLoader)) gameLoader.SelectedItem = buildLoader;
-                    version.SelectedItem = buildVersion;
-                    SettingsService.Save(settings);
-                    ShowNavigationPage(0);
-                    await LaunchAsync();
-                };
-                var remove = new Button { Text = "Удалить", Width = 78, Height = 34, Location = new Point(138,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White, Cursor = Cursors.Hand };
-                remove.FlatAppearance.BorderSize = 0;
-                remove.Click += (_,_) =>
-                {
-                    if (saved.index < 0 || saved.index >= settings.SavedBuilds.Count) return;
-                    if (MessageBox.Show("Удалить профиль «" + buildName + "»?", "Удаление сборки", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-                    settings.SavedBuilds.RemoveAt(saved.index);
-                    SettingsService.Save(settings);
-                    RefreshBuildList();
-                };
-                var folder = new Button { Text = "Папка", Width = 66, Height = 34, Location = new Point(222,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White, Cursor = Cursors.Hand };
-                folder.FlatAppearance.BorderSize = 0;
-                folder.Click += (_,_) =>
-                {
-                    try
-                    {
-                        Directory.CreateDirectory(settings.GameDirectory);
-                        Process.Start(new ProcessStartInfo("explorer.exe", """ + settings.GameDirectory + """) { UseShellExecute = true });
-                    }
-                    catch (Exception ex) { Fail("Не удалось открыть папку Minecraft", ex); }
-                };
-                card.Controls.AddRange(new Control[] { launch, remove, folder });
-                list.Controls.Add(card);
-            }
-        }
-
-        add.Click += (_,_) =>
-        {
-            var buildName = string.IsNullOrWhiteSpace(name.Text) ? "Моя сборка " + (settings.SavedBuilds.Count + 1) : name.Text.Trim();
-            var gv = version.SelectedItem?.ToString() ?? settings.LastVersion;
-            var loader = gameLoader.SelectedItem?.ToString() ?? "Fabric";
-            settings.SavedBuilds.Add(buildName + "|" + gv + "|" + loader);
-            SettingsService.Save(settings);
-            name.Clear();
-            RefreshBuildList();
-            status.Text = "Профиль сохранён";
-        };
-
-        RefreshBuildList();
-        return p;
-    }
+    TabPage BuildsPage() => BuildsPageFactory.Create(settings, version, gameLoader, SaveSettings, message => status.Text = message, LaunchAsync);
 
     TabPage NewsPage()
     {
@@ -1243,8 +1169,15 @@ internal sealed class MainForm : Form
                     MessageBox.Show(dialog, "Профиль с таким ником уже существует.", "Профиль", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+                var keepUuid = MessageBox.Show(dialog,
+                    "Сохранить прежний UUID профиля?\n\n" +
+                    "Да — прогресс одиночной игры сохранится (UUID не изменится).\n" +
+                    "Нет — UUID будет пересчитан по новому нику, как его считают офлайн-серверы.",
+                    "Переименование профиля", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (keepUuid == DialogResult.Cancel) return;
                 profile.Username = newName;
-                profile.Uuid = OfflineProfileRules.OfflineUuid(newName);
+                if (keepUuid == DialogResult.No)
+                    profile.Uuid = OfflineProfileRules.OfflineUuid(newName);
                 settings.Username = newName;
                 settings.ActiveProfileId = profile.Id;
                 username.Text = newName;
@@ -1277,7 +1210,7 @@ internal sealed class MainForm : Form
 
         var skinCard = ModernCard(860, 305, "ЛОКАЛЬНЫЙ СКИН", Color.FromArgb(22, 25, 39));
         skinCard.Location = new Point(24, 320);
-        var preview = new PictureBox { Location = new Point(18, 48), Size = new Size(220, 220), BackColor = Color.FromArgb(15,18,29), SizeMode = PictureBoxSizeMode.Zoom };
+        var preview = new MinecraftSkinPreview { Dock = DockStyle.Left, Width = 230, Margin = new Padding(18, 48, 18, 18) };
         var skinStatus = new Label { Location = new Point(260, 55), Size = new Size(560, 70), ForeColor = Color.FromArgb(175,185,205), Text = "Выбери PNG. NovaCraft сохранит его в формате LocalSkin, который может использовать CustomSkinLoader." };
         var choose = ModernButton("Выбрать PNG…", 160, 40); choose.Location = new Point(260, 140);
         var bridge = ModernButton("Установить Skin Bridge", 210, 40); bridge.Location = new Point(430, 140);
@@ -1287,10 +1220,9 @@ internal sealed class MainForm : Form
 
         void LoadPreview(string path)
         {
-            using var stream = File.OpenRead(path);
-            using var image = Image.FromStream(stream, false, true);
-            var copy = new Bitmap(image);
-            var old = preview.Image; preview.Image = copy; old?.Dispose();
+            var profile = settings.OfflineProfiles.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+            if (profile == null) return;
+            preview.SetSkin(path, profile.Slim);
         }
 
         string GetSkinDestination(OfflineProfile profile)
@@ -1354,9 +1286,9 @@ internal sealed class MainForm : Form
             model.SelectedIndex = profile.Slim ? 1 : 0;
             if (!string.IsNullOrWhiteSpace(profile.SkinPath) && File.Exists(profile.SkinPath))
             {
-                try { LoadPreview(profile.SkinPath); } catch { }
+                try { LoadPreview(profile.SkinPath); } catch { preview.ClearSkin(); }
             }
-            else skinStatus.Text = "Для этого профиля локальный скин ещё не выбран.";
+            else { preview.ClearSkin(); skinStatus.Text = "Для этого профиля локальный скин ещё не выбран."; }
         };
 
         p.Controls.Add(skinCard);
@@ -1872,22 +1804,19 @@ internal sealed class MainForm : Form
 
     MSession CreateOfflineSessionForActiveProfile()
     {
-        var name = username.Text.Trim();
-        var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
-        if (profile == null)
+        var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId)
+            ?? throw new InvalidOperationException("Активный профиль не найден. Создай или выбери профиль.");
+        var name = OfflineLaunchProfileRules.GetValidatedUsernameForLaunch(profile.Username);
+        if (OfflineProfileRules.IsLegacyOrInvalidUuid(name, profile.Uuid))
         {
-            profile = new OfflineProfile { Username = name, Uuid = OfflineProfileRules.OfflineUuid(name) };
-            settings.OfflineProfiles ??= new List<OfflineProfile>();
-            settings.OfflineProfiles.Add(profile);
-            settings.ActiveProfileId = profile.Id;
-        }
-        profile.Username = name;
-        if (!Guid.TryParse(profile.Uuid, out _))
+            if (Guid.TryParse(profile.Uuid, out _) && string.IsNullOrEmpty(profile.LegacyUuid))
+                profile.LegacyUuid = profile.Uuid;
             profile.Uuid = OfflineProfileRules.OfflineUuid(name);
+        }
         SettingsService.Save(settings);
         return new MSession
         {
-            Username = profile.Username,
+            Username = name,
             UUID = profile.Uuid,
             AccessToken = "0",
             Xuid = ""
@@ -1922,13 +1851,6 @@ internal sealed class MainForm : Form
     async Task LaunchAsync()
     {
         if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
-        var activeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
-        var nicknameValidation = NickValidator.Validate(activeProfile?.Username);
-        if (!nicknameValidation.ok)
-        {
-            MessageBox.Show(nicknameValidation.error, "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return;
-        }
         string launchVersion = v;
         try
         {
@@ -2448,6 +2370,42 @@ internal sealed class MainForm : Form
     {
         if (launcher != null) return launcher;
 
+        if (!string.IsNullOrWhiteSpace(settings.ActiveBuildId))
+        {
+            var buildStore = new BuildProfileStore(
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "builds.json"));
+            var build = buildStore.Load().FirstOrDefault(x =>
+                string.Equals(x.Id, settings.ActiveBuildId, StringComparison.OrdinalIgnoreCase));
+
+            if (build is not null)
+            {
+                var instanceStore = new InstanceStore(
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft"));
+                var instance = instanceStore.Load(build.Id);
+                if (instance is null)
+                {
+                    instance = new InstanceInfo
+                    {
+                        Id = build.Id,
+                        Name = build.Name,
+                        MinecraftVersion = build.MinecraftVersion,
+                        Loader = LoaderIds.Normalize(build.Loader),
+                        UsesSharedStorage = true
+                    };
+                    instanceStore.Save(instance);
+                }
+                else if (!InstanceStore.Matches(instance, build.MinecraftVersion, build.Loader))
+                {
+                    throw new InvalidDataException("Профиль сборки и его экземпляр Minecraft не совпадают.");
+                }
+
+                settings.GameDirectory = instanceStore.GameDir(instance);
+                Directory.CreateDirectory(settings.GameDirectory);
+                launcher = new MinecraftLauncher(instanceStore.CreateMinecraftPath(instance));
+                return launcher;
+            }
+        }
+
         if (string.IsNullOrWhiteSpace(settings.GameDirectory))
             throw new InvalidOperationException("Не выбрана папка Minecraft.");
 
@@ -2594,15 +2552,19 @@ static class SettingsService
             if (loaded.OfflineProfiles.Count == 0)
             {
                 var profileName = string.IsNullOrWhiteSpace(loaded.Username) ? "NovaPlayer" : loaded.Username;
-                loaded.OfflineProfiles.Add(new OfflineProfile { Username = profileName, Uuid = OfflineUuid(profileName).ToString() });
+                loaded.OfflineProfiles.Add(new OfflineProfile { Username = profileName, Uuid = OfflineProfileRules.OfflineUuid(profileName) });
             }
             if (string.IsNullOrWhiteSpace(loaded.ActiveProfileId) || !loaded.OfflineProfiles.Any(x => x.Id == loaded.ActiveProfileId))
                 loaded.ActiveProfileId = loaded.OfflineProfiles[0].Id;
             loaded.Username = loaded.OfflineProfiles.First(x => x.Id == loaded.ActiveProfileId).Username;
             foreach (var profile in loaded.OfflineProfiles)
             {
-                if (!Guid.TryParse(profile.Uuid, out _))
+                if (OfflineProfileRules.IsLegacyOrInvalidUuid(profile.Username, profile.Uuid))
+                {
+                    if (Guid.TryParse(profile.Uuid, out _) && string.IsNullOrEmpty(profile.LegacyUuid))
+                        profile.LegacyUuid = profile.Uuid;
                     profile.Uuid = OfflineProfileRules.OfflineUuid(profile.Username);
+                }
             }
             return loaded;
         }
