@@ -70,7 +70,7 @@ public sealed class InstanceStoreTests : IDisposable
         var firstPath = store.CreateMinecraftPath(first);
         var secondPath = store.CreateMinecraftPath(second);
 
-        Assert.NotEqual(first.BasePath, second.BasePath);
+        Assert.NotEqual(store.GameDir(first), store.GameDir(second));
         Assert.Equal(firstPath.Library, secondPath.Library);
         Assert.Equal(firstPath.Versions, secondPath.Versions);
         Assert.Equal(firstPath.Assets, secondPath.Assets);
