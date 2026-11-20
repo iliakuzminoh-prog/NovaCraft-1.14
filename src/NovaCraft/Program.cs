@@ -583,6 +583,36 @@ internal sealed class MainForm : Form
         };
         quick.Controls.AddRange(new Control[]{quickVersion,quickLoader,quickPlay});
 
+        var profileCardHome = ModernCard(440, 185, "АКТИВНЫЙ ПРОФИЛЬ", Color.FromArgb(25,28,45));
+        var homeSkin = new MinecraftSkinPreview { Dock = DockStyle.Left, Width = 118, Margin = new Padding(12, 42, 12, 12) };
+        var homeProfileName = new Label
+        {
+            Dock = DockStyle.Top,
+            Height = 42,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
+        };
+        var homeProfileInfo = new Label
+        {
+            Dock = DockStyle.Fill,
+            ForeColor = Color.FromArgb(165, 175, 198),
+            Text = "Офлайн-профиль\nСкин хранится локально",
+            Padding = new Padding(8, 4, 8, 4)
+        };
+        profileCardHome.Controls.Add(homeProfileInfo);
+        profileCardHome.Controls.Add(homeProfileName);
+        profileCardHome.Controls.Add(homeSkin);
+        var activeHomeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+        if (activeHomeProfile != null)
+        {
+            homeProfileName.Text = activeHomeProfile.Username;
+            if (!string.IsNullOrWhiteSpace(activeHomeProfile.SkinPath) && File.Exists(activeHomeProfile.SkinPath))
+            {
+                try { homeSkin.SetSkin(activeHomeProfile.SkinPath, activeHomeProfile.Slim); } catch { homeSkin.ClearSkin(); }
+            }
+        }
+
         var buildsCard = ModernCard(440, 185, "ПОПУЛЯРНЫЕ СБОРКИ", Color.FromArgb(25,28,45));
         var buildFlow = new FlowLayoutPanel { Location = new Point(14, 43), Size = new Size(408, 120), AutoScroll = true, WrapContents = false, BackColor = Color.Transparent };
         if (settings.SavedBuilds.Count == 0)
@@ -610,7 +640,7 @@ internal sealed class MainForm : Form
         modsOpen.Click += (_, _) => ShowNavigationPage(3);
         modsCard.Controls.Add(modsOpen);
 
-        content.Controls.AddRange(new Control[] { latest, quick, buildsCard, modsCard });
+        content.Controls.AddRange(new Control[] { latest, quick, profileCardHome, buildsCard, modsCard });
         body.Controls.Add(content);
         p.Controls.Add(body);
         p.Controls.Add(top);
