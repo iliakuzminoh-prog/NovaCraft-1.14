@@ -17,23 +17,32 @@ jobs:
         shell: pwsh
         run: |
           $root = Join-Path $env:USERPROFILE ".nuget\packages"
-          foreach ($pkg in @("cmllib.core","cmllib.core.installer.forge")) {
-            $dir = Get-ChildItem (Join-Path $root $pkg) -Directory | Select-Object -First 1
-            Write-Host "=== PACKAGE $pkg $($dir.Name)"
-            Get-ChildItem (Join-Path $dir.FullName "lib") -Recurse -File | ForEach-Object { Write-Host "  file: $($_.FullName.Substring($dir.FullName.Length))" }
+          $pkgs = Get-ChildItem $root -Directory | Where-Object { $_.Name -like "cmllib*" }
+          $dlls = @()
+          foreach ($p in $pkgs) {
+            $v = Get-ChildItem $p.FullName -Directory | Select-Object -First 1
+            Write-Host "=== PACKAGE $($p.Name) $($v.Name)"
+            $lib = Join-Path $v.FullName "lib"
+            $pick = Get-ChildItem $lib -Directory | Where-Object { $_.Name -eq "net8.0" } | Select-Object -First 1
+            if (-not $pick) { $pick = Get-ChildItem $lib -Directory | Select-Object -First 1 }
+            Get-ChildItem $pick.FullName -Filter *.dll | ForEach-Object { $dlls += $_.FullName; Write-Host "  dll: $($_.FullName.Substring($root.Length))" }
           }
-          $core = Get-ChildItem (Join-Path $root "cmllib.core") -Recurse -Filter "CmlLib.Core.dll" | Select-Object -First 1
-          Write-Host "=== LOAD $($core.FullName)"
-          $asm = [System.Reflection.Assembly]::LoadFrom($core.FullName)
-          try { $types = $asm.GetTypes() } catch [System.Reflection.ReflectionTypeLoadException] { $types = $_.Exception.Types | Where-Object { $_ } }
-          $want = @("MinecraftPath","MinecraftLauncher","MLaunchOption","MinecraftLauncherParameters","MSession")
-          foreach ($t in $types) {
-            if ($want -contains $t.Name) {
-              Write-Host "=== TYPE $($t.FullName)"
-              foreach ($c in $t.GetConstructors()) { Write-Host "  ctor: $($c.ToString())" }
-              foreach ($p in $t.GetProperties()) { Write-Host "  prop: $($p.PropertyType.Name) $($p.Name) { get=$($p.CanRead) set=$($p.CanWrite) }" }
-              foreach ($m in $t.GetMethods([System.Reflection.BindingFlags]'Public,Instance,Static,DeclaredOnly')) { if (-not $m.IsSpecialName) { Write-Host "  method: $($m.ToString())" } }
+          $loaded = @()
+          foreach ($d in $dlls) { try { $loaded += [System.Reflection.Assembly]::LoadFrom($d) } catch { Write-Host "  load failed: $d $($_.Exception.Message)" } }
+          $want = @("MinecraftPath","MinecraftLauncher","MLaunchOption","MSession","JavaPathResolver","MinecraftJavaPathResolver","IJavaPathResolver","LauncherInstaller")
+          function Safe($f) { try { & $f } catch { "<err: $($_.Exception.Message.Split([char]10)[0])>" } }
+          foreach ($asm in $loaded) {
+            try { $types = $asm.GetTypes() } catch [System.Reflection.ReflectionTypeLoadException] { $types = $_.Exception.Types | Where-Object { $_ } }
+            foreach ($t in $types) {
+              if ($want -contains $t.Name) {
+                Write-Host "=== TYPE $($t.FullName)  [$($asm.GetName().Name)]"
+                foreach ($c in $t.GetConstructors()) { Write-Host ("  ctor: " + (Safe { $c.ToString() })) }
+                foreach ($p in $t.GetProperties()) { Write-Host ("  prop: " + (Safe { "$($p.PropertyType.FullName) $($p.Name) get=$($p.CanRead) set=$($p.CanWrite)" })) }
+                foreach ($m in $t.GetMethods([System.Reflection.BindingFlags]'Public,Instance,Static,DeclaredOnly')) { if (-not $m.IsSpecialName) { Write-Host ("  method: " + (Safe { $m.ToString() })) } }
+              }
             }
           }
-          $xml = Get-ChildItem (Join-Path $root "cmllib.core") -Recurse -Filter "CmlLib.Core.xml" | Select-Object -First 1
-          if ($xml) { Write-Host "=== XMLDOC found: $($xml.FullName)"; Select-String -Path $xml.FullName -Pattern "MinecraftPath" | Select-Object -First 40 | ForEach-Object { Write-Host $_.Line.Trim() } }
+          foreach ($p in $pkgs) {
+            $x = Get-ChildItem $p.FullName -Recurse -Filter "*.xml" -ErrorAction SilentlyContinue | Select-Object -First 1
+            if ($x) { Write-Host "=== XMLDOC $($x.FullName)" }
+          }
