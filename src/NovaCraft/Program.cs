@@ -1285,7 +1285,7 @@ internal sealed class MainForm : Form
 
         var skinCard = ModernCard(860, 305, "ЛОКАЛЬНЫЙ СКИН", Color.FromArgb(22, 25, 39));
         skinCard.Location = new Point(24, 320);
-        var preview = new PictureBox { Location = new Point(18, 48), Size = new Size(220, 220), BackColor = Color.FromArgb(15,18,29), SizeMode = PictureBoxSizeMode.Zoom };
+        var preview = new MinecraftSkinPreview { Dock = DockStyle.Left, Width = 230, Margin = new Padding(18, 48, 18, 18) };
         var skinStatus = new Label { Location = new Point(260, 55), Size = new Size(560, 70), ForeColor = Color.FromArgb(175,185,205), Text = "Выбери PNG. NovaCraft сохранит его в формате LocalSkin, который может использовать CustomSkinLoader." };
         var choose = ModernButton("Выбрать PNG…", 160, 40); choose.Location = new Point(260, 140);
         var bridge = ModernButton("Установить Skin Bridge", 210, 40); bridge.Location = new Point(430, 140);
@@ -1298,7 +1298,7 @@ internal sealed class MainForm : Form
             using var stream = File.OpenRead(path);
             using var image = Image.FromStream(stream, false, true);
             var copy = new Bitmap(image);
-            var old = preview.Image; preview.Image = copy; old?.Dispose();
+            preview.SetSkin(path, settings.OfflineProfiles.First(x => x.Id == settings.ActiveProfileId).Slim);
         }
 
         string GetSkinDestination(OfflineProfile profile)
@@ -1362,9 +1362,9 @@ internal sealed class MainForm : Form
             model.SelectedIndex = profile.Slim ? 1 : 0;
             if (!string.IsNullOrWhiteSpace(profile.SkinPath) && File.Exists(profile.SkinPath))
             {
-                try { LoadPreview(profile.SkinPath); } catch { }
+                try { LoadPreview(profile.SkinPath); } catch { preview.ClearSkin(); }
             }
-            else skinStatus.Text = "Для этого профиля локальный скин ещё не выбран.";
+            else { preview.ClearSkin(); skinStatus.Text = "Для этого профиля локальный скин ещё не выбран."; }
         };
 
         p.Controls.Add(skinCard);
