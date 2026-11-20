@@ -704,7 +704,7 @@ internal sealed class MainForm : Form
         };
 
         search.TextChanged += (_,_) => Render(search.Text);
-        refresh.Tag = Render;
+        refresh.Tag = (Action<string>)Render;
 
         p.Controls.AddRange(new Control[] { search, refresh, selected, list });
         version.Tag = list;
@@ -2580,7 +2580,7 @@ static class SettingsService
             if (loaded.OfflineProfiles.Count == 0)
             {
                 var profileName = string.IsNullOrWhiteSpace(loaded.Username) ? "NovaPlayer" : loaded.Username;
-                loaded.OfflineProfiles.Add(new OfflineProfile { Username = profileName, Uuid = OfflineUuid(profileName).ToString() });
+                loaded.OfflineProfiles.Add(new OfflineProfile { Username = profileName, Uuid = OfflineProfileRules.OfflineUuid(profileName) });
             }
             if (string.IsNullOrWhiteSpace(loaded.ActiveProfileId) || !loaded.OfflineProfiles.Any(x => x.Id == loaded.ActiveProfileId))
                 loaded.ActiveProfileId = loaded.OfflineProfiles[0].Id;
