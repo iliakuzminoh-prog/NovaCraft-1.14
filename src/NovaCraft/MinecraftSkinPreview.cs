@@ -89,7 +89,7 @@ internal sealed class MinecraftSkinPreview : Control
         DrawPart(g, body, new Rectangle(20, 20, 8, 12), skin.Height >= 64 ? new Rectangle(20, 36, 8, 12) : null);
 
         var armY = skin.Height >= 64 ? 52 : 20;
-        DrawPart(g, leftArm, new Rectangle(36, armY, slim ? 3 : 4, 12), skin.Height >= 64 ? new Rectangle(36, armY + 12, slim ? 3 : 4, 12) : null);
+        DrawPart(g, leftArm, new Rectangle(36, armY, slim ? 3 : 4, 12), skin.Height >= 64 ? new Rectangle(52, 52, slim ? 3 : 4, 12) : null);
         DrawPart(g, rightArm, new Rectangle(44, 20, slim ? 3 : 4, 12), skin.Height >= 64 ? new Rectangle(44, 36, slim ? 3 : 4, 12) : null);
         DrawPart(g, rightLeg, new Rectangle(4, 20, 4, 12), skin.Height >= 64 ? new Rectangle(4, 36, 4, 12) : null);
         DrawPart(g, leftLeg, new Rectangle(20, skin.Height >= 64 ? 52 : 20, 4, 12), skin.Height >= 64 ? new Rectangle(4, 52, 4, 12) : null);
