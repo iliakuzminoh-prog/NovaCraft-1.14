@@ -110,6 +110,58 @@ public sealed class InstanceStoreTests : IDisposable
         Assert.Throws<ArgumentException>(() => store.InstanceDir("../escape"));
     }
 
+
+    [Fact]
+    public void ResolveReusesMatchingInstanceAndSeparatesVersionOrLoader()
+    {
+        var store = new InstanceStore(root);
+        var fabric = new InstanceInfo
+        {
+            Id = "fabric-1-21-1",
+            Name = "Fabric 1.21.1",
+            MinecraftVersion = "1.21.1",
+            Loader = "fabric"
+        };
+        var forge = new InstanceInfo
+        {
+            Id = "forge-1-21-1",
+            Name = "Forge 1.21.1",
+            MinecraftVersion = "1.21.1",
+            Loader = "forge"
+        };
+        store.Save(fabric);
+        store.Save(forge);
+
+        Assert.Equal(fabric.Id, store.Resolve(fabric.Id, "1.21.1", "fabric").Id);
+        Assert.Equal(forge.Id, store.Resolve(fabric.Id, "1.21.1", "forge").Id);
+
+        var newVersion = store.Resolve(fabric.Id, "1.21.2", "fabric");
+        Assert.NotEqual(fabric.Id, newVersion.Id);
+        Assert.Equal("1.21.2", newVersion.MinecraftVersion);
+        Assert.Equal("fabric", newVersion.Loader);
+        Assert.False(store.Exists(newVersion.Id));
+    }
+
+    [Fact]
+    public void CustomGameDirectoryMustBeAbsoluteAndIsUsedVerbatim()
+    {
+        var store = new InstanceStore(root);
+        var info = new InstanceInfo
+        {
+            Id = "custom",
+            Name = "Custom",
+            MinecraftVersion = "1.21.1",
+            Loader = "vanilla",
+            UsesSharedStorage = false,
+            CustomGameDir = Path.Combine(root, "external-game")
+        };
+
+        Assert.Equal(Path.GetFullPath(info.CustomGameDir), store.GameDir(info));
+
+        info.CustomGameDir = "relative-game";
+        Assert.Throws<InvalidDataException>(() => store.GameDir(info));
+    }
+
     public void Dispose()
     {
         try
