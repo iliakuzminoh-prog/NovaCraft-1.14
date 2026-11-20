@@ -1295,10 +1295,9 @@ internal sealed class MainForm : Form
 
         void LoadPreview(string path)
         {
-            using var stream = File.OpenRead(path);
-            using var image = Image.FromStream(stream, false, true);
-            var copy = new Bitmap(image);
-            preview.SetSkin(path, settings.OfflineProfiles.First(x => x.Id == settings.ActiveProfileId).Slim);
+            var profile = settings.OfflineProfiles.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
+            if (profile == null) return;
+            preview.SetSkin(path, profile.Slim);
         }
 
         string GetSkinDestination(OfflineProfile profile)
