@@ -63,6 +63,7 @@ internal sealed class OfflineProfile
     public string Uuid { get; set; } = Guid.NewGuid().ToString();
     public string SkinPath { get; set; } = "";
     public bool Slim { get; set; }
+    public string LegacyUuid { get; set; } = "";
 }
 
 internal sealed class LauncherSettings
@@ -1243,8 +1244,15 @@ internal sealed class MainForm : Form
                     MessageBox.Show(dialog, "Профиль с таким ником уже существует.", "Профиль", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+                var keepUuid = MessageBox.Show(dialog,
+                    "Сохранить прежний UUID профиля?\n\n" +
+                    "Да — прогресс одиночной игры сохранится (UUID не изменится).\n" +
+                    "Нет — UUID будет пересчитан по новому нику, как его считают офлайн-серверы.",
+                    "Переименование профиля", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Question);
+                if (keepUuid == DialogResult.Cancel) return;
                 profile.Username = newName;
-                profile.Uuid = OfflineProfileRules.OfflineUuid(newName);
+                if (keepUuid == DialogResult.No)
+                    profile.Uuid = OfflineProfileRules.OfflineUuid(newName);
                 settings.Username = newName;
                 settings.ActiveProfileId = profile.Id;
                 username.Text = newName;
@@ -1875,8 +1883,12 @@ internal sealed class MainForm : Form
         var profile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId)
             ?? throw new InvalidOperationException("Активный профиль не найден. Создай или выбери профиль.");
         var name = OfflineLaunchProfileRules.GetValidatedUsernameForLaunch(profile.Username);
-        if (!Guid.TryParse(profile.Uuid, out _))
+        if (OfflineProfileRules.IsLegacyOrInvalidUuid(name, profile.Uuid))
+        {
+            if (Guid.TryParse(profile.Uuid, out _) && string.IsNullOrEmpty(profile.LegacyUuid))
+                profile.LegacyUuid = profile.Uuid;
             profile.Uuid = OfflineProfileRules.OfflineUuid(name);
+        }
         SettingsService.Save(settings);
         return new MSession
         {
@@ -2587,8 +2599,12 @@ static class SettingsService
             loaded.Username = loaded.OfflineProfiles.First(x => x.Id == loaded.ActiveProfileId).Username;
             foreach (var profile in loaded.OfflineProfiles)
             {
-                if (!Guid.TryParse(profile.Uuid, out _))
+                if (OfflineProfileRules.IsLegacyOrInvalidUuid(profile.Username, profile.Uuid))
+                {
+                    if (Guid.TryParse(profile.Uuid, out _) && string.IsNullOrEmpty(profile.LegacyUuid))
+                        profile.LegacyUuid = profile.Uuid;
                     profile.Uuid = OfflineProfileRules.OfflineUuid(profile.Username);
+                }
             }
             return loaded;
         }

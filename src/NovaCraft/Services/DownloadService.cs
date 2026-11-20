@@ -63,7 +63,7 @@ public static class DownloadService
 
             await using var input = await response.Content.ReadAsStreamAsync(ct);
             await using var output = new FileStream(
-                temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                temporary, FileMode.Create, FileAccess.Write, FileShare.None,
                 128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
 
             using var sha512 = IncrementalHash.CreateHash(HashAlgorithmName.SHA512);
