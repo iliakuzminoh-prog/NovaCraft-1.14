@@ -2,7 +2,7 @@ namespace NovaCraft.Builds;
 
 public static class BuildProfileLaunch
 {
-    public static void Apply(LauncherSettings settings, BuildProfile build)
+    internal static void Apply(LauncherSettings settings, BuildProfile build)
     {
         ArgumentNullException.ThrowIfNull(settings);
         ArgumentNullException.ThrowIfNull(build);
