@@ -2,7 +2,7 @@ name: Build NovaCraft
 on:
   workflow_dispatch:
   push:
-    branches: [ main ]
+    branches: [ main, 'fix/**', 'stage/**' ]
   pull_request:
     branches: [ main ]
 permissions:
