@@ -14,7 +14,6 @@ internal sealed class MinecraftSkinPreview : Control
     {
         DoubleBuffered = true;
         BackColor = Color.FromArgb(15, 18, 29);
-        MinimumSize = new Size(180, 220);
         TabStop = false;
         animationTimer = new Timer { Interval = 80 };
         animationTimer.Tick += (_, _) =>
