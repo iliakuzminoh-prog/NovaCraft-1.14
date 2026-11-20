@@ -19,6 +19,7 @@ public static class LoaderIds
     {
         "forge" => "Forge",
         "quilt" => "Quilt",
+        "neoforge" => "NeoForge",
         "vanilla" => "Vanilla",
         _ => "Fabric"
     };
