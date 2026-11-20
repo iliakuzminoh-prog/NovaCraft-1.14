@@ -8,14 +8,14 @@ internal sealed class MinecraftSkinPreview : Control
     Bitmap? skin;
     bool slim;
     float phase;
-    readonly Timer animationTimer;
+    readonly System.Windows.Forms.Timer animationTimer;
 
     public MinecraftSkinPreview()
     {
         DoubleBuffered = true;
         BackColor = Color.FromArgb(15, 18, 29);
         TabStop = false;
-        animationTimer = new Timer { Interval = 80 };
+        animationTimer = new System.Windows.Forms.Timer { Interval = 80 };
         animationTimer.Tick += (_, _) =>
         {
             phase += 0.045f;
