@@ -24,5 +24,6 @@
   <ItemGroup>
     <PackageReference Include="CmlLib.Core" Version="4.1.0" />
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="2.0.0" />
+    <PackageReference Include="SixLabors.ImageSharp" Version="4.1.3" />
   </ItemGroup>
 </Project>

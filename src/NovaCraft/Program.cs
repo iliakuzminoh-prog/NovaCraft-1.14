@@ -1919,7 +1919,7 @@ internal sealed class MainForm : Form
         var downloads = long.TryParse(hit?["downloads"]?.ToString(), out var count) ? count.ToString("N0") : "—";
         var follows = long.TryParse(hit?["follows"]?.ToString(), out var followCount) ? followCount.ToString("N0") : "—";
 
-        var card = new Panel
+        var card = new CardPanel
         {
             Width = 410,
             Height = 214,
@@ -1928,12 +1928,13 @@ internal sealed class MainForm : Form
             Padding = new Padding(14)
         };
 
-        icon = new PictureBox
+        icon = new RoundedPictureBox
         {
             Location = new Point(14, 14),
             Size = new Size(70, 70),
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(35, 39, 58)
+            BackColor = Color.FromArgb(24, 27, 42),
+            Image = ProjectIconPlaceholder.Create(title)
         };
 
         var source = new Label
@@ -2010,22 +2011,6 @@ internal sealed class MainForm : Form
     }
 
 
-    static async Task<byte[]> ReadBoundedContentAsync(HttpContent content, int maxBytes)
-    {
-        await using var input = await content.ReadAsStreamAsync();
-        using var output = new MemoryStream(Math.Min(maxBytes, 1024 * 1024));
-        var buffer = new byte[81920];
-        while (true)
-        {
-            var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length));
-            if (read == 0) break;
-            if (output.Length + read > maxBytes)
-                throw new InvalidDataException($"Загружаемый файл превышает лимит {maxBytes / (1024 * 1024)} МБ.");
-            await output.WriteAsync(buffer.AsMemory(0, read));
-        }
-        return output.ToArray();
-    }
-
     async Task LoadProjectIconAsync(PictureBox picture, string? iconUrl, SemaphoreSlim gate)
     {
         if (string.IsNullOrWhiteSpace(iconUrl) || !Uri.TryCreate(iconUrl, UriKind.Absolute, out var uri) ||
@@ -2034,20 +2019,18 @@ internal sealed class MainForm : Form
         await gate.WaitAsync();
         try
         {
-            using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
-            response.EnsureSuccessStatusCode();
-            if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024)) return;
-            var bytes = await ReadBoundedContentAsync(response.Content, 5 * 1024 * 1024);
-            if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024) return;
-            using var ms = new MemoryStream(bytes);
-            using var source = Image.FromStream(ms);
-            var bitmap = new Bitmap(source);
+            var bitmap = await ProjectIconService.LoadAsync(http, uri);
+            if (bitmap is null) return;
             if (picture.IsDisposed) { bitmap.Dispose(); return; }
             picture.Image?.Dispose();
             picture.Image = bitmap;
             picture.Controls.Clear();
         }
-        catch { /* Отсутствующая или недоступная иконка не ломает каталог. */ }
+        catch (Exception ex)
+        {
+            // Иконка не ломает каталог: остаётся заглушка с буквой, а причина попадает в журнал.
+            WriteLog("Иконка не загружена (" + uri.AbsolutePath + "): " + ex.GetType().Name + ": " + ex.Message);
+        }
         finally { gate.Release(); }
     }
 
