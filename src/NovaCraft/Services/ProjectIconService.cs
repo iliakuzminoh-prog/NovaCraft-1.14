@@ -3,12 +3,13 @@ using System.Drawing.Text;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
+using SkiaSharp;
 
 namespace NovaCraft.Services;
 
 /// <summary>
 /// Загружает иконки проектов Modrinth: дисковый кэш, скачивание с ограничением размера,
-/// декодирование. GDI+ не умеет WebP, поэтому такие иконки конвертируются через ImageSharp в PNG.
+/// декодирование. GDI+ не умеет WebP, поэтому такие иконки конвертируются через SkiaSharp в PNG.
 /// </summary>
 internal static class ProjectIconService
 {
@@ -113,17 +114,26 @@ internal static class ProjectIconService
         }
     }
 
-    /// <summary>Декодирует WebP/PNG/JPEG/GIF через ImageSharp и возвращает PNG-байты.</summary>
+    /// <summary>Декодирует WebP (и другие форматы Skia) и возвращает PNG-байты, понятные GDI+.</summary>
     internal static byte[] ConvertToPng(byte[] data)
     {
-        var info = SixLabors.ImageSharp.Image.Identify(data);
-        if (info.Width > MaxDimension || info.Height > MaxDimension)
-            throw new InvalidDataException("Иконка слишком большая: " + info.Width + "x" + info.Height);
+        // Размеры проверяем до полного декодирования, чтобы маленький файл не раздулся в гигабайты пикселей.
+        using (var probe = new MemoryStream(data))
+        using (var codec = SKCodec.Create(probe))
+        {
+            if (codec is null)
+                throw new InvalidDataException("Формат иконки не поддерживается.");
+            if (codec.Info.Width > MaxDimension || codec.Info.Height > MaxDimension)
+                throw new InvalidDataException("Иконка слишком большая: " + codec.Info.Width + "x" + codec.Info.Height);
+        }
 
-        using var image = SixLabors.ImageSharp.Image.Load(data);
-        using var output = new MemoryStream();
-        image.Save(output, new SixLabors.ImageSharp.Formats.Png.PngEncoder());
-        return output.ToArray();
+        using var bitmap = SKBitmap.Decode(data)
+            ?? throw new InvalidDataException("Не удалось декодировать иконку.");
+        using var image = SKImage.FromBitmap(bitmap)
+            ?? throw new InvalidDataException("Не удалось подготовить изображение иконки.");
+        using var encoded = image.Encode(SKEncodedImageFormat.Png, 100)
+            ?? throw new InvalidDataException("Не удалось сохранить иконку в PNG.");
+        return encoded.ToArray();
     }
 }
 
