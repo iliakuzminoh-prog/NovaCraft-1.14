@@ -189,7 +189,7 @@
                                 <Grid Margin="27">
                                     <Grid.RowDefinitions><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                                     <StackPanel>
-                                        <TextBlock Text="PRUFFY AURORA" FontSize="10" FontWeight="Bold" Foreground="#6DE3D2" LetterSpacing="2"/>
+                                        <TextBlock Text="PRUFFY AURORA" FontSize="10" FontWeight="Bold" Foreground="#6DE3D2"/>
                                         <TextBlock Text="Твой рабочий экран." FontSize="32" FontWeight="SemiBold" Foreground="#F7F9FF" Margin="0,8,0,0"/>
                                         <TextBlock Text="Обои встроены. Интернет не нужен. Система Windows остаётся под ними." FontSize="13" Foreground="#AAB5CC" Margin="0,7,0,0" MaxWidth="620" TextWrapping="Wrap"/>
                                     </StackPanel>
@@ -203,7 +203,7 @@
 
                             <Border Grid.Column="1" Margin="15,0,0,0" CornerRadius="25" Background="#D90D1423" BorderBrush="#25314C" BorderThickness="1" Padding="22">
                                 <StackPanel>
-                                    <TextBlock Text="СИСТЕМА" FontSize="10" FontWeight="Bold" Foreground="#64728C" LetterSpacing="2"/>
+                                    <TextBlock Text="СИСТЕМА" FontSize="10" FontWeight="Bold" Foreground="#64728C"/>
                                     <TextBlock Text="Pruﬀy online" FontSize="23" FontWeight="SemiBold" Foreground="#F3F6FF" Margin="0,9,0,2"/>
                                     <StackPanel Orientation="Horizontal" Margin="0,4,0,17">
                                         <Ellipse Width="8" Height="8" Fill="#4DE0C8" VerticalAlignment="Center"/>
