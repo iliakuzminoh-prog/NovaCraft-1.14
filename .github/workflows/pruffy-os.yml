@@ -45,7 +45,7 @@ jobs:
       - name: Verify executable
         shell: pwsh
         run: |
-          $exe = "PruffyOS/publish/PruﬀyOS.exe"
+          $exe = "PruffyOS/publish/PruffyOS.exe"
           if (!(Test-Path $exe)) { throw "Pruﬀy OS EXE was not produced." }
           $size = (Get-Item $exe).Length
           Write-Host "EXE size: $size bytes"
@@ -55,6 +55,6 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: PruﬀyOS-Windows-x64
-          path: PruffyOS/publish/PruﬀyOS.exe
+          path: PruffyOS/publish/PruffyOS.exe
           if-no-files-found: error
           retention-days: 14
