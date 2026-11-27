@@ -2174,15 +2174,20 @@ internal sealed class MainForm : Form
             }
             try
             {
-                if (string.Equals(localMusicPlayer.GetMode(), "paused", StringComparison.OrdinalIgnoreCase))
+                var mode = localMusicPlayer.GetMode();
+                if (string.Equals(mode, "paused", StringComparison.OrdinalIgnoreCase))
                 {
                     localMusicPlayer.Resume();
                     playerState.Text = "Воспроизведение продолжено.";
                 }
-                else
+                else if (string.Equals(mode, "playing", StringComparison.OrdinalIgnoreCase))
                 {
                     localMusicPlayer.Pause();
                     playerState.Text = "Пауза.";
+                }
+                else
+                {
+                    PlayAt(trackList.SelectedIndex >= 0 ? trackList.SelectedIndex : 0);
                 }
             }
             catch (Exception ex) { playerState.Text = ex.Message; }
