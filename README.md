@@ -25,7 +25,8 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 - CurseForge files without a permitted download URL are reported as unavailable; the launcher does not bypass author restrictions.
 - Import rejects unsafe paths, ZIP path traversal, duplicate override paths, symlinks, oversized files and excessive total extraction size.
 - Import creates a new isolated build folder and records the source platform.
-- The current CurseForge integration imports an exported archive. A searchable live CurseForge catalog inside NovaCraft is not implemented.
+- A searchable in-app CurseForge mod catalog is implemented against the official Core API: it discovers the Minecraft Mods class, filters by active Minecraft version and loader, and uses the API key only in memory. CurseForge's official third-party API access requires an approved key; NovaCraft does not ship a shared key.
+- Single-mod installation is allowed only when the API reports `allowModDistribution=true`; the selected JAR is verified with SHA-1 and ZIP/JAR signature and installed only into the active build. Mod dependencies are not installed automatically.
 
 ### Mods, packs and downloads
 
@@ -64,7 +65,7 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 ## Not implemented or not verified
 
 - Microsoft/Mojang online authentication and Ely.by account login/synchronization.
-- Live CurseForge catalog search and one-click import from a CurseForge project page.
+- Real-world testing of the live CurseForge catalog with an approved production API key; the repository CI uses mocked API responses.
 - Exact Fabric and Quilt loader-version pinning from imported pack manifests.
 - Automatic Java runtime installation.
 - A full skin library, cloud upload and universal skin visibility on offline/third-party servers.
