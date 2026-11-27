@@ -33,7 +33,9 @@ This README describes the source on the `nova/refined-interface` branch. A green
 - Mod downloads use the official Modrinth CDN, SHA-512 and JAR signature checks.
 - Resource-pack, shader and datapack catalog cards support verified ZIP installation. The datapack world picker is restricted to the active build's `saves` directory.
 - Downloads page shows source, file, target build, progress and task state (downloading, validation, installed, already installed or failed).
-- The task cards update in place rather than rebuilding the whole list for every progress event. Queue history is currently in memory only; pause/resume/cancel and persistence across restarts are not implemented.
+- Modrinth transfers and CmlLib Minecraft/Forge installation report byte progress. CmlLib `ByteProgress` is used instead of the high-frequency file event stream; task cards update in place rather than rebuilding the whole list for every callback.
+- Queue history is currently in memory only; pause/resume/cancel and persistence across restarts are not implemented.
+- Byte-progress wiring is compile-tested in CI, but live download speed and every loader's full network sequence have not been verified on the user's PC.
 
 ### Display and settings
 
