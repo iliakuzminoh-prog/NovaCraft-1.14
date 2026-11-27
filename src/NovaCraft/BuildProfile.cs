@@ -6,6 +6,7 @@ internal sealed class BuildProfile
     public string Name { get; set; } = "Основная сборка";
     public string MinecraftVersion { get; set; } = "1.21.1";
     public string Loader { get; set; } = "fabric";
+    public string LoaderVersion { get; set; } = "";
     public string GameDirectory { get; set; } = "";
     public string SourcePlatform { get; set; } = "local";
     public string SourceProjectId { get; set; } = "";
