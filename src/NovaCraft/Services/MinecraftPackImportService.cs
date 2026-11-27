@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using System.Net;
+using System.Security;
 using System.Security.Cryptography;
 using System.Text.Json;
 
@@ -183,7 +184,7 @@ public static class MinecraftPackImportService
         request.Headers.Accept.ParseAdd("application/json");
 
         using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        if (response.StatusCode is >= HttpStatusCode.MovedPermanently and <= HttpStatusCode.TemporaryRedirect)
+        if ((int)response.StatusCode is >= 300 and < 400)
             throw new SecurityException("CurseForge API вернул перенаправление. Запрос остановлен, чтобы не передать API-ключ другому сайту.");
         response.EnsureSuccessStatusCode();
 
