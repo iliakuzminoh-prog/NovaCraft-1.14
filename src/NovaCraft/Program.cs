@@ -509,6 +509,13 @@ internal sealed class MainForm : Form
             "quilt" => "Quilt",
             _ => "Fabric"
         };
+        if (modLoader.Items.Count > 0)
+            modLoader.SelectedItem = settings.ModLoader switch
+            {
+                "forge" => "Forge",
+                "quilt" => "Quilt",
+                _ => "Fabric"
+            };
 
         if (!string.IsNullOrWhiteSpace(gameDir.Text))
             gameDir.Text = settings.GameDirectory;
