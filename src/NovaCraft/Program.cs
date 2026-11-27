@@ -67,7 +67,7 @@ internal sealed class OfflineProfile
 
 internal sealed class LauncherSettings
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
     public string GameDirectory { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
     public string Username { get; set; } = "NovaPlayer";
     public string ActiveProfileId { get; set; } = "";
@@ -123,7 +123,6 @@ internal sealed class MainForm : Form
     readonly ComboBox gameLoader = new();
     readonly NumericUpDown ram = new();
     readonly TextBox gameDir = new();
-    readonly CheckBox boost = new();
     readonly RichTextBox log = new();
     readonly Label status = new();
     readonly HiddenTabControl pageHost = new() { Dock = DockStyle.Fill, BackColor = Color.FromArgb(18, 19, 23) };
@@ -2775,7 +2774,8 @@ internal sealed class MainForm : Form
         {
             settings.MaximumRamMb = recommended;
             settings.FpsBoost = false;
-            ram.Value = Math.Clamp(recommended, (int)ram.Minimum, (int)ram.Maximum);
+            if (ram.Minimum <= recommended && ram.Maximum >= recommended)
+                ram.Value = recommended;
             SettingsService.Save(settings);
             status.Text = $"Лимит Java установлен: {recommended} МБ";
             MessageBox.Show(
