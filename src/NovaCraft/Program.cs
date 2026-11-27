@@ -2274,26 +2274,46 @@ internal sealed class MainForm : Form
                 throw new SecurityException("Разрешена загрузка Skin Bridge только с HTTPS cdn.modrinth.com.");
 
             result.Text = "Скачиваю Skin Bridge и проверяю SHA-512…";
-            var mods = Path.Combine(targetGameDirectory, "mods");
-            downloadTask = BeginDownloadTask("CustomSkinLoader · Skin Bridge", filename, "Modrinth", targetBuild.Name);
-            var fileProgress = new Progress<double>(value =>
-                UpdateDownloadTask(downloadTask, "Загружается", value, "SHA-512 · " + game + " · " + loader));
+            if (!string.Equals(Path.GetFileName(filename), filename, StringComparison.Ordinal))
+                throw new InvalidDataException("CustomSkinLoader вернул небезопасное имя файла.");
 
-            await DownloadService.DownloadVerifiedAsync(
-                http,
-                uri,
-                sha,
-                mods,
-                filename,
-                new[] { ".jar" },
-                50L * 1024 * 1024,
-                fileProgress,
-                CancellationToken.None,
-                name => MessageBox.Show(
-                    "Установить Skin Bridge: " + name + "?",
-                    "Подтверждение установки",
-                    MessageBoxButtons.YesNo,
-                    MessageBoxIcon.Warning) == DialogResult.Yes);
+            var mods = Path.Combine(targetGameDirectory, "mods");
+            Directory.CreateDirectory(mods);
+            var destination = Path.Combine(mods, filename);
+            downloadTask = BeginDownloadTask("CustomSkinLoader · Skin Bridge", filename, "Modrinth", targetBuild.Name);
+
+            if (File.Exists(destination))
+            {
+                if (!await DownloadService.HasMatchingSha512Async(destination, sha, CancellationToken.None))
+                    throw new CryptographicException("В активной сборке уже есть CustomSkinLoader с другим SHA-512. Файл не перезаписан.");
+                downloadTask.Status = "Уже установлено";
+                downloadTask.Progress = 1;
+                downloadTask.Detail = "Локальный SHA-512 совпадает с Modrinth";
+                RefreshDownloadTaskPage();
+            }
+            else
+            {
+                var fileProgress = new Progress<double>(value =>
+                    UpdateDownloadTask(downloadTask, "Загружается", value, "SHA-512 · " + game + " · " + loader));
+
+                await DownloadService.DownloadVerifiedAsync(
+                    http,
+                    uri,
+                    sha,
+                    mods,
+                    filename,
+                    new[] { ".jar" },
+                    50L * 1024 * 1024,
+                    fileProgress,
+                    CancellationToken.None,
+                    name => MessageBox.Show(
+                        "Установить Skin Bridge: " + name + "?",
+                        "Подтверждение установки",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Warning) == DialogResult.Yes);
+
+                CompleteDownloadTask(downloadTask, "Skin Bridge проверен по SHA-512 и установлен в mods/");
+            }
 
             foreach (var profile in settings.OfflineProfiles)
             {
