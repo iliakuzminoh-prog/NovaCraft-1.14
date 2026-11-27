@@ -185,11 +185,33 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             AppDiagnostics.Report(ex, "Settings.GameDirectory");
-            settings.GameDirectory = Path.Combine(
+            var fallbackDirectory = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "NovaCraft",
-                "minecraft");
-            Directory.CreateDirectory(settings.GameDirectory);
+                "minecraft-fallback-" + ActiveBuild.Id);
+
+            if (settings.BuildProfiles.Any(p => p.Id != ActiveBuild.Id &&
+                string.Equals(Path.GetFullPath(p.GameDirectory), Path.GetFullPath(fallbackDirectory), StringComparison.OrdinalIgnoreCase)))
+                fallbackDirectory = BuildProfileRules.CreateInstanceDirectory(
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft"),
+                    ActiveBuild.Id);
+
+            try
+            {
+                Directory.CreateDirectory(fallbackDirectory);
+                ActiveBuild.GameDirectory = Path.GetFullPath(fallbackDirectory);
+                settings.GameDirectory = ActiveBuild.GameDirectory;
+                SettingsService.Save(settings);
+            }
+            catch (Exception fallbackError)
+            {
+                AppDiagnostics.Report(fallbackError, "Settings.GameDirectory.Fallback");
+                MessageBox.Show(
+                    "Не удалось открыть сохранённую папку сборки или создать резервную. Открой настройки и выбери доступную папку, прежде чем устанавливать или запускать Minecraft.\n\n" + fallbackError.Message,
+                    "Папка сборки недоступна",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
         }
 
         Text = "NovaCraft 1.14";
