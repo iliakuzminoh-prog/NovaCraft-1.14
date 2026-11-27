@@ -10,6 +10,7 @@ internal sealed class BuildProfile
     public string GameDirectory { get; set; } = "";
     public string SourcePlatform { get; set; } = "local";
     public string SourceProjectId { get; set; } = "";
+    public string InstallState { get; set; } = "Пустая";
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
     public DateTime? LastPlayedUtc { get; set; }
 
