@@ -2,7 +2,7 @@
 
 Windows launcher for Minecraft Java Edition. C# WinForms, .NET 8, self-contained Windows x64.
 
-This README describes the source on the `nova/refined-interface` branch. A green CI build proves compilation, tests and packaging; it does not prove that every modpack launches correctly on every PC.
+This README describes the source on the `nova/skin-preview-3d` branch. A green CI build proves compilation, tests and packaging; it does not prove that every modpack launches correctly on every PC.
 
 ## Implemented
 
@@ -47,6 +47,8 @@ This README describes the source on the `nova/refined-interface` branch. A green
 ### Skins and music
 
 - Local PNG skin selection, dimension validation and preview.
+- The skin preview is a software-rendered 3D Minecraft avatar with slow auto-rotation and mouse-drag rotation. It supports Classic/Slim arm width and both modern 64×64 and legacy 64×32 skin atlases.
+- Windows CI includes DrawToBitmap smoke tests for the 3D preview with both atlas formats and both arm models; this is a rendering smoke test, not a screenshot-based proof of visual parity with the concept artwork.
 - Skin source files are keyed by offline profile ID under `%LOCALAPPDATA%\\NovaCraft\\skins\\<profileId>.png`.
 - Optional CustomSkinLoader / Skin Bridge support. A local PNG is not automatically uploaded to a skin website; other clients see it only when their skin mechanism/server supports it.
 - Custom OGG background-music resource-pack generation. The generated pack currently uses pack format 34 (Minecraft 1.21.1); compatibility with other versions is not guaranteed. The user must enable the pack in Minecraft.
@@ -78,7 +80,7 @@ The GitHub Actions workflow runs:
 
 1. .NET restore.
 2. Build with warnings treated as errors.
-3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests and build-profile migration/isolation.
+3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests, build-profile migration/isolation and 3D skin-preview rendering.
 4. Self-contained Windows x64 publish and EXE size check.
 5. Portable ZIP and Inno Setup installer packaging.
 6. Installer smoke test: install, verify EXE, start the application process, uninstall and verify removal.
