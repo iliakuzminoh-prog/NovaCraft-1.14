@@ -47,10 +47,10 @@ internal static class PerformanceProfileRules
     /// by currently available physical memory. The result is a starting point,
     /// not a guarantee of FPS or compatibility with every modpack.
     /// </summary>
-    public static int RecommendedHeapMb(SystemMemorySnapshot memory)
+    public static int? RecommendedHeapMb(SystemMemorySnapshot memory)
     {
         if (memory.TotalMb == 0 || memory.AvailableMb == 0)
-            return 1024;
+            return null;
 
         var reserveForWindows = memory.TotalMb >= 8192 ? 2048UL : 1536UL;
         var totalBudget = memory.TotalMb > reserveForWindows
@@ -69,13 +69,13 @@ internal static class PerformanceProfileRules
     public static string Describe(SystemMemorySnapshot memory)
     {
         if (memory.TotalMb == 0 || memory.AvailableMb == 0)
-            return "Не удалось получить данные о физической памяти Windows.";
+            return "Не удалось получить сведения об ОЗУ Windows. Автоматическая рекомендация недоступна; текущий лимит Java останется без изменений.";
 
-        var recommended = RecommendedHeapMb(memory);
+        var recommended = RecommendedHeapMb(memory)!.Value;
         var warning = IsLowAvailableMemory(memory)
             ? " Свободной памяти мало: закрой тяжёлые программы перед запуском. Даже этот лимит не гарантирует запуск тяжёлых сборок."
             : " Лимит оставляет запас для Windows и фоновых программ.";
 
-        return $"ОЗУ: {memory.TotalMb / 1024.0:0.0} ГБ всего, {memory.AvailableMb / 1024.0:0.0} ГБ свободно. Рекомендуемый лимит Java: {recommended} МБ.{warning}";
+        return $"ОЗУ: {memory.TotalMb / 1024.0:0.0} ГБ всего, {memory.AvailableMb / 1024.0:0.0} ГБ свободно. Рекомендуемый лимит Java: {recommended} МБ.{warning}"
     }
 }
