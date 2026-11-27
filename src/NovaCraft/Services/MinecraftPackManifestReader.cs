@@ -90,6 +90,7 @@ public static class MinecraftPackManifestReader
         }
 
         var files = new List<PackFileReference>();
+        var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (root.TryGetProperty("files", out var fileArray))
         {
             if (fileArray.ValueKind != JsonValueKind.Array || fileArray.GetArrayLength() > MaxFiles)
@@ -99,6 +100,8 @@ public static class MinecraftPackManifestReader
             {
                 var path = GetString(item, "path");
                 ValidateRelativePath(path);
+                if (!paths.Add(path!))
+                    throw new InvalidDataException("В Modrinth manifest есть повторяющийся путь: " + path);
 
                 var environment = item.TryGetProperty("env", out var env) ? env : default;
                 if (environment.ValueKind == JsonValueKind.Object)
@@ -187,6 +190,7 @@ public static class MinecraftPackManifestReader
         }
 
         var files = new List<PackFileReference>();
+        var fileIds = new HashSet<string>(StringComparer.Ordinal);
         if (root.TryGetProperty("files", out var fileArray))
         {
             if (fileArray.ValueKind != JsonValueKind.Array || fileArray.GetArrayLength() > MaxFiles)
@@ -198,6 +202,8 @@ public static class MinecraftPackManifestReader
                 var fileId = GetLong(item, "fileID");
                 if (projectId is null or <= 0 || fileId is null or <= 0)
                     throw new InvalidDataException("В CurseForge manifest обнаружена некорректная запись мода.");
+                if (!fileIds.Add(projectId.Value.ToString() + ":" + fileId.Value.ToString()))
+                    throw new InvalidDataException("В CurseForge manifest есть повторяющаяся запись проекта/файла.");
 
                 var required = !item.TryGetProperty("required", out var requiredElement) ||
                                requiredElement.ValueKind != JsonValueKind.False;
