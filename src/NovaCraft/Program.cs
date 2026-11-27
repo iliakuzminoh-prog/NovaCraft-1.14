@@ -2318,10 +2318,10 @@ internal sealed class MainForm : Form
             foreach (var profile in settings.OfflineProfiles)
             {
                 if (string.IsNullOrWhiteSpace(profile.SkinPath) || !File.Exists(profile.SkinPath)) continue;
-                var destination = GetProfileSkinPath(profile);
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                if (!string.Equals(Path.GetFullPath(profile.SkinPath), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
-                    File.Copy(profile.SkinPath, destination, true);
+                var profileSkinDestination = GetProfileSkinPath(profile);
+                Directory.CreateDirectory(Path.GetDirectoryName(profileSkinDestination)!);
+                if (!string.Equals(Path.GetFullPath(profile.SkinPath), Path.GetFullPath(profileSkinDestination), StringComparison.OrdinalIgnoreCase))
+                    File.Copy(profile.SkinPath, profileSkinDestination, true);
             }
 
             SettingsService.Save(settings);
