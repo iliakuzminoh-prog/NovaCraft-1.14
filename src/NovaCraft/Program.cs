@@ -595,7 +595,8 @@ internal sealed class MainForm : Form
         {
             [0] = "ИГРА",
             [3] = "КОНТЕНТ",
-            [8] = "ИНСТРУМЕНТЫ"
+            [8] = "ИНСТРУМЕНТЫ",
+            [14] = "АКТИВНОСТЬ"
         };
 
         foreach (var item in pages.Select((value, index) => (value, index)))
@@ -1056,9 +1057,19 @@ internal sealed class MainForm : Form
         sort.SelectedIndexChanged += async (_, _) => await Reload();
         modLoader.SelectedIndexChanged += (_, _) =>
         {
-            settings.ModLoader = modLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", _ => "fabric" };
+            var nextLoader = modLoader.SelectedItem?.ToString() switch
+            {
+                "Forge" => "forge",
+                "Quilt" => "quilt",
+                _ => "fabric"
+            };
+            if (!string.Equals(settings.ModLoader, nextLoader, StringComparison.OrdinalIgnoreCase))
+                ActiveBuild.LoaderVersion = "";
+            settings.ModLoader = nextLoader;
+            ActiveBuild.Loader = nextLoader;
             if (gameLoader.Items.Contains(modLoader.SelectedItem)) gameLoader.SelectedItem = modLoader.SelectedItem;
             SettingsService.Save(settings);
+            RefreshBuildSelector();
         };
 
         p.Controls.Add(modCards);
