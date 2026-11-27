@@ -28,8 +28,11 @@ internal static class BuildProfileRules
         var current = Path.GetFullPath(currentGameDirectory);
         var parent = Directory.GetParent(current)?.FullName
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft");
+        var root = string.Equals(Path.GetFileName(parent), "NovaCraft-instances", StringComparison.OrdinalIgnoreCase)
+            ? parent
+            : Path.Combine(parent, "NovaCraft-instances");
 
-        return Path.GetFullPath(Path.Combine(parent, "NovaCraft-instances", id));
+        return Path.GetFullPath(Path.Combine(root, id));
     }
 
     public static void EnsureProfiles(LauncherSettings settings)
