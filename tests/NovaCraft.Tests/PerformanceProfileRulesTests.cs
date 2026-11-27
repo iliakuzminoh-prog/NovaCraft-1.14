@@ -8,9 +8,10 @@ public sealed class PerformanceProfileRulesTests
     public void RecommendsHeapWithinAvailableMemoryAndEightGbCap()
     {
         var result = PerformanceProfileRules.RecommendedHeapMb(new SystemMemorySnapshot(16 * 1024, 8 * 1024));
-        Assert.Equal(4864, result);
-        Assert.True(result <= 8 * 1024);
-        Assert.True(result < 8 * 1024);
+        Assert.Equal<int?>(4864, result);
+        Assert.True(result.HasValue);
+        Assert.True(result.Value <= 8 * 1024);
+        Assert.True(result.Value < 8 * 1024);
     }
 
     [Fact]
