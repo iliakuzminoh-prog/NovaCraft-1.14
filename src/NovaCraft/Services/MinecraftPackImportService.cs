@@ -340,7 +340,7 @@ public static class MinecraftPackImportService
             throw new InvalidDataException("Файл CurseForge не имеет корректной ZIP/JAR сигнатуры.");
     }
 
-    private static async Task ApplyOverridesAsync(
+    internal static async Task ApplyOverridesAsync(
         ZipArchive archive,
         string destinationRoot,
         string prefix,
