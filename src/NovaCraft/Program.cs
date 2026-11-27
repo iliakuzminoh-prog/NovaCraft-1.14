@@ -141,6 +141,8 @@ internal sealed class MainForm : Form
     readonly Button play = new();
     readonly Button install = new();
     readonly ComboBox buildSelector = new();
+    ComboBox? quickVersionSelector;
+    ComboBox? quickLoaderSelector;
     bool updatingBuildSelector;
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly FlowLayoutPanel modCards = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
@@ -257,6 +259,20 @@ internal sealed class MainForm : Form
 
         if (!string.IsNullOrWhiteSpace(gameDir.Text))
             gameDir.Text = settings.GameDirectory;
+        if (quickVersionSelector != null)
+        {
+            quickVersionSelector.Items.Clear();
+            quickVersionSelector.Items.Add(settings.LastVersion);
+            quickVersionSelector.SelectedIndex = 0;
+        }
+        if (quickLoaderSelector != null)
+            quickLoaderSelector.SelectedItem = settings.ModLoader switch
+            {
+                "vanilla" => "Vanilla",
+                "forge" => "Forge",
+                "quilt" => "Quilt",
+                _ => "Fabric"
+            };
 
         if (persist)
             SettingsService.Save(settings);
@@ -665,9 +681,11 @@ internal sealed class MainForm : Form
         var quickVersion = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(18, 42), Width = 250, Height = 32, BackColor = Color.FromArgb(34,37,58), ForeColor = Color.White };
         quickVersion.Items.Add(settings.LastVersion);
         quickVersion.SelectedIndex = 0;
+        quickVersionSelector = quickVersion;
         var quickLoader = new ComboBox { DropDownStyle = ComboBoxStyle.DropDownList, Location = new Point(18, 82), Width = 250, Height = 32, BackColor = Color.FromArgb(34,37,58), ForeColor = Color.White };
         quickLoader.Items.AddRange(new object[]{"Fabric","Forge","Quilt","Vanilla"});
         quickLoader.SelectedItem = gameLoader.SelectedItem?.ToString() ?? "Fabric";
+        quickLoaderSelector = quickLoader;
         var quickPlay = ModernButton("▶  Запустить", 250, 38);
         quickPlay.Location = new Point(18, 126);
         quickPlay.Click += async (_, _) =>
@@ -1218,10 +1236,10 @@ internal sealed class MainForm : Form
                 });
                 card.Controls.Add(new Label
                 {
-                    Text = Directory.Exists(profile.GameDirectory) ? "Папка создана" : "Будет создана при установке",
+                    Text = profile.InstallState + "  ·  " + (Directory.Exists(profile.GameDirectory) ? "Папка создана" : "Папка ещё не создана"),
                     Location = new Point(16, 88),
                     AutoSize = true,
-                    ForeColor = Color.FromArgb(142,153,177)
+                    ForeColor = profile.InstallState == "Готова" ? Color.FromArgb(90,220,150) : Color.FromArgb(142,153,177)
                 });
                 if (selected)
                 {
@@ -1270,7 +1288,9 @@ internal sealed class MainForm : Form
                     try
                     {
                         Directory.CreateDirectory(profile.GameDirectory);
-                        Process.Start(new ProcessStartInfo("explorer.exe", "\"" + profile.GameDirectory + "\"") { UseShellExecute = true });
+                        var explorer = new ProcessStartInfo("explorer.exe") { UseShellExecute = true };
+                        explorer.ArgumentList.Add(profile.GameDirectory);
+                        Process.Start(explorer);
                     }
                     catch (Exception ex) { Fail("Не удалось открыть папку сборки", ex); }
                 };
@@ -1301,16 +1321,15 @@ internal sealed class MainForm : Form
                         MessageBoxIcon.Question);
                     if (answer != DialogResult.Yes) return;
 
+                    var wasActive = settings.ActiveBuildId == profile.Id;
                     settings.BuildProfiles.Remove(profile);
-                    if (settings.ActiveBuildId == profile.Id)
-                        settings.ActiveBuildId = settings.BuildProfiles[0].Id;
-                    var next = settings.BuildProfiles.First(x => x.Id == settings.ActiveBuildId);
-                    settings.GameDirectory = next.GameDirectory;
-                    settings.LastVersion = next.MinecraftVersion;
-                    settings.ModLoader = next.Loader;
-                    launcher = null;
-                    SettingsService.Save(settings);
-                    RefreshBuildSelector();
+                    if (wasActive)
+                        ActivateBuild(settings.BuildProfiles[0]);
+                    else
+                    {
+                        SettingsService.Save(settings);
+                        RefreshBuildSelector();
+                    }
                     RenderProfiles();
                 };
 
@@ -2882,8 +2901,15 @@ internal sealed class MainForm : Form
         settings.LastVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
         settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
         var activeBuild = settings.BuildProfiles.First(p => p.Id == settings.ActiveBuildId);
-        activeBuild.GameDirectory = Path.GetFullPath(settings.GameDirectory);
+        var selectedGameDirectory = Path.GetFullPath(settings.GameDirectory);
+        if (settings.BuildProfiles.Any(p => p.Id != activeBuild.Id &&
+            string.Equals(Path.GetFullPath(p.GameDirectory), selectedGameDirectory, StringComparison.OrdinalIgnoreCase)))
+            throw new InvalidOperationException("Папка уже назначена другой сборке. У каждой сборки должна быть своя отдельная папка.");
+
+        activeBuild.GameDirectory = selectedGameDirectory;
         activeBuild.MinecraftVersion = settings.LastVersion;
+        if (!string.Equals(activeBuild.Loader, settings.ModLoader, StringComparison.OrdinalIgnoreCase))
+            activeBuild.LoaderVersion = "";
         activeBuild.Loader = settings.ModLoader;
         settings.UseDesktopResolution = useDesktopResolutionInput?.Checked ?? settings.UseDesktopResolution;
         settings.ScreenWidth = (int)(widthInput?.Value ?? settings.ScreenWidth);
