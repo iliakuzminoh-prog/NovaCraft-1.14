@@ -214,6 +214,12 @@ public static class MinecraftPackManifestReader
             }
         }
 
+        var overridesFolder = GetString(root, "overrides");
+        if (string.IsNullOrWhiteSpace(overridesFolder))
+            overridesFolder = "overrides";
+        overridesFolder = overridesFolder.Trim().Trim('/');
+        ValidateRelativePath(overridesFolder + "/marker");
+
         return new MinecraftPackDescriptor
         {
             Name = SafeName(GetString(root, "name"), "CurseForge-сборка"),
@@ -224,7 +230,7 @@ public static class MinecraftPackManifestReader
             Platform = "curseforge",
             ProjectId = GetString(root, "author") ?? "",
             Files = files.Where(f => f.Required).ToList(),
-            OverridesPrefix = "overrides/"
+            OverridesPrefix = overridesFolder + "/"
         };
     }
 
