@@ -66,43 +66,47 @@ public static class DownloadService
             if (response.Content.Headers.ContentLength is long length && length > maxBytes)
                 throw new InvalidDataException($"Файл превышает лимит {maxBytes / (1024 * 1024)} МБ.");
 
-            await using var input = await response.Content.ReadAsStreamAsync(ct);
-            await using var output = new FileStream(
+            byte[] actualHash;
+            await using (var input = await response.Content.ReadAsStreamAsync(ct))
+            await using (var output = new FileStream(
                 temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-            using var sha512 = IncrementalHash.CreateHash(HashAlgorithmName.SHA512);
-            var buffer = new byte[128 * 1024];
-            long total = 0;
-            var lastReport = -1;
-
-            while (true)
+                128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            using (var sha512 = IncrementalHash.CreateHash(HashAlgorithmName.SHA512))
             {
-                var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), ct);
-                if (read == 0) break;
+                var buffer = new byte[128 * 1024];
+                long total = 0;
+                var lastReport = -1;
 
-                total += read;
-                if (total > maxBytes)
-                    throw new InvalidDataException($"Файл превышает лимит {maxBytes / (1024 * 1024)} МБ.");
-
-                sha512.AppendData(buffer, 0, read);
-                await output.WriteAsync(buffer.AsMemory(0, read), ct);
-
-                if (response.Content.Headers.ContentLength is long declared && declared > 0)
+                while (true)
                 {
-                    var current = (int)(total * 100 / declared);
-                    if (current != lastReport)
+                    var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), ct);
+                    if (read == 0) break;
+
+                    total += read;
+                    if (total > maxBytes)
+                        throw new InvalidDataException($"Файл превышает лимит {maxBytes / (1024 * 1024)} МБ.");
+
+                    sha512.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), ct);
+
+                    if (response.Content.Headers.ContentLength is long declared && declared > 0)
                     {
-                        lastReport = current;
-                        progress?.Report(Math.Clamp(current / 100d, 0d, 1d));
+                        var current = (int)(total * 100 / declared);
+                        if (current != lastReport)
+                        {
+                            lastReport = current;
+                            progress?.Report(Math.Clamp(current / 100d, 0d, 1d));
+                        }
                     }
                 }
+
+                await output.FlushAsync(ct);
+                actualHash = sha512.GetHashAndReset();
             }
 
-            await output.FlushAsync(ct);
+            // The input and output streams are closed before hashing/signature validation and rename.
             progress?.Report(1d);
-
-            var actual = Convert.ToHexString(sha512.GetHashAndReset());
+            var actual = Convert.ToHexString(actualHash);
             if (!CryptographicOperations.FixedTimeEquals(
                     Convert.FromHexString(actual),
                     Convert.FromHexString(expectedSha512Hex)))
