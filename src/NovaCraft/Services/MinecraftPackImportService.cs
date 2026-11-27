@@ -18,6 +18,7 @@ public static class MinecraftPackImportService
     private const long MaxModFileBytes = 250L * 1024 * 1024;
     private const long MaxOverrideFileBytes = 256L * 1024 * 1024;
     private const long MaxOverrideTotalBytes = 1024L * 1024 * 1024;
+    private const long MaxPackDownloadBytes = 3L * 1024 * 1024 * 1024;
     private const int MaxOverrideEntries = 20_000;
 
     private static readonly HashSet<string> AllowedModrinthExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -65,10 +66,18 @@ public static class MinecraftPackImportService
 
         if (descriptor.Platform == "modrinth")
         {
+            // Validate every manifest entry and the aggregate size before downloading anything.
+            var planned = new List<(PackFileReference Item, string Destination, string Extension, Uri DownloadUri, long FileSize)>();
+            var destinationPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            long plannedBytes = 0;
+
             foreach (var item in requiredFiles)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var destination = MinecraftPackManifestReader.SafeDestination(profile.GameDirectory, item.RelativePath);
+                if (!destinationPaths.Add(destination))
+                    throw new InvalidDataException("Modrinth manifest содержит повторяющийся путь: " + item.RelativePath);
+
                 var extension = Path.GetExtension(destination);
                 if (!AllowedModrinthExtensions.Contains(extension))
                     throw new InvalidDataException("Сборка содержит неподдерживаемый тип файла: " + extension);
@@ -76,34 +85,49 @@ public static class MinecraftPackImportService
                     throw new InvalidDataException("В манифесте Modrinth отсутствует ссылка для " + item.RelativePath);
                 if (string.IsNullOrWhiteSpace(item.Sha512) || item.Sha512.Length != 128 || !item.Sha512.All(Uri.IsHexDigit))
                     throw new InvalidDataException("В манифесте Modrinth отсутствует корректный SHA-512 для " + item.RelativePath);
-                if (item.FileSize is < 0 or > MaxModFileBytes)
-                    throw new InvalidDataException("Недопустимый размер файла в сборке: " + item.RelativePath);
+                if (item.FileSize is not long fileSize || fileSize <= 0 || fileSize > MaxModFileBytes)
+                    throw new InvalidDataException("В манифесте Modrinth отсутствует корректный размер файла: " + item.RelativePath);
+
+                plannedBytes = checked(plannedBytes + fileSize);
+                if (plannedBytes > MaxPackDownloadBytes)
+                    throw new InvalidDataException("Суммарный размер модов сборки превышает лимит 3 ГБ.");
 
                 if (!Uri.TryCreate(item.DownloadUrl, UriKind.Absolute, out var uri) ||
                     uri.Scheme != Uri.UriSchemeHttps ||
                     !string.Equals(uri.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase))
                     throw new SecurityException("NovaCraft разрешает импорт Modrinth только с HTTPS cdn.modrinth.com. Заблокирован файл: " + item.RelativePath);
 
-                Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                if (File.Exists(destination))
+                planned.Add((item, destination, extension, uri, fileSize));
+            }
+
+            foreach (var entry in planned)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var item = entry.Item;
+                Directory.CreateDirectory(Path.GetDirectoryName(entry.Destination)!);
+                if (File.Exists(entry.Destination))
                     throw new IOException("Файл уже существует в этой новой сборке: " + item.RelativePath);
 
                 var fileProgress = new Progress<double>(value =>
-                    progress?.Report(new PackImportProgress("Загрузка Modrinth", completed, total, Path.GetFileName(destination), value)));
+                    progress?.Report(new PackImportProgress("Загрузка Modrinth", completed, total, Path.GetFileName(entry.Destination), value)));
 
                 await DownloadService.DownloadVerifiedAsync(
                     http,
-                    uri,
-                    item.Sha512,
-                    Path.GetDirectoryName(destination)!,
-                    Path.GetFileName(destination),
-                    new[] { extension },
-                    MaxModFileBytes,
+                    entry.DownloadUri,
+                    item.Sha512!,
+                    Path.GetDirectoryName(entry.Destination)!,
+                    Path.GetFileName(entry.Destination),
+                    new[] { entry.Extension },
+                    entry.FileSize,
                     fileProgress,
                     cancellationToken);
 
+                var downloadedLength = new FileInfo(entry.Destination).Length;
+                if (downloadedLength != entry.FileSize)
+                    throw new InvalidDataException("Размер загруженного файла не совпадает с манифестом: " + item.RelativePath);
+
                 completed++;
-                progress?.Report(new PackImportProgress("Файл проверен и установлен", completed, total, Path.GetFileName(destination), 1));
+                progress?.Report(new PackImportProgress("Файл проверен и установлен", completed, total, Path.GetFileName(entry.Destination), 1));
             }
         }
         else if (descriptor.Platform == "curseforge")
@@ -112,6 +136,11 @@ public static class MinecraftPackImportService
             {
                 Timeout = TimeSpan.FromMinutes(3)
             };
+
+            // Resolve and validate all CurseForge metadata first, before the first file is downloaded.
+            var resolved = new List<(PackFileReference Item, CurseForgeFileMetadata Metadata, string Destination)>();
+            var destinationPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            long plannedBytes = 0;
 
             foreach (var item in requiredFiles)
             {
@@ -124,20 +153,39 @@ public static class MinecraftPackImportService
                 var fileName = metadata.FileName;
                 if (string.IsNullOrWhiteSpace(fileName) ||
                     !string.Equals(Path.GetFileName(fileName), fileName, StringComparison.Ordinal) ||
+                    fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 ||
                     !fileName.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
                     throw new InvalidDataException("CurseForge вернул некорректное имя JAR для " + projectId + " / " + fileId);
                 if (string.IsNullOrWhiteSpace(metadata.DownloadUrl))
                     throw new InvalidOperationException("CurseForge не разрешил стороннюю загрузку файла " + fileName + ". Он пропущен политикой автора или недоступен для этой программы.");
+                if (!Uri.TryCreate(metadata.DownloadUrl, UriKind.Absolute, out var downloadUri) ||
+                    downloadUri.Scheme != Uri.UriSchemeHttps ||
+                    !IsCurseForgeCdn(downloadUri.Host))
+                    throw new SecurityException("CurseForge вернул ссылку за пределами разрешённого HTTPS CDN: " + fileName);
                 if (string.IsNullOrWhiteSpace(metadata.Sha1) || metadata.Sha1.Length != 40 || !metadata.Sha1.All(Uri.IsHexDigit))
                     throw new InvalidDataException("CurseForge не предоставил корректный SHA-1 для " + fileName);
-                if (metadata.FileSize is < 0 or > MaxModFileBytes)
-                    throw new InvalidDataException("Недопустимый размер файла CurseForge: " + fileName);
+                if (metadata.FileSize is not long fileSize || fileSize <= 0 || fileSize > MaxModFileBytes)
+                    throw new InvalidDataException("CurseForge не предоставил корректный размер файла: " + fileName);
 
-                var modsDirectory = Path.Combine(profile.GameDirectory, "mods");
-                Directory.CreateDirectory(modsDirectory);
+                plannedBytes = checked(plannedBytes + fileSize);
+                if (plannedBytes > MaxPackDownloadBytes)
+                    throw new InvalidDataException("Суммарный размер модов CurseForge-сборки превышает лимит 3 ГБ.");
+
                 var destination = MinecraftPackManifestReader.SafeDestination(profile.GameDirectory, "mods/" + fileName);
+                if (!destinationPaths.Add(destination))
+                    throw new InvalidDataException("В CurseForge-сборке есть два файла с одинаковым именем: " + fileName);
                 if (File.Exists(destination))
                     throw new IOException("Файл уже существует в этой сборке: " + fileName);
+
+                resolved.Add((item, metadata, destination));
+            }
+
+            foreach (var entry in resolved)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var metadata = entry.Metadata;
+                var fileName = metadata.FileName;
+                Directory.CreateDirectory(Path.GetDirectoryName(entry.Destination)!);
 
                 var fileProgress = new Progress<double>(value =>
                     progress?.Report(new PackImportProgress("Загрузка CurseForge", completed, total, fileName, value)));
@@ -147,9 +195,12 @@ public static class MinecraftPackImportService
                     metadata.DownloadUrl,
                     curseForgeApiKey!,
                     metadata.Sha1,
-                    destination,
+                    entry.Destination,
                     fileProgress,
                     cancellationToken);
+
+                if (new FileInfo(entry.Destination).Length != metadata.FileSize)
+                    throw new InvalidDataException("Размер загруженного файла не совпадает с метаданными CurseForge: " + fileName);
 
                 completed++;
                 progress?.Report(new PackImportProgress("Файл проверен и установлен", completed, total, fileName, 1));
