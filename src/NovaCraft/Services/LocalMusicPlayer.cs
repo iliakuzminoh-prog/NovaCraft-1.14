@@ -41,7 +41,7 @@ internal static class MusicPlaylistRules
                 if (seen.Add(fullPath))
                     normalized.Add(fullPath);
             }
-            catch (Exception ex) when (ex is ArgumentException or IOException or NotSupportedException)
+            catch (Exception)
             {
                 // Invalid legacy entries are skipped; they are never opened.
             }
