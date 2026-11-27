@@ -3437,6 +3437,7 @@ internal sealed class MainForm : Form
 
     async Task RunAutoRepairAsync(Label result)
     {
+        LauncherDownloadTask? repairTask = null;
         try
         {
             SetBusy(true, "Проверяю настройки и файлы…");
@@ -3462,7 +3463,14 @@ internal sealed class MainForm : Form
             var selected = version.SelectedItem?.ToString() ?? settings.LastVersion;
             if (!string.IsNullOrWhiteSpace(selected))
             {
-                await InstallSelectedLoaderAsync(selected);
+                repairTask = BeginDownloadTask(
+                    "Восстановление Minecraft " + selected,
+                    "Minecraft " + selected,
+                    "CmlLib",
+                    ActiveBuild.Name);
+                UpdateDownloadTask(repairTask, "Устанавливается", 0.01, "Проверка активной сборки");
+                await InstallSelectedLoaderAsync(selected, repairTask);
+                CompleteDownloadTask(repairTask, "Файлы версии и загрузчика проверены и восстановлены");
                 notes.Add("Официальные файлы выбранной версии проверены и недостающие компоненты восстановлены.");
             }
             settings.LastVersion = selected;
@@ -3473,6 +3481,8 @@ internal sealed class MainForm : Form
         }
         catch (Exception ex)
         {
+            if (repairTask != null)
+                FailDownloadTask(repairTask, ex);
             WriteLog("Автоисправление: " + ex);
             result.Text = "Не все проблемы удалось исправить автоматически.\n" + FriendlyError(ex) + "\n\nПодробности доступны в техническом отчёте.";
             status.Text = "Нужна дополнительная проверка";
