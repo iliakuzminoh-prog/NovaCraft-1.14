@@ -722,7 +722,8 @@ internal sealed class MainForm : Form
             ("⌂  Главная", HomePage),
             ("◈  Версии", VersionsPage),
             ("▣  Сборки", BuildsPage),
-            ("✦  Моды", ModsPage),
+            ("✦  Моды Modrinth", ModsPage),
+            ("✦  Моды CurseForge", CurseForgeCatalogPage),
             ("▧  Ресурспаки", () => CatalogPage("Ресурспаки Modrinth", "resourcepack")),
             ("✧  Шейдеры", () => CatalogPage("Шейдеры Modrinth", "shader")),
             ("▦  Датапаки", () => CatalogPage("Датапаки Modrinth", "datapack")),
@@ -740,8 +741,8 @@ internal sealed class MainForm : Form
         {
             [0] = "ИГРА",
             [3] = "КОНТЕНТ",
-            [8] = "ИНСТРУМЕНТЫ",
-            [14] = "АКТИВНОСТЬ"
+            [9] = "ИНСТРУМЕНТЫ",
+            [15] = "АКТИВНОСТЬ"
         };
 
         foreach (var item in pages.Select((value, index) => (value, index)))
@@ -1280,6 +1281,430 @@ internal sealed class MainForm : Form
             var nearBottom = modCards.VerticalScroll.Value >= Math.Max(0, modCards.VerticalScroll.Maximum - modCards.ClientSize.Height - 180);
             if (nearBottom) await LoadModFeedAsync(false);
         };
+        return p;
+    }
+
+    TabPage CurseForgeCatalogPage()
+    {
+        var p = new TabPage("CurseForge") { BackColor = Color.FromArgb(12, 14, 23), Padding = new Padding(20) };
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = 162, BackColor = Color.FromArgb(12, 14, 23) };
+        var heading = new Label
+        {
+            Text = "CURSEFORGE MOD CATALOG",
+            AutoSize = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 23, FontStyle.Bold),
+            Location = new Point(4, 2)
+        };
+        var description = new Label
+        {
+            Text = "Официальный каталог CurseForge · фильтр по активной сборке · разрешение автора проверяется перед загрузкой",
+            AutoSize = false,
+            Size = new Size(900, 22),
+            AutoEllipsis = true,
+            ForeColor = Color.FromArgb(145, 155, 178),
+            Location = new Point(7, 40)
+        };
+        var keyLabel = new Label
+        {
+            Text = "API-ключ",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(181, 190, 207),
+            Location = new Point(5, 76)
+        };
+        var keyInput = new TextBox
+        {
+            PlaceholderText = "Вставь одобренный API-ключ CurseForge",
+            UseSystemPasswordChar = true,
+            Location = new Point(82, 71),
+            Width = 390,
+            Height = 34
+        };
+        var connect = ModernButton("Подключить", 120, 34);
+        connect.Location = new Point(480, 70);
+        var getKey = new Button
+        {
+            Text = "Где получить ключ?",
+            Location = new Point(610, 70),
+            Width = 155,
+            Height = 34,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(38, 43, 63),
+            ForeColor = Color.White
+        };
+        getKey.FlatAppearance.BorderSize = 0;
+        var search = new TextBox
+        {
+            PlaceholderText = "⌕  Поиск модов CurseForge…",
+            Location = new Point(4, 116),
+            Width = 430,
+            Height = 36
+        };
+        var find = ModernButton("Найти", 90, 36);
+        find.Location = new Point(442, 116);
+        var sort = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Location = new Point(542, 116),
+            Width = 165,
+            Height = 36,
+            BackColor = Color.FromArgb(27, 30, 47),
+            ForeColor = Color.White
+        };
+        sort.Items.AddRange(new object[] { "Популярные", "Обновлённые", "Новые релизы" });
+        sort.SelectedIndex = 0;
+        var activeBuildCaption = new Label
+        {
+            Text = "",
+            AutoSize = false,
+            Location = new Point(720, 119),
+            Size = new Size(300, 28),
+            ForeColor = Color.FromArgb(145, 155, 178),
+            AutoEllipsis = true
+        };
+        toolbar.Controls.AddRange(new Control[] { heading, description, keyLabel, keyInput, connect, getKey, search, find, sort, activeBuildCaption });
+
+        void LayoutToolbar()
+        {
+            var width = Math.Max(560, toolbar.ClientSize.Width - 8);
+            description.Size = new Size(width - 8, 22);
+            keyInput.Width = Math.Max(180, Math.Min(390, width - 580));
+            connect.Left = keyInput.Right + 8;
+            getKey.Left = connect.Right + 8;
+            search.Width = Math.Max(180, Math.Min(430, width - 620));
+            find.Left = search.Right + 8;
+            sort.Left = find.Right + 8;
+            activeBuildCaption.Left = sort.Right + 12;
+            activeBuildCaption.Width = Math.Max(170, width - activeBuildCaption.Left + 4);
+        }
+        toolbar.Resize += (_, _) => LayoutToolbar();
+        LayoutToolbar();
+
+        var results = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            WrapContents = true,
+            FlowDirection = FlowDirection.LeftToRight,
+            Padding = new Padding(4, 8, 10, 60),
+            BackColor = Color.FromArgb(12, 14, 23)
+        };
+
+        string apiKey = "";
+        string query = "";
+        var offset = 0;
+        var totalCount = 0L;
+        var loading = false;
+        var connected = false;
+
+        int CurrentSortField() => sort.SelectedIndex switch { 1 => 3, 2 => 11, _ => 2 };
+
+        async Task LoadPage(bool reset)
+        {
+            if (loading) return;
+            if (string.IsNullOrWhiteSpace(apiKey))
+            {
+                status.Text = "Вставь API-ключ и нажми «Подключить». Ключ хранится только в памяти текущего запуска.";
+                return;
+            }
+
+            loading = true;
+            try
+            {
+                if (reset)
+                {
+                    offset = 0;
+                    totalCount = 0;
+                    results.Controls.Clear();
+                }
+
+                var build = ActiveBuild;
+                if (build.Loader == "vanilla")
+                    throw new InvalidOperationException("Для каталога модов выбери Fabric, Forge или Quilt в активной сборке.");
+
+                activeBuildCaption.Text = $"Сборка: {build.MinecraftVersion} · {build.Loader.ToUpperInvariant()}";
+                status.Text = offset == 0 ? "Подключаюсь к официальному API CurseForge…" : "Загружаю следующую страницу CurseForge…";
+
+                using var curseForgeHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                {
+                    Timeout = TimeSpan.FromMinutes(2)
+                };
+                var page = await CurseForgeCatalogService.SearchModsAsync(
+                    curseForgeHttp,
+                    apiKey,
+                    query,
+                    build.MinecraftVersion,
+                    build.Loader,
+                    offset,
+                    CurrentSortField(),
+                    CancellationToken.None);
+
+                if (reset)
+                    totalCount = page.TotalCount;
+
+                if (page.Projects.Count == 0)
+                {
+                    status.Text = offset == 0 ? "Ничего не найдено для этой версии и загрузчика." : "Больше результатов нет.";
+                    return;
+                }
+
+                using var iconGate = new SemaphoreSlim(3);
+                var iconTasks = new List<Task>();
+
+                foreach (var project in page.Projects)
+                {
+                    var card = ModernCard(410, 176, project.Name, Color.FromArgb(22, 25, 39));
+                    card.Margin = new Padding(7);
+                    var iconBox = new PictureBox
+                    {
+                        Location = new Point(18, 50),
+                        Size = new Size(62, 62),
+                        BackColor = Color.FromArgb(31, 35, 50),
+                        SizeMode = PictureBoxSizeMode.Zoom
+                    };
+                    var summary = new Label
+                    {
+                        Text = string.IsNullOrWhiteSpace(project.Summary) ? "Описание отсутствует." : project.Summary,
+                        Location = new Point(92, 48),
+                        Size = new Size(300, 56),
+                        ForeColor = Color.FromArgb(190, 198, 215),
+                        AutoEllipsis = true
+                    };
+                    var metrics = new Label
+                    {
+                        Text = $"Загрузки: {project.DownloadCount:N0} · ID: {project.Id}",
+                        Location = new Point(92, 107),
+                        Size = new Size(300, 22),
+                        ForeColor = Color.FromArgb(139, 151, 175),
+                        AutoEllipsis = true
+                    };
+                    var install = ModernButton(project.AllowsDistribution ? "Установить в эту сборку" : "Раздача запрещена автором", 205, 34);
+                    install.Location = new Point(18, 130);
+                    install.Enabled = project.AllowsDistribution && project.IsAvailable;
+                    var openSite = new Button
+                    {
+                        Text = "Страница проекта",
+                        Location = new Point(232, 130),
+                        Size = new Size(160, 34),
+                        FlatStyle = FlatStyle.Flat,
+                        BackColor = Color.FromArgb(38, 43, 63),
+                        ForeColor = Color.White
+                    };
+                    openSite.FlatAppearance.BorderSize = 0;
+
+                    install.Click += async (_, _) =>
+                    {
+                        if (isBusy || string.IsNullOrWhiteSpace(apiKey)) return;
+                        if (!project.AllowsDistribution)
+                        {
+                            MessageBox.Show("Автор проекта не разрешил стороннюю раздачу. NovaCraft не будет обходить это ограничение.", "CurseForge", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            return;
+                        }
+
+                        var targetBuild = ActiveBuild;
+                        if (targetBuild.Loader == "vanilla")
+                        {
+                            MessageBox.Show("Сначала выбери Fabric, Forge или Quilt.", "Загрузчик не выбран", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                            return;
+                        }
+
+                        LauncherDownloadTask? downloadTask = null;
+                        try
+                        {
+                            SetBusy(true, "Проверяю совместимые файлы " + project.Name + "…");
+                            using var downloadHttp = new HttpClient(new HttpClientHandler { AllowAutoRedirect = false })
+                            {
+                                Timeout = TimeSpan.FromMinutes(3)
+                            };
+
+                            var files = await CurseForgeCatalogService.GetCompatibleFilesAsync(
+                                downloadHttp,
+                                apiKey,
+                                project.Id,
+                                targetBuild.MinecraftVersion,
+                                targetBuild.Loader,
+                                CancellationToken.None);
+
+                            var selectedFile = files.FirstOrDefault(file =>
+                                file.IsAvailable &&
+                                file.GameVersions.Contains(targetBuild.MinecraftVersion, StringComparer.OrdinalIgnoreCase) &&
+                                file.FileSize > 0 &&
+                                file.FileSize <= 250L * 1024 * 1024 &&
+                                file.Sha1.Length == 40 &&
+                                file.Sha1.All(Uri.IsHexDigit));
+
+                            if (selectedFile == null)
+                                throw new InvalidOperationException("CurseForge не вернул доступный JAR с проверенной SHA-1 для активной версии Minecraft и выбранного загрузчика.");
+
+                            if (string.IsNullOrWhiteSpace(selectedFile.DownloadUrl))
+                            {
+                                selectedFile = selectedFile with
+                                {
+                                    DownloadUrl = await CurseForgeCatalogService.GetFileDownloadUrlAsync(
+                                        downloadHttp, apiKey, project.Id, selectedFile.Id, CancellationToken.None)
+                                };
+                            }
+
+                            var fileName = selectedFile.FileName;
+                            var modsDirectory = Path.Combine(targetBuild.GameDirectory, "mods");
+                            Directory.CreateDirectory(modsDirectory);
+                            var destination = Path.GetFullPath(Path.Combine(modsDirectory, fileName));
+                            if (!destination.StartsWith(Path.GetFullPath(modsDirectory) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                                throw new InvalidDataException("Путь файла вышел за пределы папки mods.");
+                            if (File.Exists(destination))
+                                throw new IOException("Такой файл уже есть в папке mods активной сборки. Существующий файл не перезаписан.");
+
+                            downloadTask = BeginDownloadTask(
+                                project.Name,
+                                fileName,
+                                "CurseForge",
+                                targetBuild.Name);
+                            var progress = new Progress<double>(value =>
+                                UpdateDownloadTask(downloadTask, "Загружается", value, "CurseForge · SHA-1 · " + targetBuild.MinecraftVersion));
+
+                            await MinecraftPackImportService.DownloadCurseForgeFileAsync(
+                                downloadHttp,
+                                selectedFile.DownloadUrl,
+                                apiKey,
+                                selectedFile.Sha1,
+                                destination,
+                                progress,
+                                CancellationToken.None);
+
+                            if (new FileInfo(destination).Length != selectedFile.FileSize)
+                            {
+                                File.Delete(destination);
+                                throw new InvalidDataException("Размер загруженного файла не совпал с метаданными CurseForge; файл удалён.");
+                            }
+
+                            CompleteDownloadTask(downloadTask, "JAR установлен в mods активной сборки после проверки SHA-1 и ZIP-сигнатуры");
+                            WriteLog($"CurseForge: установлен {fileName} в сборку {targetBuild.Name}.");
+                            status.Text = "Мод CurseForge установлен. Зависимости, если они нужны, пока не устанавливаются автоматически.";
+                            MessageBox.Show(
+                                "Мод установлен в папку mods выбранной сборки. Проверь описание проекта: дополнительные зависимости могут требовать отдельной установки.",
+                                "Установка CurseForge",
+                                MessageBoxButtons.OK,
+                                MessageBoxIcon.Information);
+                        }
+                        catch (Exception ex)
+                        {
+                            if (downloadTask != null) FailDownloadTask(downloadTask, ex);
+                            Fail("Не удалось установить мод CurseForge", ex);
+                        }
+                        finally
+                        {
+                            SetBusy(false);
+                        }
+                    };
+
+                    openSite.Click += (_, _) =>
+                    {
+                        var url = project.WebsiteUrl;
+                        if (Uri.TryCreate(url, UriKind.Absolute, out var uri) &&
+                            uri.Scheme == Uri.UriSchemeHttps &&
+                            (uri.Host.Equals("curseforge.com", StringComparison.OrdinalIgnoreCase) ||
+                             uri.Host.EndsWith(".curseforge.com", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            try { Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true }); }
+                            catch (Exception ex) { MessageBox.Show("Не удалось открыть CurseForge: " + ex.Message); }
+                        }
+                    };
+
+                    card.Controls.AddRange(new Control[] { iconBox, summary, metrics, install, openSite });
+                    results.Controls.Add(card);
+                    if (!string.IsNullOrWhiteSpace(project.ThumbnailUrl))
+                        iconTasks.Add(LoadCurseForgeProjectIconAsync(iconBox, project.ThumbnailUrl, iconGate));
+                }
+
+                offset += page.Projects.Count;
+                await Task.WhenAll(iconTasks);
+                status.Text = $"CurseForge: показано {Math.Min(offset, totalCount):N0} из {totalCount:N0}. Активная сборка: {ActiveBuild.Name}.";
+            }
+            catch (Exception ex)
+            {
+                if (ex is UnauthorizedAccessException)
+                {
+                    apiKey = "";
+                    connected = false;
+                    status.Text = "CurseForge не принял ключ. Проверь его; значение очищено из памяти страницы.";
+                }
+                else
+                {
+                    status.Text = "Каталог CurseForge недоступен: " + ex.Message;
+                }
+                Fail("Ошибка каталога CurseForge", ex);
+            }
+            finally
+            {
+                loading = false;
+            }
+        }
+
+        async Task ConnectAndSearch()
+        {
+            var candidate = keyInput.Text.Trim();
+            if (string.IsNullOrWhiteSpace(candidate))
+            {
+                status.Text = "Введи свой одобренный API-ключ CurseForge.";
+                return;
+            }
+
+            apiKey = candidate;
+            connected = true;
+            query = search.Text.Trim();
+            offset = 0;
+            await LoadPage(true);
+            if (!string.IsNullOrWhiteSpace(apiKey))
+                status.Text = "Ключ принят для текущего запуска. Он не записывается в settings.json.";
+        }
+
+        connect.Click += async (_, _) => await ConnectAndSearch();
+        getKey.Click += (_, _) =>
+        {
+            try { Process.Start(new ProcessStartInfo("https://console.curseforge.com/") { UseShellExecute = true }); }
+            catch (Exception ex) { MessageBox.Show("Не удалось открыть консоль CurseForge: " + ex.Message); }
+        };
+        find.Click += async (_, _) =>
+        {
+            query = search.Text.Trim();
+            offset = 0;
+            await LoadPage(true);
+        };
+        search.KeyDown += async (_, e) =>
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            e.SuppressKeyPress = true;
+            query = search.Text.Trim();
+            offset = 0;
+            await LoadPage(true);
+        };
+        sort.SelectedIndexChanged += async (_, _) =>
+        {
+            if (!connected) return;
+            offset = 0;
+            await LoadPage(true);
+        };
+
+        results.Scroll += async (_, e) =>
+        {
+            if (e.ScrollOrientation != ScrollOrientation.VerticalScroll || loading || offset >= totalCount)
+                return;
+            var nearBottom = results.VerticalScroll.Value >=
+                Math.Max(0, results.VerticalScroll.Maximum - results.ClientSize.Height - 220);
+            if (nearBottom)
+                await LoadPage(false);
+        };
+
+        p.Enter += (_, _) =>
+        {
+            var build = ActiveBuild;
+            activeBuildCaption.Text = $"Сборка: {build.MinecraftVersion} · {build.Loader.ToUpperInvariant()}";
+            if (!connected)
+                status.Text = "Введи одобренный API-ключ CurseForge. Он используется только в памяти и не сохраняется.";
+        };
+
+        p.Controls.Add(results);
+        p.Controls.Add(toolbar);
         return p;
     }
 
