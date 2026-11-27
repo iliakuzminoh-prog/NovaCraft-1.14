@@ -2753,7 +2753,8 @@ internal sealed class MainForm : Form
         });
 
         var memory = SystemMemoryStatus.Read();
-        var recommended = PerformanceProfileRules.RecommendedHeapMb(memory);
+        var recommendedHeap = PerformanceProfileRules.RecommendedHeapMb(memory);
+        var recommended = recommendedHeap ?? settings.MaximumRamMb;
         var memoryInfo = new Label
         {
             Text = PerformanceProfileRules.Describe(memory),
@@ -2768,15 +2769,20 @@ internal sealed class MainForm : Form
         autoCard.Location = new Point(24, 145);
         autoCard.Controls.Add(new Label
         {
-            Text = $"Текущий лимит: {settings.MaximumRamMb} МБ\nРекомендация для текущей свободной памяти: {recommended} МБ\nЛимит пересчитывается по фактической памяти Windows, а не по выдуманному FPS-профилю.",
+            Text = recommendedHeap.HasValue
+                ? $"Текущий лимит: {settings.MaximumRamMb} МБ\nРекомендация для текущей свободной памяти: {recommendedHeap.Value} МБ\nЛимит пересчитывается по фактической памяти Windows, а не по выдуманному FPS-профилю."
+                : $"Текущий лимит: {settings.MaximumRamMb} МБ\nWindows не предоставила сведения об ОЗУ. Автоподбор выключен.",
             AutoSize = true,
             ForeColor = Color.FromArgb(190, 198, 215),
             Location = new Point(18, 50)
         });
         var apply = ModernButton("Применить рекомендацию", 220, 38);
         apply.Location = new Point(18, 132);
+        apply.Enabled = recommendedHeap.HasValue;
         apply.Click += (_, _) =>
         {
+            if (!recommendedHeap.HasValue)
+                return;
             settings.MaximumRamMb = recommended;
             settings.FpsBoost = false;
             if (ram.Minimum <= recommended && ram.Maximum >= recommended)
@@ -4079,13 +4085,15 @@ internal sealed class MainForm : Form
 
             var memory = SystemMemoryStatus.Read();
             var safeLimit = PerformanceProfileRules.RecommendedHeapMb(memory);
-            if (settings.MaximumRamMb > safeLimit)
+            if (!safeLimit.HasValue)
+                notes.Add("Windows не предоставила сведения о физической памяти; лимит Java оставлен без изменений.");
+            else if (settings.MaximumRamMb > safeLimit.Value)
             {
-                settings.MaximumRamMb = safeLimit;
-                ram.Value = Math.Clamp(safeLimit, (int)ram.Minimum, (int)ram.Maximum);
-                notes.Add("Лимит памяти уменьшен до безопасного значения для доступной памяти.");
+                settings.MaximumRamMb = safeLimit.Value;
+                ram.Value = Math.Clamp(safeLimit.Value, (int)ram.Minimum, (int)ram.Maximum);
+                notes.Add("Лимит памяти уменьшен по данным о свободной физической памяти.");
             }
-            else notes.Add("Лимит памяти выглядит допустимым.");
+            else notes.Add("Лимит памяти не превышает рассчитанную рекомендацию.");
 
             var selected = version.SelectedItem?.ToString() ?? settings.LastVersion;
             if (!string.IsNullOrWhiteSpace(selected))
