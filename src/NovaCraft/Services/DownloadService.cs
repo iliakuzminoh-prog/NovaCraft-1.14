@@ -58,6 +58,10 @@ public static class DownloadService
         {
             using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead, ct);
             response.EnsureSuccessStatusCode();
+            var finalUri = response.RequestMessage?.RequestUri;
+            if (finalUri == null || finalUri.Scheme != Uri.UriSchemeHttps ||
+                !string.Equals(finalUri.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase))
+                throw new SecurityException("Перенаправление Modrinth вышло за пределы cdn.modrinth.com.");
 
             if (response.Content.Headers.ContentLength is long length && length > maxBytes)
                 throw new InvalidDataException($"Файл превышает лимит {maxBytes / (1024 * 1024)} МБ.");
