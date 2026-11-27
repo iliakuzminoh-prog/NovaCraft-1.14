@@ -4026,6 +4026,60 @@ internal sealed class MainForm : Form
         return output.ToArray();
     }
 
+    async Task LoadCurseForgeProjectIconAsync(PictureBox picture, string? iconUrl, SemaphoreSlim gate)
+    {
+        if (string.IsNullOrWhiteSpace(iconUrl) ||
+            !Uri.TryCreate(iconUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps ||
+            !string.Equals(uri.Host, "media.forgecdn.net", StringComparison.OrdinalIgnoreCase) ||
+            !string.IsNullOrEmpty(uri.UserInfo))
+            return;
+
+        await gate.WaitAsync();
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, uri);
+            using var response = await http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
+            if (!response.IsSuccessStatusCode)
+                return;
+
+            var finalUri = response.RequestMessage?.RequestUri;
+            if (finalUri == null ||
+                finalUri.Scheme != Uri.UriSchemeHttps ||
+                !string.Equals(finalUri.Host, "media.forgecdn.net", StringComparison.OrdinalIgnoreCase))
+                return;
+
+            if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024))
+                return;
+            if (response.Content.Headers.ContentType?.MediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) != true)
+                return;
+
+            var bytes = await ReadBoundedContentAsync(response.Content, 5 * 1024 * 1024);
+            if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024)
+                return;
+
+            using var stream = new MemoryStream(bytes);
+            using var source = Image.FromStream(stream);
+            var bitmap = new Bitmap(source);
+            if (picture.IsDisposed)
+            {
+                bitmap.Dispose();
+                return;
+            }
+
+            picture.Image?.Dispose();
+            picture.Image = bitmap;
+        }
+        catch
+        {
+            // Missing or unavailable artwork must not break the catalog.
+        }
+        finally
+        {
+            gate.Release();
+        }
+    }
+
     async Task LoadProjectIconAsync(PictureBox picture, string? iconUrl, SemaphoreSlim gate)
     {
         if (string.IsNullOrWhiteSpace(iconUrl) || !Uri.TryCreate(iconUrl, UriKind.Absolute, out var uri) ||
