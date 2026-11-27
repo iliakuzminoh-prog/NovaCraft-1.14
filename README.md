@@ -51,12 +51,13 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 - Windows CI includes DrawToBitmap smoke tests for the 3D preview with both atlas formats and both arm models; this is a rendering smoke test, not a screenshot-based proof of visual parity with the concept artwork.
 - Skin source files are keyed by offline profile ID under `%LOCALAPPDATA%\\NovaCraft\\skins\\<profileId>.png`.
 - Optional CustomSkinLoader / Skin Bridge support. A local PNG is not automatically uploaded to a skin website; other clients see it only when their skin mechanism/server supports it.
-- Custom OGG background-music resource-pack generation. The generated pack currently uses pack format 34 (Minecraft 1.21.1); compatibility with other versions is not guaranteed. The user must enable the pack in Minecraft.
+- Local MP3/WAV player using the Windows Media Control Interface (MCI): multi-file playlist, add/remove, play/pause/resume/stop, previous/next, automatic track advance and volume where the Windows audio device exposes MCI volume control. Playlist paths are saved in settings; audio files are never copied or uploaded.
+- Custom OGG background-music resource-pack generation. The generated pack currently uses pack format 34 (Minecraft 1.21.1); compatibility with other versions is not guaranteed. The user must enable the pack in Minecraft. This replaces in-game background music; it is separate from the launcher player.
 
 ### Diagnostics and performance
 
 - Basic diagnostics for write access, Java presence, RAM settings and selected Minecraft/loader files.
-- The performance page changes Minecraft/JVM launch settings only. No custom FPS mod is included or claimed.
+- The performance page reads physical/available RAM from Windows and calculates a conservative Java heap recommendation, leaving headroom for Windows. It changes only the Minecraft Java heap setting. No custom FPS mod is bundled or claimed; it links to Modrinth's optimization category and does not promise a frame-rate increase.
 - NovaCraft does not change Windows registry settings, disable security software, add itself to startup or run hidden background services.
 - Driver repair is not implemented. Diagnostics must not silently download or install drivers.
 
@@ -67,7 +68,7 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 - Exact Fabric and Quilt loader-version pinning from imported pack manifests.
 - Automatic Java runtime installation.
 - A full skin library, cloud upload and universal skin visibility on offline/third-party servers.
-- A full music player with a persistent playlist and playback engine.
+- Windows MCI playback has not yet been manually exercised on the user's particular Windows installation; available MP3 codecs and audio-device volume support can vary.
 - 3D UI animation and verified visual parity with the eight-screen UI reference shown in the project conversation on 2026-11-27.
 - An original Java optimization mod tested on Radeon HD 6900 hardware or low-memory systems.
 - Automatic graphics-driver repair or installation.
@@ -80,7 +81,7 @@ The GitHub Actions workflow runs:
 
 1. .NET restore.
 2. Build with warnings treated as errors.
-3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests, build-profile migration/isolation and 3D skin-preview rendering.
+3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests, build-profile migration/isolation, 3D skin-preview rendering, local music playlist validation and RAM recommendation rules.
 4. Self-contained Windows x64 publish and EXE size check.
 5. Portable ZIP and Inno Setup installer packaging.
 6. Installer smoke test: install, verify EXE, start the application process, uninstall and verify removal.
