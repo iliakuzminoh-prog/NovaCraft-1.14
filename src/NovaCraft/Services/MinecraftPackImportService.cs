@@ -348,6 +348,7 @@ public static class MinecraftPackImportService
             throw new InvalidDataException("В overrides слишком много файлов.");
 
         long totalBytes = 0;
+        var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var entry in entries)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -356,6 +357,8 @@ public static class MinecraftPackImportService
                 continue;
 
             ValidateOverridePath(relativePath);
+            if (!seenPaths.Add(relativePath))
+                throw new InvalidDataException("В overrides обнаружены повторяющиеся пути: " + relativePath);
 
             var unixType = (entry.ExternalAttributes >> 16) & 0xF000;
             if (unixType == 0xA000)
@@ -364,10 +367,6 @@ public static class MinecraftPackImportService
             if (entry.Length < 0 || entry.Length > MaxOverrideFileBytes)
                 throw new InvalidDataException("Один файл overrides превышает 256 МБ.");
 
-            totalBytes = checked(totalBytes + entry.Length);
-            if (totalBytes > MaxOverrideTotalBytes)
-                throw new InvalidDataException("Общий размер overrides превышает 1 ГБ.");
-
             var destination = MinecraftPackManifestReader.SafeDestination(destinationRoot, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             var temporary = destination + ".novacraft-import";
@@ -375,8 +374,32 @@ public static class MinecraftPackImportService
             try
             {
                 await using var input = entry.Open();
-                await using var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 81920, true);
-                await input.CopyToAsync(output, cancellationToken);
+                await using var output = new FileStream(
+                    temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
+                    81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                var buffer = new byte[81920];
+                long copiedBytes = 0;
+
+                while (true)
+                {
+                    var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+                    if (read == 0) break;
+
+                    copiedBytes = checked(copiedBytes + read);
+                    totalBytes = checked(totalBytes + read);
+                    if (copiedBytes > MaxOverrideFileBytes)
+                        throw new InvalidDataException("Распакованный файл overrides превысил 256 МБ.");
+                    if (totalBytes > MaxOverrideTotalBytes)
+                        throw new InvalidDataException("Фактический распакованный размер overrides превысил 1 ГБ.");
+                    if (copiedBytes > entry.Length)
+                        throw new InvalidDataException("ZIP сообщил неверный размер файла overrides.");
+
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                }
+
+                if (copiedBytes != entry.Length)
+                    throw new InvalidDataException("Размер файла overrides не совпадает с ZIP-записью: " + relativePath);
+
                 await output.FlushAsync(cancellationToken);
                 File.Move(temporary, destination, true);
             }
