@@ -2641,16 +2641,55 @@ internal sealed class MainForm : Form
         } catch(Exception ex){Fail("Не удалось получить список версий",ex);}
     }
 
-    async Task<string> InstallSelectedLoaderAsync(string vanillaVersion)
+    static string FormatDownloadBytes(long bytes)
+        => bytes < 1024L * 1024
+            ? $"{bytes / 1024d:0.0} KB"
+            : $"{bytes / (1024d * 1024d):0.0} MB";
+
+    IProgress<ByteProgress>? CreateCmlLibByteProgress(
+        LauncherDownloadTask? task,
+        string phase,
+        double progressStart,
+        double progressRange)
+    {
+        if (task == null) return null;
+
+        return new Progress<ByteProgress>(sample =>
+        {
+            var totalBytes = Math.Max(0L, sample.TotalBytes);
+            var completedBytes = Math.Max(0L, sample.ProgressedBytes);
+            var ratio = totalBytes > 0
+                ? Math.Clamp(completedBytes / (double)totalBytes, 0d, 1d)
+                : 0d;
+            var phaseProgress = Math.Clamp(progressStart + ratio * progressRange, 0d, 0.99d);
+            var monotonicProgress = Math.Max(task.Progress, phaseProgress);
+            var detail = totalBytes > 0
+                ? $"{phase} · {FormatDownloadBytes(completedBytes)} / {FormatDownloadBytes(totalBytes)}"
+                : phase;
+            UpdateDownloadTask(task, "Загружается", monotonicProgress, detail);
+        });
+    }
+
+    async Task<string> InstallSelectedLoaderAsync(string vanillaVersion, LauncherDownloadTask? downloadTask = null)
     {
         var loaderName = settings.ModLoader;
+        var launcherInstance = GetLauncher();
+
         if (loaderName == "vanilla")
         {
-            await GetLauncher().InstallAsync(vanillaVersion);
+            var vanillaProgress = CreateCmlLibByteProgress(downloadTask, "Загрузка Minecraft", 0.05, 0.90);
+            await launcherInstance.InstallAsync(
+                vanillaVersion,
+                new EmptyProgress<InstallerProgressChangedEventArgs>(),
+                vanillaProgress,
+                CancellationToken.None);
             return vanillaVersion;
         }
 
         WriteLog("Установка " + loaderName + " для Minecraft " + vanillaVersion);
+        if (downloadTask != null)
+            UpdateDownloadTask(downloadTask, "Устанавливается", Math.Max(downloadTask.Progress, 0.03), "Подготовка " + loaderName.ToUpperInvariant());
+
         string installedId;
         var path = new MinecraftPath(settings.GameDirectory);
         if (loaderName == "fabric")
@@ -2660,10 +2699,12 @@ internal sealed class MainForm : Form
         }
         else if (loaderName == "forge")
         {
-            var forge = new ForgeInstaller(GetLauncher());
+            var forge = new ForgeInstaller(launcherInstance);
             var forgeOptions = new ForgeInstallOptions
             {
-                InstallerOutput = new Progress<string>(line => WriteLog(line))
+                InstallerOutput = new Progress<string>(line => WriteLog(line)),
+                ByteProgress = CreateCmlLibByteProgress(downloadTask, "Загрузка Forge", 0.05, 0.40),
+                CancellationToken = CancellationToken.None
             };
             installedId = string.IsNullOrWhiteSpace(ActiveBuild.LoaderVersion)
                 ? await forge.Install(vanillaVersion, forgeOptions)
@@ -2676,7 +2717,16 @@ internal sealed class MainForm : Form
         }
         else throw new InvalidOperationException("Неизвестный загрузчик.");
 
-        await GetLauncher().InstallAsync(installedId);
+        if (downloadTask != null)
+            UpdateDownloadTask(downloadTask, "Устанавливается", Math.Max(downloadTask.Progress, 0.48), "Загрузчик готов · проверка библиотек и ресурсов Minecraft");
+
+        var gameProgress = CreateCmlLibByteProgress(downloadTask, "Проверка и загрузка файлов Minecraft", 0.50, 0.45);
+        await launcherInstance.InstallAsync(
+            installedId,
+            new EmptyProgress<InstallerProgressChangedEventArgs>(),
+            gameProgress,
+            CancellationToken.None);
+
         WriteLog("Загрузчик установлен: " + installedId);
         return installedId;
     }
@@ -3420,6 +3470,11 @@ internal sealed class MainForm : Form
         MessageBox.Show(FriendlyError(ex), "NovaCraft — проблема", MessageBoxButtons.OK, MessageBoxIcon.Warning);
     }
 
+}
+
+internal sealed class EmptyProgress<T> : IProgress<T>
+{
+    public void Report(T value) { }
 }
 
 static class AppDiagnostics
