@@ -2246,14 +2246,17 @@ internal sealed class MainForm : Form
     async Task InstallCustomSkinLoaderAsync(Label result)
     {
         if (isBusy) return;
+
+        var targetBuild = ActiveBuild;
+        var targetGameDirectory = Path.GetFullPath(targetBuild.GameDirectory);
+        var game = version.SelectedItem?.ToString() ?? targetBuild.MinecraftVersion;
+        var loader = targetBuild.Loader;
+        LauncherDownloadTask? downloadTask = null;
         try
         {
-            var targetBuild = ActiveBuild;
-            var targetGameDirectory = Path.GetFullPath(targetBuild.GameDirectory);
-            var game = version.SelectedItem?.ToString() ?? targetBuild.MinecraftVersion;
-            var loader = targetBuild.Loader;
             if (loader == "vanilla")
                 throw new InvalidOperationException("Для локальных скинов через Skin Bridge нужен Fabric, Forge или Quilt.");
+
             var versionsUrl = "https://api.modrinth.com/v2/project/customskinloader/version?game_versions=" +
                               Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game })) +
                               "&loaders=" + Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loader })) +
@@ -2265,29 +2268,53 @@ internal sealed class MainForm : Form
             var filename = file?["filename"]?.ToString();
             if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(sha) || string.IsNullOrWhiteSpace(filename))
                 throw new InvalidOperationException("Для выбранной версии Minecraft и загрузчика совместимый CustomSkinLoader не найден.");
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
-                throw new SecurityException("Некорректная ссылка Skin Bridge.");
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) ||
+                uri.Scheme != Uri.UriSchemeHttps ||
+                !string.Equals(uri.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase))
+                throw new SecurityException("Разрешена загрузка Skin Bridge только с HTTPS cdn.modrinth.com.");
+
             result.Text = "Скачиваю Skin Bridge и проверяю SHA-512…";
             var mods = Path.Combine(targetGameDirectory, "mods");
+            downloadTask = BeginDownloadTask("CustomSkinLoader · Skin Bridge", filename, "Modrinth", targetBuild.Name);
+            var fileProgress = new Progress<double>(value =>
+                UpdateDownloadTask(downloadTask, "Загружается", value, "SHA-512 · " + game + " · " + loader));
+
             await DownloadService.DownloadVerifiedAsync(
-                http, uri, sha, mods, filename, new[] { ".jar" }, 50L * 1024 * 1024,
-                null, CancellationToken.None,
+                http,
+                uri,
+                sha,
+                mods,
+                filename,
+                new[] { ".jar" },
+                50L * 1024 * 1024,
+                fileProgress,
+                CancellationToken.None,
                 name => MessageBox.Show(
                     "Установить Skin Bridge: " + name + "?",
                     "Подтверждение установки",
-                    MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes);
+                    MessageBoxButtons.YesNo,
+                    MessageBoxIcon.Warning) == DialogResult.Yes);
+
             foreach (var profile in settings.OfflineProfiles)
             {
                 if (string.IsNullOrWhiteSpace(profile.SkinPath) || !File.Exists(profile.SkinPath)) continue;
                 var destination = GetProfileSkinPath(profile);
                 Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-                File.Copy(profile.SkinPath, destination, true);
+                if (!string.Equals(Path.GetFullPath(profile.SkinPath), Path.GetFullPath(destination), StringComparison.OrdinalIgnoreCase))
+                    File.Copy(profile.SkinPath, destination, true);
             }
+
             SettingsService.Save(settings);
+            CompleteDownloadTask(downloadTask, "Skin Bridge установлен в mods/ активной сборки");
             result.Text = "Skin Bridge установлен. Локальный скин будет загружаться через CustomSkinLoader.";
             status.Text = "Skin Bridge готов";
         }
-        catch (Exception ex) { Fail("Не удалось установить Skin Bridge", ex); }
+        catch (Exception ex)
+        {
+            if (downloadTask != null)
+                FailDownloadTask(downloadTask, ex);
+            Fail("Не удалось установить Skin Bridge", ex);
+        }
     }
 
     string GetProfileSkinPath(OfflineProfile profile) =>
