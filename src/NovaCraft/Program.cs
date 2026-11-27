@@ -2820,6 +2820,7 @@ internal sealed class MainForm : Form
         }
 
         string launchVersion = v;
+        var installationCompleted = false;
         LauncherDownloadTask? installTask = null;
         try
         {
@@ -2832,6 +2833,7 @@ internal sealed class MainForm : Form
                 ActiveBuild.Name);
             UpdateDownloadTask(installTask, "Устанавливается", 0.01, "Проверка файлов активной сборки");
             launchVersion = await InstallSelectedLoaderAsync(v, installTask);
+            installationCompleted = true;
             var process = await GetLauncher().BuildProcessAsync(launchVersion, CreateLaunchOptions());
             process.EnableRaisingEvents = true;
             process.Exited += (_, _) => BeginInvoke(new Action(() =>
@@ -2853,7 +2855,7 @@ internal sealed class MainForm : Form
         catch (Exception ex)
         {
             WriteLog("Ошибка запуска: " + ex);
-            if (settings.AutoRepair && IsKnownLaunchError(ex))
+            if (settings.AutoRepair && installationCompleted && IsKnownLaunchError(ex))
             {
                 try
                 {
