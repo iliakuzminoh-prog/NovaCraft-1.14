@@ -144,6 +144,8 @@ internal sealed class MainForm : Form
     readonly List<LauncherDownloadTask> downloadTasks = new();
     FlowLayoutPanel? downloadTaskList;
     Label? downloadSummary;
+    Panel? downloadEmptyPanel;
+    readonly Dictionary<string, DownloadTaskVisual> downloadTaskVisuals = new();
     ComboBox? quickVersionSelector;
     ComboBox? quickLoaderSelector;
     bool updatingBuildSelector;
@@ -259,6 +261,85 @@ internal sealed class MainForm : Form
         RefreshDownloadTaskPage();
     }
 
+    sealed class DownloadTaskVisual
+    {
+        public Panel Card { get; }
+        public Label Title { get; }
+        public Label State { get; }
+        public Label Detail { get; }
+        public ProgressBar Progress { get; }
+
+        public DownloadTaskVisual(Panel card, Label title, Label state, Label detail, ProgressBar progress)
+        {
+            Card = card;
+            Title = title;
+            State = state;
+            Detail = detail;
+            Progress = progress;
+        }
+    }
+
+    DownloadTaskVisual CreateDownloadTaskVisual()
+    {
+        var card = new Panel
+        {
+            Width = Math.Max(600, downloadTaskList!.ClientSize.Width - 36),
+            Height = 108,
+            Margin = new Padding(4,4,8,8),
+            Padding = new Padding(14),
+            BackColor = Color.FromArgb(24,27,42),
+            BorderStyle = BorderStyle.FixedSingle
+        };
+        var title = new Label
+        {
+            Location = new Point(14,10),
+            Size = new Size(520,24),
+            AutoEllipsis = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold",10.5f,FontStyle.Bold)
+        };
+        var state = new Label
+        {
+            Location = new Point(610,12),
+            Size = new Size(180,22),
+            TextAlign = ContentAlignment.MiddleRight,
+            Font = new Font("Segoe UI Semibold",9,FontStyle.Bold)
+        };
+        var detail = new Label
+        {
+            Location = new Point(16,39),
+            Size = new Size(770,32),
+            ForeColor = Color.FromArgb(157,169,193),
+            AutoEllipsis = true
+        };
+        var bar = new ProgressBar
+        {
+            Location = new Point(16,78),
+            Size = new Size(770,12),
+            Minimum = 0,
+            Maximum = 100,
+            Style = ProgressBarStyle.Continuous
+        };
+        card.Controls.AddRange(new Control[] { title,state,detail,bar });
+        return new DownloadTaskVisual(card,title,state,detail,bar);
+    }
+
+    void UpdateDownloadTaskVisual(LauncherDownloadTask task, DownloadTaskVisual visual)
+    {
+        visual.Title.Text = task.Title;
+        visual.State.Text = task.Status;
+        visual.State.ForeColor = task.Status switch
+        {
+            "Установлено" or "Уже установлено" => Color.FromArgb(85,220,150),
+            "Ошибка" => Color.FromArgb(248,118,126),
+            "Проверка" or "Устанавливается" => Color.FromArgb(181,157,255),
+            _ => Color.FromArgb(110,180,255)
+        };
+        visual.Detail.Text = $"{task.Source}  ·  {task.BuildName}  ·  {task.FileName}\n{task.Detail}";
+        visual.Progress.Value = Math.Clamp((int)(task.Progress * 100),0,100);
+        visual.Card.Width = Math.Max(600, downloadTaskList!.ClientSize.Width - 36);
+    }
+
     void RefreshDownloadTaskPage()
     {
         if (downloadTaskList == null || downloadTaskList.IsDisposed)
@@ -271,7 +352,6 @@ internal sealed class MainForm : Form
         }
 
         downloadTaskList.SuspendLayout();
-        downloadTaskList.Controls.Clear();
         var active = downloadTasks.Count(t => t.Status is "Загружается" or "Устанавливается" or "Проверка");
         var installed = downloadTasks.Count(t => t.Status is "Установлено" or "Уже установлено");
         var failed = downloadTasks.Count(t => t.Status == "Ошибка");
@@ -280,81 +360,63 @@ internal sealed class MainForm : Form
 
         if (downloadTasks.Count == 0)
         {
-            downloadTaskList.Controls.Add(new Panel
+            foreach (var visual in downloadTaskVisuals.Values)
+                visual.Card.Dispose();
+            downloadTaskVisuals.Clear();
+
+            if (downloadEmptyPanel == null || downloadEmptyPanel.IsDisposed)
             {
-                Width = Math.Max(560, downloadTaskList.ClientSize.Width - 40),
-                Height = 150,
-                BackColor = Color.FromArgb(24,27,42),
-                Padding = new Padding(20)
-            });
-            var empty = (Panel)downloadTaskList.Controls[0];
-            empty.Controls.Add(new Label
-            {
-                Text = "Здесь появятся загрузки и установки.\n\nКаждый файл будет привязан к активной сборке и получит отдельный статус.",
-                AutoSize = true,
-                Location = new Point(20,25),
-                ForeColor = Color.FromArgb(170,180,200),
-                Font = new Font("Segoe UI", 10)
-            });
+                downloadEmptyPanel = new Panel
+                {
+                    Width = Math.Max(560, downloadTaskList.ClientSize.Width - 40),
+                    Height = 150,
+                    BackColor = Color.FromArgb(24,27,42),
+                    Padding = new Padding(20)
+                };
+                downloadEmptyPanel.Controls.Add(new Label
+                {
+                    Text = "Здесь появятся загрузки и установки.\n\nКаждый файл будет привязан к активной сборке и получит отдельный статус.",
+                    AutoSize = true,
+                    Location = new Point(20,25),
+                    ForeColor = Color.FromArgb(170,180,200),
+                    Font = new Font("Segoe UI", 10)
+                });
+                downloadTaskList.Controls.Clear();
+                downloadTaskList.Controls.Add(downloadEmptyPanel);
+            }
             downloadTaskList.ResumeLayout();
             return;
         }
 
-        foreach (var task in downloadTasks)
+        if (downloadEmptyPanel != null)
         {
-            var card = new Panel
+            downloadTaskList.Controls.Remove(downloadEmptyPanel);
+            downloadEmptyPanel.Dispose();
+            downloadEmptyPanel = null;
+        }
+
+        var liveIds = downloadTasks.Select(t => t.Id).ToHashSet(StringComparer.Ordinal);
+        foreach (var staleId in downloadTaskVisuals.Keys.Where(id => !liveIds.Contains(id)).ToList())
+        {
+            var stale = downloadTaskVisuals[staleId];
+            downloadTaskList.Controls.Remove(stale.Card);
+            stale.Card.Dispose();
+            downloadTaskVisuals.Remove(staleId);
+        }
+
+        for (var index = 0; index < downloadTasks.Count; index++)
+        {
+            var task = downloadTasks[index];
+            if (!downloadTaskVisuals.TryGetValue(task.Id, out var visual))
             {
-                Width = Math.Max(600, downloadTaskList.ClientSize.Width - 36),
-                Height = 108,
-                Margin = new Padding(4,4,8,8),
-                Padding = new Padding(14),
-                BackColor = Color.FromArgb(24,27,42),
-                BorderStyle = BorderStyle.FixedSingle
-            };
-            var title = new Label
-            {
-                Text = task.Title,
-                Location = new Point(14,10),
-                Size = new Size(520,24),
-                AutoEllipsis = true,
-                ForeColor = Color.White,
-                Font = new Font("Segoe UI Semibold",10.5f,FontStyle.Bold)
-            };
-            var stateColor = task.Status switch
-            {
-                "Установлено" or "Уже установлено" => Color.FromArgb(85,220,150),
-                "Ошибка" => Color.FromArgb(248,118,126),
-                "Проверка" or "Устанавливается" => Color.FromArgb(181,157,255),
-                _ => Color.FromArgb(110,180,255)
-            };
-            var state = new Label
-            {
-                Text = task.Status,
-                Location = new Point(610,12),
-                Size = new Size(180,22),
-                ForeColor = stateColor,
-                TextAlign = ContentAlignment.MiddleRight,
-                Font = new Font("Segoe UI Semibold",9,FontStyle.Bold)
-            };
-            var detail = new Label
-            {
-                Text = $"{task.Source}  ·  {task.BuildName}  ·  {task.FileName}\n{task.Detail}",
-                Location = new Point(16,39),
-                Size = new Size(770,32),
-                ForeColor = Color.FromArgb(157,169,193),
-                AutoEllipsis = true
-            };
-            var bar = new ProgressBar
-            {
-                Location = new Point(16,78),
-                Size = new Size(770,12),
-                Minimum = 0,
-                Maximum = 100,
-                Value = Math.Clamp((int)(task.Progress * 100),0,100),
-                Style = ProgressBarStyle.Continuous
-            };
-            card.Controls.AddRange(new Control[] { title,state,detail,bar });
-            downloadTaskList.Controls.Add(card);
+                visual = CreateDownloadTaskVisual();
+                downloadTaskVisuals.Add(task.Id, visual);
+                downloadTaskList.Controls.Add(visual.Card);
+            }
+
+            UpdateDownloadTaskVisual(task, visual);
+            if (downloadTaskList.Controls.GetChildIndex(visual.Card) != index)
+                downloadTaskList.Controls.SetChildIndex(visual.Card, index);
         }
 
         downloadTaskList.ResumeLayout();
@@ -2438,7 +2500,13 @@ internal sealed class MainForm : Form
         };
         p.Controls.Add(downloadTaskList);
         p.Controls.Add(header);
-        p.Disposed += (_,_) => downloadTaskList = null;
+        p.Disposed += (_,_) =>
+        {
+            downloadTaskList = null;
+            downloadSummary = null;
+            downloadEmptyPanel = null;
+            downloadTaskVisuals.Clear();
+        };
         p.Enter += (_,_) => RefreshDownloadTaskPage();
         RefreshDownloadTaskPage();
         return p;
