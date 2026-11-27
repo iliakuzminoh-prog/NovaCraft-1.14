@@ -12,7 +12,6 @@ DefaultDirName={localappdata}\Programs\NovaCraft
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest
-PrivilegesRequiredOverridesAllowed=dialog
 OutputDir=installer-output
 OutputBaseFilename=NovaCraft-1.14-Setup
 Compression=lzma2/ultra64
@@ -35,7 +34,6 @@ Name: "desktopicon"; Description: "Создать ярлык на рабочем
 
 [Files]
 Source: "..\publish\NovaCraft.exe"; DestDir: "{app}"; DestName: "{#MyAppExeName}"; Flags: ignoreversion
-Source: "redist\vc_redist.x64.exe"; DestDir: "{tmp}"; DestName: "vc_redist.x64.exe"; Flags: deleteafterinstall
 
 [Dirs]
 Name: "{app}"
