@@ -14,10 +14,10 @@ public sealed class PerformanceProfileRulesTests
     }
 
     [Fact]
-    public void UsesConservativeOneGbFloorOnLowMemoryMachines()
+    public void DeclinesAutomaticRecommendationWhenMemoryHeadroomIsTooLow()
     {
         var memory = new SystemMemorySnapshot(4 * 1024, 1536);
-        Assert.Equal(1024, PerformanceProfileRules.RecommendedHeapMb(memory));
+        Assert.Null(PerformanceProfileRules.RecommendedHeapMb(memory));
         Assert.True(PerformanceProfileRules.IsLowAvailableMemory(memory));
         Assert.Contains("закрой тяжёлые программы", PerformanceProfileRules.Describe(memory), StringComparison.OrdinalIgnoreCase);
     }
