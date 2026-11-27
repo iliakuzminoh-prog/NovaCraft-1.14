@@ -214,6 +214,7 @@ internal sealed class MainForm : Form
             }
         }
 
+        AutoScaleMode = AutoScaleMode.Dpi;
         Text = "NovaCraft 1.14";
         username.ReadOnly = true;
         username.TabStop = false;
@@ -1021,10 +1022,8 @@ internal sealed class MainForm : Form
 
         var list = new ListView
         {
-            Location = new Point(27,150),
-            Size = new Size(900,480),
             View = View.Tile,
-            TileSize = new Size(850,72),
+            TileSize = new Size(800,72),
             FullRowSelect = true,
             HideSelection = false,
             BorderStyle = BorderStyle.None,
@@ -1073,7 +1072,20 @@ internal sealed class MainForm : Form
             Render(search.Text);
         };
 
+        void LayoutVersionsPage()
+        {
+            var width = Math.Max(420, p.ClientSize.Width);
+            var searchWidth = Math.Clamp(width - 284, 220, 420);
+            search.SetBounds(27, 96, searchWidth, 38);
+            refresh.SetBounds(search.Right + 8, 96, 110, 38);
+            selected.SetBounds(refresh.Right + 12, 103, Math.Max(100, width - refresh.Right - 39), 24);
+            list.SetBounds(27, 150, Math.Max(360, width - 54), Math.Max(240, p.ClientSize.Height - 174));
+            list.TileSize = new Size(Math.Max(300, list.ClientSize.Width - 24), 72);
+        }
+
+        p.Resize += (_, _) => LayoutVersionsPage();
         p.Controls.AddRange(new Control[] { search, refresh, selected, list });
+        LayoutVersionsPage();
         version.Tag = list;
         list.Tag = new List<string> { settings.LastVersion };
         Render("");
