@@ -5,6 +5,39 @@ namespace NovaCraft.Services;
 
 public static class DownloadService
 {
+    public static async Task<bool> HasMatchingSha512Async(
+        string path,
+        string expectedSha512Hex,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        if (string.IsNullOrWhiteSpace(expectedSha512Hex) ||
+            expectedSha512Hex.Length != 128 ||
+            !expectedSha512Hex.All(Uri.IsHexDigit))
+            throw new InvalidDataException("Некорректный SHA-512.");
+
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var sha512 = IncrementalHash.CreateHash(HashAlgorithmName.SHA512);
+        var buffer = new byte[128 * 1024];
+
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read == 0) break;
+            sha512.AppendData(buffer, 0, read);
+        }
+
+        return CryptographicOperations.FixedTimeEquals(
+            sha512.GetHashAndReset(),
+            Convert.FromHexString(expectedSha512Hex));
+    }
+
     public static async Task<string> DownloadVerifiedAsync(
         HttpClient http,
         Uri uri,
