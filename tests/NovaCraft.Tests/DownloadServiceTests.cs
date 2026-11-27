@@ -46,6 +46,28 @@ public sealed class DownloadServiceTests
     }
 
     [Fact]
+    public async Task MatchesExistingFileOnlyWhenItsSha512IsCorrect()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "novacraft-existing-" + Guid.NewGuid().ToString("N") + ".bin");
+        var payload = Encoding.UTF8.GetBytes("known-good-mod-file");
+        try
+        {
+            await File.WriteAllBytesAsync(path, payload);
+            var expected = Convert.ToHexString(SHA512.HashData(payload));
+            var wrong = new string('0', 128);
+
+            Assert.True(await DownloadService.HasMatchingSha512Async(path, expected));
+            Assert.False(await DownloadService.HasMatchingSha512Async(path, wrong));
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                DownloadService.HasMatchingSha512Async(path, "not-a-sha512"));
+        }
+        finally
+        {
+            if (File.Exists(path)) File.Delete(path);
+        }
+    }
+
+    [Fact]
     public async Task RejectsWrongSha512AndRemovesPartialFile()
     {
         var payload = CreateResourcePackZip();
