@@ -2180,8 +2180,10 @@ internal sealed class MainForm : Form
     {
         try
         {
-            var game = version.SelectedItem?.ToString() ?? settings.LastVersion;
-            var loader = settings.ModLoader;
+            var targetBuild = ActiveBuild;
+            var targetGameDirectory = Path.GetFullPath(targetBuild.GameDirectory);
+            var game = version.SelectedItem?.ToString() ?? targetBuild.MinecraftVersion;
+            var loader = targetBuild.Loader;
             if (loader == "vanilla")
                 throw new InvalidOperationException("Для локальных скинов через Skin Bridge нужен Fabric, Forge или Quilt.");
             var versionsUrl = "https://api.modrinth.com/v2/project/customskinloader/version?game_versions=" +
@@ -2198,7 +2200,7 @@ internal sealed class MainForm : Form
             if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
                 throw new SecurityException("Некорректная ссылка Skin Bridge.");
             result.Text = "Скачиваю Skin Bridge и проверяю SHA-512…";
-            var mods = Path.Combine(settings.GameDirectory, "mods");
+            var mods = Path.Combine(targetGameDirectory, "mods");
             await DownloadService.DownloadVerifiedAsync(
                 http, uri, sha, mods, filename, new[] { ".jar" }, 50L * 1024 * 1024,
                 null, CancellationToken.None,
@@ -3249,10 +3251,11 @@ internal sealed class MainForm : Form
     async Task DownloadCatalogArchiveAsync(string projectId, string title, string projectType, string? worldDirectory = null)
     {
         LauncherDownloadTask? downloadTask = null;
+        var targetBuild = ActiveBuild;
+        var targetGameDirectory = Path.GetFullPath(targetBuild.GameDirectory);
         try
         {
-            var game = version.SelectedItem?.ToString()
-                ?? throw new InvalidOperationException("Сначала выбери версию Minecraft на главной странице.");
+            var game = version.SelectedItem?.ToString() ?? targetBuild.MinecraftVersion;
             status.Text = "Получение версии проекта…";
             var gameFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game }));
             var endpoint = $"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(projectId)}/version?game_versions={gameFilter}";
@@ -3275,16 +3278,16 @@ internal sealed class MainForm : Form
             if (projectType == "resourcepack")
             {
                 folderName = "resourcepacks";
-                targetDir = Path.Combine(settings.GameDirectory, folderName);
+                targetDir = Path.Combine(targetGameDirectory, folderName);
             }
             else if (projectType == "shader")
             {
                 folderName = "shaderpacks";
-                targetDir = Path.Combine(settings.GameDirectory, folderName);
+                targetDir = Path.Combine(targetGameDirectory, folderName);
             }
             else if (projectType == "datapack")
             {
-                var savesRoot = Path.Combine(settings.GameDirectory, "saves");
+                var savesRoot = Path.Combine(targetGameDirectory, "saves");
                 if (string.IsNullOrWhiteSpace(worldDirectory) ||
                     !IsDirectoryWithin(savesRoot, worldDirectory) ||
                     !File.Exists(Path.Combine(worldDirectory, "level.dat")))
@@ -3302,7 +3305,7 @@ internal sealed class MainForm : Form
                 "\nКаталог: " + folderName + "\nИсточник: Modrinth CDN\nПроверка: SHA-512.\n\nПродолжить загрузку?",
                 "Подтверждение установки", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (approval != DialogResult.Yes) return;
-            downloadTask = BeginDownloadTask(title, filename, "Modrinth", ActiveBuild.Name);
+            downloadTask = BeginDownloadTask(title, filename, "Modrinth", targetBuild.Name);
             var fileProgress = new Progress<double>(value =>
                 UpdateDownloadTask(downloadTask, "Загружается", value, "SHA-512 · " + folderName));
             await DownloadService.DownloadVerifiedAsync(
@@ -3328,20 +3331,24 @@ internal sealed class MainForm : Form
     async Task DownloadSelectedModAsync()
     {
         if (string.IsNullOrWhiteSpace(selectedModProject)) return;
+        var targetProjectId = selectedModProject;
+        var targetProjectTitle = selectedModTitle ?? targetProjectId;
+        var targetBuild = ActiveBuild;
+        var targetGameDirectory = Path.GetFullPath(targetBuild.GameDirectory);
+        var loaderName = targetBuild.Loader;
         LauncherDownloadTask? activeDownloadTask = null;
         try
         {
-            if (settings.ModLoader == "vanilla")
+            if (loaderName == "vanilla")
                 throw new InvalidOperationException("Для установки модов выбери Fabric, Quilt или Forge.");
-            var game = version.SelectedItem?.ToString() ?? throw new InvalidOperationException("Сначала выбери версию Minecraft.");
-            var loaderName = settings.ModLoader;
+            var game = version.SelectedItem?.ToString() ?? targetBuild.MinecraftVersion;
             var gameFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game }));
             var loaderFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { loaderName }));
-            var url = $"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(selectedModProject)}/version?game_versions={gameFilter}&loaders={loaderFilter}&include_changelog=false";
+            var url = $"https://api.modrinth.com/v2/project/{Uri.EscapeDataString(targetProjectId)}/version?game_versions={gameFilter}&loaders={loaderFilter}&include_changelog=false";
             var arr = JsonNode.Parse(await http.GetStringAsync(url))?.AsArray();
             var selectedVersion = arr?.FirstOrDefault() ?? throw new InvalidOperationException("Совместимая версия мода не найдена.");
-            var projectTitle = selectedModTitle ?? selectedModProject;
-            var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { selectedModProject };
+            var projectTitle = targetProjectTitle;
+            var installed = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { targetProjectId };
             var files = new List<(JsonNode File, string Title)>();
             var mainFile = selectedVersion["files"]?.AsArray()?.FirstOrDefault(f => f?["primary"]?.GetValue<bool>() == true)
                            ?? selectedVersion["files"]?.AsArray()?.FirstOrDefault()
@@ -3387,7 +3394,7 @@ internal sealed class MainForm : Form
                 MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (approval != DialogResult.Yes) return;
 
-            var modsDir = Path.Combine(settings.GameDirectory, "mods");
+            var modsDir = Path.Combine(targetGameDirectory, "mods");
             Directory.CreateDirectory(modsDir);
             foreach (var entry in files)
             {
@@ -3405,7 +3412,7 @@ internal sealed class MainForm : Form
                     throw new InvalidDataException("У файла отсутствует корректный SHA-512.");
 
                 var destination = Path.Combine(modsDir, name);
-                activeDownloadTask = BeginDownloadTask(entry.Title, name, "Modrinth", ActiveBuild.Name);
+                activeDownloadTask = BeginDownloadTask(entry.Title, name, "Modrinth", targetBuild.Name);
                 if (File.Exists(destination))
                 {
                     activeDownloadTask.Status = "Уже установлено";
