@@ -1,0 +1,30 @@
+using NovaCraft.Services;
+
+namespace NovaCraft.Tests;
+
+public sealed class PerformanceProfileRulesTests
+{
+    [Fact]
+    public void RecommendsHeapWithinAvailableMemoryAndEightGbCap()
+    {
+        var result = PerformanceProfileRules.RecommendedHeapMb(new SystemMemorySnapshot(16 * 1024, 8 * 1024));
+        Assert.Equal(4864, result);
+        Assert.True(result <= 8 * 1024);
+        Assert.True(result < 8 * 1024);
+    }
+
+    [Fact]
+    public void UsesConservativeOneGbFloorOnLowMemoryMachines()
+    {
+        var memory = new SystemMemorySnapshot(4 * 1024, 1536);
+        Assert.Equal(1024, PerformanceProfileRules.RecommendedHeapMb(memory));
+        Assert.True(PerformanceProfileRules.IsLowAvailableMemory(memory));
+        Assert.Contains("закрой тяжёлые программы", PerformanceProfileRules.Describe(memory), StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void FallsBackWhenWindowsMemoryInformationIsUnavailable()
+    {
+        Assert.Equal(1024, PerformanceProfileRules.RecommendedHeapMb(new SystemMemorySnapshot(0, 0)));
+    }
+}
