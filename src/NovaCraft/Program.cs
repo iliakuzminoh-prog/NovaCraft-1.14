@@ -2733,18 +2733,30 @@ internal sealed class MainForm : Form
 
     async Task InstallAsync()
     {
-        if(version.SelectedItem is not string v)return;
+        if (version.SelectedItem is not string v) return;
+
+        var task = BeginDownloadTask(
+            "Minecraft " + v + " · " + settings.ModLoader.ToUpperInvariant(),
+            "Minecraft " + v,
+            "CmlLib",
+            ActiveBuild.Name);
         try
         {
-            SetBusy(true,"Установка " + settings.ModLoader + " для " + v + "…");
-            var installedId = await InstallSelectedLoaderAsync(v);
+            SetBusy(true, "Установка " + settings.ModLoader + " для " + v + "…");
+            UpdateDownloadTask(task, "Устанавливается", 0.01, "Активная сборка: " + ActiveBuild.Name);
+            var installedId = await InstallSelectedLoaderAsync(v, task);
             settings.LastVersion = v;
             SettingsService.Save(settings);
+            CompleteDownloadTask(task, "Все файлы Minecraft проверены и подготовлены: " + installedId);
             WriteLog("Готово: " + installedId);
             status.Text = "Установка завершена: " + installedId;
         }
-        catch(Exception ex){Fail("Ошибка установки загрузчика",ex);}
-        finally{SetBusy(false);}
+        catch (Exception ex)
+        {
+            FailDownloadTask(task, ex);
+            Fail("Ошибка установки загрузчика", ex);
+        }
+        finally { SetBusy(false); }
     }
 
     MSession CreateOfflineSessionForActiveProfile()
@@ -2806,12 +2818,20 @@ internal sealed class MainForm : Form
             MessageBox.Show(nicknameValidation.error, "Некорректный ник", MessageBoxButtons.OK, MessageBoxIcon.Warning);
             return;
         }
+
         string launchVersion = v;
+        LauncherDownloadTask? installTask = null;
         try
         {
             SaveSettings();
             SetBusy(true, "Подготовка игры…");
-            launchVersion = await InstallSelectedLoaderAsync(v);
+            installTask = BeginDownloadTask(
+                "Запуск Minecraft " + v,
+                "Minecraft " + v,
+                "CmlLib",
+                ActiveBuild.Name);
+            UpdateDownloadTask(installTask, "Устанавливается", 0.01, "Проверка файлов активной сборки");
+            launchVersion = await InstallSelectedLoaderAsync(v, installTask);
             var process = await GetLauncher().BuildProcessAsync(launchVersion, CreateLaunchOptions());
             process.EnableRaisingEvents = true;
             process.Exited += (_, _) => BeginInvoke(new Action(() =>
@@ -2825,6 +2845,7 @@ internal sealed class MainForm : Form
             ActiveBuild.LastPlayedUtc = DateTime.UtcNow;
             ActiveBuild.MinecraftVersion = v;
             SettingsService.Save(settings);
+            CompleteDownloadTask(installTask, "Minecraft подготовлен и запущен: " + launchVersion);
             WriteLog("Minecraft запущен: " + launchVersion);
             status.Text = "Игра запущена";
             if (settings.CloseAfterLaunch) BeginInvoke(new Action(Close));
@@ -2848,9 +2869,16 @@ internal sealed class MainForm : Form
                         MessageBox.Show($"JVM не смогла выделить память. Лимит уменьшен с {oldRam} до {settings.MaximumRamMb} МБ.", "Автоисправление ОЗУ", MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                     SettingsService.Save(settings);
-                    await GetLauncher().InstallAsync(launchVersion);
+                    UpdateDownloadTask(installTask!, "Устанавливается", Math.Max(installTask!.Progress, 0.50), "Повторная проверка файлов после ошибки запуска");
+                    var repairProgress = CreateCmlLibByteProgress(installTask, "Автоисправление · файлы Minecraft", 0.52, 0.43);
+                    await GetLauncher().InstallAsync(
+                        launchVersion,
+                        new EmptyProgress<InstallerProgressChangedEventArgs>(),
+                        repairProgress,
+                        CancellationToken.None);
                     var repaired = await GetLauncher().BuildProcessAsync(launchVersion, CreateLaunchOptions());
                     repaired.Start();
+                    CompleteDownloadTask(installTask!, "Проверка завершена, игра запущена после восстановления");
                     status.Text = "Файлы восстановлены, игра запущена";
                     WriteLog("Автоисправление завершено: " + launchVersion);
                     if (settings.CloseAfterLaunch) BeginInvoke(new Action(Close));
@@ -2859,10 +2887,17 @@ internal sealed class MainForm : Form
                 catch (Exception repairError)
                 {
                     WriteLog("Автоисправление не помогло: " + repairError);
+                    if (installTask != null)
+                        FailDownloadTask(installTask, repairError);
                     Fail("Автоисправление не смогло устранить проблему", repairError);
                 }
             }
-            else Fail("Minecraft не удалось запустить", ex);
+            else
+            {
+                if (installTask != null)
+                    FailDownloadTask(installTask, ex);
+                Fail("Minecraft не удалось запустить", ex);
+            }
         }
         finally { SetBusy(false); }
     }
