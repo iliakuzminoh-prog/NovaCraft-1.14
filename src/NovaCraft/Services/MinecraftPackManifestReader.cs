@@ -111,6 +111,10 @@ public static class MinecraftPackManifestReader
                 var downloads = item.TryGetProperty("downloads", out var urls) && urls.ValueKind == JsonValueKind.Array
                     ? urls.EnumerateArray().Select(x => x.GetString()).Where(x => !string.IsNullOrWhiteSpace(x)).ToList()
                     : new List<string?>();
+                var trustedDownload = downloads.FirstOrDefault(url =>
+                    Uri.TryCreate(url, UriKind.Absolute, out var candidate) &&
+                    candidate.Scheme == Uri.UriSchemeHttps &&
+                    string.Equals(candidate.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase));
 
                 var hash = item.TryGetProperty("hashes", out var hashes) ? GetString(hashes, "sha512") : null;
                 long? size = item.TryGetProperty("fileSize", out var sizeElement) && sizeElement.TryGetInt64(out var length)
@@ -119,7 +123,7 @@ public static class MinecraftPackManifestReader
 
                 files.Add(new PackFileReference(
                     path!,
-                    downloads.FirstOrDefault(),
+                    trustedDownload,
                     hash,
                     item.TryGetProperty("hashes", out hashes) ? GetString(hashes, "sha1") : null,
                     size,
