@@ -27,7 +27,7 @@ public static class MinecraftPackImportService
         ".xml", ".js", ".mjs", ".ogg", ".lang", ".ini", ".shader"
     };
 
-    public static async Task ImportAsync(
+    internal static async Task ImportAsync(
         string archivePath,
         BuildProfile profile,
         HttpClient http,
