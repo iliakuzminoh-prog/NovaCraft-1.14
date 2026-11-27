@@ -94,6 +94,7 @@ internal static class BuildProfileRules
             string.Equals(p.Id, settings.ActiveBuildId, StringComparison.OrdinalIgnoreCase))
             ?? settings.BuildProfiles[0];
 
+        var usedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var profile in settings.BuildProfiles)
         {
             if (string.IsNullOrWhiteSpace(profile.Name))
@@ -104,6 +105,18 @@ internal static class BuildProfileRules
             if (string.IsNullOrWhiteSpace(profile.GameDirectory))
                 profile.GameDirectory = CreateInstanceDirectory(settings.GameDirectory, profile.Id);
             profile.GameDirectory = Path.GetFullPath(profile.GameDirectory);
+            if (!usedDirectories.Add(profile.GameDirectory))
+            {
+                profile.GameDirectory = CreateInstanceDirectory(settings.GameDirectory, profile.Id);
+                profile.GameDirectory = Path.GetFullPath(profile.GameDirectory);
+                if (!usedDirectories.Add(profile.GameDirectory))
+                    throw new InvalidDataException("Не удалось создать отдельную папку для каждой сборки.");
+            }
+
+            profile.LoaderVersion ??= "";
+            profile.SourcePlatform ??= "local";
+            profile.SourceProjectId ??= "";
+            profile.InstallState ??= "Пустая";
         }
 
         settings.ActiveBuildId = active.Id;
@@ -115,7 +128,7 @@ internal static class BuildProfileRules
     public static string NormalizeLoader(string? loader)
     {
         var normalized = (loader ?? "").Trim().ToLowerInvariant();
-        return normalized is "vanilla" or "fabric" or "forge" or "quilt" or "neoforge"
+        return normalized is "vanilla" or "fabric" or "forge" or "quilt"
             ? normalized
             : "fabric";
     }
