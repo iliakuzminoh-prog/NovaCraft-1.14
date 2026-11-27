@@ -149,6 +149,7 @@ internal sealed class MainForm : Form
     ComboBox? quickVersionSelector;
     ComboBox? quickLoaderSelector;
     bool updatingBuildSelector;
+    bool isBusy;
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly FlowLayoutPanel modCards = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly ComboBox modLoader = new();
@@ -477,6 +478,12 @@ internal sealed class MainForm : Form
     void ActivateBuild(BuildProfile profile, bool persist = true)
     {
         if (profile == null) return;
+        if (isBusy)
+        {
+            status.Text = "Сначала дождись завершения текущей операции со сборкой.";
+            RefreshBuildSelector();
+            return;
+        }
         if (string.Equals(settings.ActiveBuildId, profile.Id, StringComparison.OrdinalIgnoreCase))
             return;
 
@@ -3480,7 +3487,15 @@ internal sealed class MainForm : Form
         return launcher;
     }
 
-    void SetBusy(bool busy,string? message=null){play.Enabled=!busy;install.Enabled=!busy;Cursor=busy?Cursors.WaitCursor:Cursors.Default;if(message!=null)status.Text=message;}
+    void SetBusy(bool busy, string? message = null)
+    {
+        isBusy = busy;
+        play.Enabled = !busy;
+        install.Enabled = !busy;
+        buildSelector.Enabled = !busy;
+        Cursor = busy ? Cursors.WaitCursor : Cursors.Default;
+        if (message != null) status.Text = message;
+    }
     bool IsKnownLaunchError(Exception ex)
     {
         var message = ex.ToString();
