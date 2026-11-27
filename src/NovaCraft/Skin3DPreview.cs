@@ -109,10 +109,11 @@ internal sealed class Skin3DPreview : Control
 
         if (skin == null)
         {
+            using var emptyFont = new Font("Segoe UI Semibold", 10, FontStyle.Bold);
             TextRenderer.DrawText(
                 graphics,
                 "Выбери PNG-скин",
-                new Font("Segoe UI Semibold", 10, FontStyle.Bold),
+                emptyFont,
                 ClientRectangle,
                 Color.FromArgb(180, 193, 221),
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
@@ -144,19 +145,21 @@ internal sealed class Skin3DPreview : Control
             LinearGradientMode.Vertical);
         graphics.FillRectangle(background, ClientRectangle);
 
-        using var glowPath = new GraphicsPath();
         var glowSize = Math.Min(Width, Height) * 0.92f;
-        glowPath.AddEllipse(
+        using var glow = new SolidBrush(Color.FromArgb(30, 104, 78, 239));
+        graphics.FillEllipse(
+            glow,
             (Width - glowSize) / 2f,
             (Height - glowSize) / 2f - 6,
             glowSize,
             glowSize);
-        using var glow = new PathGradientBrush(glowPath)
-        {
-            CenterColor = Color.FromArgb(44, 104, 78, 239),
-            SurroundColors = new[] { Color.FromArgb(0, 76, 80, 190) }
-        };
-        graphics.FillPath(glow, glowPath);
+        using var innerGlow = new SolidBrush(Color.FromArgb(18, 83, 106, 255));
+        graphics.FillEllipse(
+            innerGlow,
+            Width * 0.27f,
+            Height * 0.16f,
+            Width * 0.46f,
+            Height * 0.54f);
 
         using var gridPen = new Pen(Color.FromArgb(16, 133, 152, 220), 1f);
         var horizon = (int)(Height * 0.78f);
@@ -313,11 +316,12 @@ internal sealed class Skin3DPreview : Control
         AddBox(faces, 0, 0, -2, 4, 8, 4, rightLeg, 1f);
 
         var armWidth = slim ? 3f : 4f;
+        var armSideWidth = slim ? 1 : 4;
         var rightArm = new FaceUv(
             new Rectangle(44, 20, (int)armWidth, 12),
             new Rectangle(52, 20, (int)armWidth, 12),
-            new Rectangle(40, 20, 4, 12),
-            new Rectangle(48, 20, 4, 12),
+            new Rectangle(40, 20, armSideWidth, 12),
+            new Rectangle(48, 20, armSideWidth, 12),
             new Rectangle(44, 16, (int)armWidth, 4),
             new Rectangle(48, 16, (int)armWidth, 4));
 
@@ -364,12 +368,12 @@ internal sealed class Skin3DPreview : Control
             new Rectangle(4, 32, 4, 4),
             new Rectangle(8, 32, 4, 4));
         var leftLegLayer = new FaceUv(
-            new Rectangle(20, 52, 4, 12),
-            new Rectangle(28, 52, 4, 12),
-            new Rectangle(16, 52, 4, 12),
-            new Rectangle(24, 52, 4, 12),
-            new Rectangle(20, 48, 4, 4),
-            new Rectangle(24, 48, 4, 4));
+            new Rectangle(4, 52, 4, 12),
+            new Rectangle(12, 52, 4, 12),
+            new Rectangle(0, 52, 4, 12),
+            new Rectangle(8, 52, 4, 12),
+            new Rectangle(4, 48, 4, 4),
+            new Rectangle(8, 48, 4, 4));
         AddBox(faces, -4.18f, -0.18f, -2.18f, 4.36f, 8.36f, 4.36f, leftLegLayer, 0.90f);
         AddBox(faces, -0.18f, -0.18f, -2.18f, 4.36f, 8.36f, 4.36f, rightLegLayer, 0.90f);
 
@@ -381,12 +385,12 @@ internal sealed class Skin3DPreview : Control
             new Rectangle(44, 32, (int)armWidth, 4),
             new Rectangle(48, 32, (int)armWidth, 4));
         var leftSleeve = new FaceUv(
-            new Rectangle(36, 52, (int)armWidth, 12),
-            new Rectangle(44, 52, (int)armWidth, 12),
-            new Rectangle(32, 52, 4, 12),
-            new Rectangle(40, 52, 4, 12),
-            new Rectangle(36, 48, (int)armWidth, 4),
-            new Rectangle(40, 48, (int)armWidth, 4));
+            new Rectangle(52, 52, (int)armWidth, 12),
+            new Rectangle(60, 52, (int)armWidth, 12),
+            new Rectangle(48, 52, 4, 12),
+            new Rectangle(56, 52, 4, 12),
+            new Rectangle(52, 48, (int)armWidth, 4),
+            new Rectangle(56, 48, (int)armWidth, 4));
 
         AddBox(faces, -8.18f, 7.82f, -2.18f, armWidth + 0.36f, 12.36f, 4.36f, leftSleeve, 0.92f);
         AddBox(faces, 3.82f, 7.82f, -2.18f, armWidth + 0.36f, 12.36f, 4.36f, rightSleeve, 0.92f);
