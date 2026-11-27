@@ -704,7 +704,11 @@ internal sealed class MainForm : Form
         };
 
         search.TextChanged += (_,_) => Render(search.Text);
-        refresh.Tag = Render;
+        refresh.Click += async (_, _) =>
+        {
+            await RefreshVersionsAsync();
+            Render(search.Text);
+        };
 
         p.Controls.AddRange(new Control[] { search, refresh, selected, list });
         version.Tag = list;
@@ -906,7 +910,8 @@ internal sealed class MainForm : Form
                 }
 
                 status.Text = offset == 0 ? "Загружаю каталог Modrinth…" : "Загружаю следующую страницу…";
-                var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { "project_type:" + projectType } }));
+                var projectFacet = projectType == "datapack" ? "all_project_types:datapack" : "project_type:" + projectType;
+                var facets = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { new[] { projectFacet } }));
                 var index = sort.SelectedIndex switch { 1 => "newest", 2 => "updated", _ => "downloads" };
                 var q = string.IsNullOrWhiteSpace(query) ? "" : "&query=" + Uri.EscapeDataString(query);
                 var url = "https://api.modrinth.com/v2/search?limit=24&offset=" + offset + "&index=" + index + q + "&facets=" + facets;
@@ -2316,7 +2321,12 @@ internal sealed class MainForm : Form
             if (approval != DialogResult.Yes) return;
             await DownloadService.DownloadVerifiedAsync(
                 http, uri, expected, targetDir, filename, new[] { ".zip" },
-                250L * 1024 * 1024, null, CancellationToken.None, _ => true);
+                250L * 1024 * 1024, null, CancellationToken.None, _ => true,
+                (archivePath, _) =>
+                {
+                    CatalogArchiveValidator.Validate(archivePath, projectType);
+                    return Task.CompletedTask;
+                });
             WriteLog("Установлен архив Modrinth: " + destination);
             status.Text = "Архив установлен: " + filename;
         }
@@ -2594,7 +2604,7 @@ static class SettingsService
             if (loaded.OfflineProfiles.Count == 0)
             {
                 var profileName = string.IsNullOrWhiteSpace(loaded.Username) ? "NovaPlayer" : loaded.Username;
-                loaded.OfflineProfiles.Add(new OfflineProfile { Username = profileName, Uuid = OfflineUuid(profileName).ToString() });
+                loaded.OfflineProfiles.Add(new OfflineProfile { Username = profileName, Uuid = OfflineProfileRules.OfflineUuid(profileName) });
             }
             if (string.IsNullOrWhiteSpace(loaded.ActiveProfileId) || !loaded.OfflineProfiles.Any(x => x.Id == loaded.ActiveProfileId))
                 loaded.ActiveProfileId = loaded.OfflineProfiles[0].Id;
