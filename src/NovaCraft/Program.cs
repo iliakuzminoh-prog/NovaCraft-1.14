@@ -1200,6 +1200,20 @@ internal sealed class MainForm : Form
         sort.SelectedIndexChanged += async (_, _) => await Reload();
         modLoader.SelectedIndexChanged += (_, _) =>
         {
+            if (isBusy)
+            {
+                var currentLoader = settings.ModLoader switch
+                {
+                    "forge" => "Forge",
+                    "quilt" => "Quilt",
+                    "vanilla" => "Vanilla",
+                    _ => "Fabric"
+                };
+                if (!string.Equals(modLoader.SelectedItem?.ToString(), currentLoader, StringComparison.Ordinal))
+                    modLoader.SelectedItem = currentLoader;
+                status.Text = "Нельзя менять загрузчик во время установки Minecraft.";
+                return;
+            }
             var nextLoader = modLoader.SelectedItem?.ToString() switch
             {
                 "Forge" => "forge",
@@ -1582,7 +1596,7 @@ internal sealed class MainForm : Form
                     Text = profile.InstallState + "  ·  " + (Directory.Exists(profile.GameDirectory) ? "Папка создана" : "Папка ещё не создана"),
                     Location = new Point(16, 88),
                     AutoSize = true,
-                    ForeColor = profile.InstallState == "Готова" ? Color.FromArgb(90,220,150) : Color.FromArgb(142,153,177)
+                    ForeColor = profile.InstallState == "Импортирована" ? Color.FromArgb(90,220,150) : Color.FromArgb(142,153,177)
                 });
                 if (selected)
                 {
@@ -1609,6 +1623,7 @@ internal sealed class MainForm : Form
                 launch.Location = new Point(122, 119);
                 launch.Click += async (_,_) =>
                 {
+                    if (isBusy) return;
                     ActivateBuild(profile);
                     ShowNavigationPage(0);
                     await LaunchAsync();
@@ -1650,8 +1665,14 @@ internal sealed class MainForm : Form
                     Cursor = Cursors.Hand
                 };
                 remove.FlatAppearance.BorderSize = 0;
+                remove.Enabled = !string.Equals(profile.InstallState, "Импортируется", StringComparison.OrdinalIgnoreCase);
                 remove.Click += (_,_) =>
                 {
+                    if (isBusy || string.Equals(profile.InstallState, "Импортируется", StringComparison.OrdinalIgnoreCase))
+                    {
+                        status.Text = "Нельзя менять сборку во время операции.";
+                        return;
+                    }
                     if (settings.BuildProfiles.Count <= 1)
                     {
                         MessageBox.Show("Нельзя удалить последнюю сборку.", "NovaCraft", MessageBoxButtons.OK, MessageBoxIcon.Information);
@@ -1685,6 +1706,7 @@ internal sealed class MainForm : Form
 
         create.Click += (_,_) =>
         {
+            if (isBusy) return;
             try
             {
                 var id = Guid.NewGuid().ToString("N");
@@ -1719,6 +1741,11 @@ internal sealed class MainForm : Form
 
         import.Click += async (_,_) =>
         {
+            if (isBusy || isImportingPack)
+            {
+                status.Text = "Заверши текущую операцию перед новым импортом.";
+                return;
+            }
             using var dialog = new OpenFileDialog
             {
                 Title = "Импортировать Modrinth или CurseForge",
@@ -1727,6 +1754,8 @@ internal sealed class MainForm : Form
             };
             if (dialog.ShowDialog() != DialogResult.OK) return;
 
+            isImportingPack = true;
+            var activeBuildIdBeforeImport = settings.ActiveBuildId;
             BuildProfile? profile = null;
             LauncherDownloadTask? importTask = null;
             try
@@ -1795,15 +1824,23 @@ internal sealed class MainForm : Form
                     progress,
                     CancellationToken.None);
 
-                profile.InstallState = "Готова";
+                profile.InstallState = "Импортирована";
                 SettingsService.Save(settings);
                 CompleteDownloadTask(importTask, "Все обязательные файлы и overrides установлены в отдельную папку");
-                ActivateBuild(profile);
+
+                var canActivateImportedBuild =
+                    !isBusy &&
+                    string.Equals(settings.ActiveBuildId, activeBuildIdBeforeImport, StringComparison.OrdinalIgnoreCase);
+                if (canActivateImportedBuild)
+                    ActivateBuild(profile);
+
                 RefreshBuildSelector();
                 RenderProfiles();
                 progressLabel.Text = "Импорт завершён: " + profile.Name;
                 progressBar.Value = 100;
-                status.Text = "Сборка импортирована и изолирована: " + profile.Name;
+                status.Text = canActivateImportedBuild
+                    ? "Сборка импортирована и выбрана: " + profile.Name
+                    : "Сборка импортирована; текущая активная сборка оставлена без изменений.";
             }
             catch (Exception ex)
             {
@@ -1818,6 +1855,10 @@ internal sealed class MainForm : Form
                 progressLabel.Text = "Импорт не завершён: " + ex.Message;
                 progressBar.Value = 0;
                 Fail("Не удалось импортировать сборку", ex);
+            }
+            finally
+            {
+                isImportingPack = false;
             }
         };
 
@@ -2179,6 +2220,7 @@ internal sealed class MainForm : Form
 
     async Task InstallCustomSkinLoaderAsync(Label result)
     {
+        if (isBusy) return;
         try
         {
             var targetBuild = ActiveBuild;
@@ -3253,6 +3295,7 @@ internal sealed class MainForm : Form
 
     async Task DownloadCatalogArchiveAsync(string projectId, string title, string projectType, string? worldDirectory = null)
     {
+        if (isBusy) return;
         LauncherDownloadTask? downloadTask = null;
         var targetBuild = ActiveBuild;
         var targetGameDirectory = Path.GetFullPath(targetBuild.GameDirectory);
@@ -3333,7 +3376,7 @@ internal sealed class MainForm : Form
 
     async Task DownloadSelectedModAsync()
     {
-        if (string.IsNullOrWhiteSpace(selectedModProject)) return;
+        if (isBusy || string.IsNullOrWhiteSpace(selectedModProject)) return;
         var targetProjectId = selectedModProject;
         var targetProjectTitle = selectedModTitle ?? targetProjectId;
         var targetBuild = ActiveBuild;
