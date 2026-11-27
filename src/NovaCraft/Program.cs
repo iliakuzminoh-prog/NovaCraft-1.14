@@ -2771,7 +2771,9 @@ internal sealed class MainForm : Form
         {
             Text = recommendedHeap.HasValue
                 ? $"Текущий лимит: {settings.MaximumRamMb} МБ\nРекомендация для текущей свободной памяти: {recommendedHeap.Value} МБ\nЛимит пересчитывается по фактической памяти Windows, а не по выдуманному FPS-профилю."
-                : $"Текущий лимит: {settings.MaximumRamMb} МБ\nWindows не предоставила сведения об ОЗУ. Автоподбор выключен.",
+                : PerformanceProfileRules.IsLowAvailableMemory(memory)
+                    ? $"Текущий лимит: {settings.MaximumRamMb} МБ\nСвободной памяти недостаточно для безопасного автоподбора. Закрой тяжёлые программы."
+                    : $"Текущий лимит: {settings.MaximumRamMb} МБ\nWindows не предоставила сведения об ОЗУ. Автоподбор выключен.",
             AutoSize = true,
             ForeColor = Color.FromArgb(190, 198, 215),
             Location = new Point(18, 50)
@@ -4086,7 +4088,9 @@ internal sealed class MainForm : Form
             var memory = SystemMemoryStatus.Read();
             var safeLimit = PerformanceProfileRules.RecommendedHeapMb(memory);
             if (!safeLimit.HasValue)
-                notes.Add("Windows не предоставила сведения о физической памяти; лимит Java оставлен без изменений.");
+                notes.Add(memory.TotalMb == 0 || memory.AvailableMb == 0
+                    ? "Windows не предоставила сведения о физической памяти; лимит Java оставлен без изменений."
+                    : "Свободной памяти недостаточно для безопасного автоподбора; закрой тяжёлые программы. Лимит Java оставлен без изменений.");
             else if (settings.MaximumRamMb > safeLimit.Value)
             {
                 settings.MaximumRamMb = safeLimit.Value;
