@@ -2146,7 +2146,7 @@ internal sealed class MainForm : Form
 
         var skinCard = ModernCard(860, 305, "ЛОКАЛЬНЫЙ СКИН", Color.FromArgb(22, 25, 39));
         skinCard.Location = new Point(24, 320);
-        var preview = new PictureBox { Location = new Point(18, 48), Size = new Size(220, 220), BackColor = Color.FromArgb(15,18,29), SizeMode = PictureBoxSizeMode.Zoom };
+        var preview = new Skin3DPreview { Location = new Point(18, 48), Size = new Size(220, 220) };
         var skinStatus = new Label { Location = new Point(260, 55), Size = new Size(560, 70), ForeColor = Color.FromArgb(175,185,205), Text = "Выбери PNG. NovaCraft сохранит его в формате LocalSkin, который может использовать CustomSkinLoader." };
         var choose = ModernButton("Выбрать PNG…", 160, 40); choose.Location = new Point(260, 140);
         var bridge = ModernButton("Установить Skin Bridge", 210, 40); bridge.Location = new Point(430, 140);
@@ -2158,8 +2158,7 @@ internal sealed class MainForm : Form
         {
             using var stream = File.OpenRead(path);
             using var image = Image.FromStream(stream, false, true);
-            var copy = new Bitmap(image);
-            var old = preview.Image; preview.Image = copy; old?.Dispose();
+            preview.SetSkin(image);
         }
 
         string GetSkinDestination(OfflineProfile profile)
@@ -2192,6 +2191,7 @@ internal sealed class MainForm : Form
                 File.Copy(dialog.FileName, destination, true);
                 profile.SkinPath = destination;
                 profile.Slim = model.SelectedIndex == 1;
+                preview.Slim = profile.Slim;
                 settings.ActiveProfileId = profile.Id;
                 settings.Username = profile.Username;
                 SettingsService.Save(settings);
@@ -2206,6 +2206,7 @@ internal sealed class MainForm : Form
         {
             if (profileList.SelectedIndex < 0) return;
             settings.OfflineProfiles[profileList.SelectedIndex].Slim = model.SelectedIndex == 1;
+            preview.Slim = model.SelectedIndex == 1;
             SettingsService.Save(settings);
         };
 
@@ -2221,11 +2222,16 @@ internal sealed class MainForm : Form
             if (profileList.SelectedIndex < 0) return;
             var profile = settings.OfflineProfiles[profileList.SelectedIndex];
             model.SelectedIndex = profile.Slim ? 1 : 0;
+            preview.Slim = profile.Slim;
             if (!string.IsNullOrWhiteSpace(profile.SkinPath) && File.Exists(profile.SkinPath))
             {
-                try { LoadPreview(profile.SkinPath); } catch { }
+                try { LoadPreview(profile.SkinPath); } catch (Exception ex) { skinStatus.Text = "Не удалось показать скин: " + ex.Message; }
             }
-            else skinStatus.Text = "Для этого профиля локальный скин ещё не выбран.";
+            else
+            {
+                preview.SetSkin(null);
+                skinStatus.Text = "Для этого профиля локальный скин ещё не выбран.";
+            }
         };
 
         p.Controls.Add(skinCard);
