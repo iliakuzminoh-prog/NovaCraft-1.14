@@ -2217,22 +2217,36 @@ internal sealed class MainForm : Form
             catch (Exception ex) { Fail("Не удалось открыть папку скинов", ex); }
         };
 
-        profileList.SelectedIndexChanged += (_, _) =>
+        void UpdateSkinPreview()
         {
-            if (profileList.SelectedIndex < 0) return;
+            if (profileList.SelectedIndex < 0 || profileList.SelectedIndex >= settings.OfflineProfiles.Count)
+                return;
+
             var profile = settings.OfflineProfiles[profileList.SelectedIndex];
             model.SelectedIndex = profile.Slim ? 1 : 0;
             preview.Slim = profile.Slim;
             if (!string.IsNullOrWhiteSpace(profile.SkinPath) && File.Exists(profile.SkinPath))
             {
-                try { LoadPreview(profile.SkinPath); } catch (Exception ex) { skinStatus.Text = "Не удалось показать скин: " + ex.Message; }
+                try
+                {
+                    LoadPreview(profile.SkinPath);
+                    skinStatus.Text = "3D-просмотр: " + profile.Username;
+                }
+                catch (Exception ex)
+                {
+                    preview.SetSkin(null);
+                    skinStatus.Text = "Не удалось показать скин: " + ex.Message;
+                }
             }
             else
             {
                 preview.SetSkin(null);
                 skinStatus.Text = "Для этого профиля локальный скин ещё не выбран.";
             }
-        };
+        }
+
+        profileList.SelectedIndexChanged += (_, _) => UpdateSkinPreview();
+        UpdateSkinPreview();
 
         p.Controls.Add(skinCard);
         skinCard.Controls.AddRange(new Control[] { preview, skinStatus, choose, bridge, model, openFolder });
