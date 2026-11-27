@@ -150,6 +150,7 @@ internal sealed class MainForm : Form
     ComboBox? quickLoaderSelector;
     bool updatingBuildSelector;
     bool isBusy;
+    bool isImportingPack;
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly FlowLayoutPanel modCards = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly ComboBox modLoader = new();
@@ -2802,6 +2803,7 @@ internal sealed class MainForm : Form
 
     async Task InstallAsync()
     {
+        if (isBusy) return;
         if (version.SelectedItem is not string v) return;
 
         var task = BeginDownloadTask(
@@ -2879,6 +2881,7 @@ internal sealed class MainForm : Form
 
     async Task LaunchAsync()
     {
+        if (isBusy) return;
         if (version.SelectedItem is not string v) { MessageBox.Show("Сначала выбери версию Minecraft."); return; }
         var activeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
         var nicknameValidation = NickValidator.Validate(activeProfile?.Username);
@@ -3444,6 +3447,8 @@ internal sealed class MainForm : Form
 
     void SaveSettings()
     {
+        if (isBusy)
+            throw new InvalidOperationException("Нельзя менять папку и параметры сборки во время установки или запуска Minecraft.");
         if (string.IsNullOrWhiteSpace(gameDir.Text))
             throw new InvalidOperationException("Выбери папку Minecraft в настройках.");
         var activeProfile = settings.OfflineProfiles?.FirstOrDefault(x => x.Id == settings.ActiveProfileId);
@@ -3500,6 +3505,8 @@ internal sealed class MainForm : Form
         play.Enabled = !busy;
         install.Enabled = !busy;
         buildSelector.Enabled = !busy;
+        foreach (var button in navigationButtons)
+            button.Enabled = !busy;
         Cursor = busy ? Cursors.WaitCursor : Cursors.Default;
         if (message != null) status.Text = message;
     }
@@ -3521,6 +3528,7 @@ internal sealed class MainForm : Form
 
     async Task RunAutoRepairAsync(Label result)
     {
+        if (isBusy) return;
         LauncherDownloadTask? repairTask = null;
         try
         {
