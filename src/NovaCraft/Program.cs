@@ -136,6 +136,7 @@ internal sealed class MainForm : Form
     CheckBox? fullScreenInput;
     CheckBox? closeAfterLaunchInput;
     CheckBox? autoRepairInput;
+    CheckBox? useDesktopResolutionInput;
     TextBox? jvmArgsInput;
     readonly Button play = new();
     readonly Button install = new();
@@ -1065,111 +1066,440 @@ internal sealed class MainForm : Form
 
     TabPage BuildsPage()
     {
-        var p = new TabPage("Сборки") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
-
-        var title = new Label { Text = "Мои сборки", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 26, FontStyle.Bold), Location = new Point(24,18) };
-        var subtitle = new Label { Text = "Отдельные профили Minecraft, загрузчика и параметров запуска.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) };
-        p.Controls.AddRange(new Control[] { title, subtitle });
-
-        var createCard = new Panel
+        var p = new TabPage("Сборки")
         {
-            Location = new Point(24, 102),
-            Size = new Size(880, 112),
-            BackColor = Color.FromArgb(25,28,45),
-            Padding = new Padding(18)
+            BackColor = Color.FromArgb(13,15,25),
+            Padding = new Padding(20)
         };
-        createCard.Controls.Add(new Label { Text = "Создать профиль", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(18,12) });
-        var name = new TextBox { PlaceholderText = "Например: Survival Fabric", Location = new Point(18,48), Width = 300, Height = 36 };
-        var add = ModernButton("+  Сохранить текущий профиль", 240, 38); add.Location = new Point(334,47);
-        createCard.Controls.AddRange(new Control[] { name, add });
-        p.Controls.Add(createCard);
+
+        var toolbar = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 142,
+            BackColor = Color.FromArgb(13,15,25)
+        };
+        toolbar.Controls.Add(new Label
+        {
+            Text = "Мои сборки",
+            AutoSize = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
+            Location = new Point(4, 2)
+        });
+        toolbar.Controls.Add(new Label
+        {
+            Text = "Каждая сборка хранит собственные моды, настройки, миры и файлы Minecraft.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(151,161,183),
+            Location = new Point(7, 42)
+        });
+
+        var name = new TextBox
+        {
+            PlaceholderText = "Название новой сборки",
+            Location = new Point(4, 82),
+            Width = 260,
+            Height = 36
+        };
+        var create = ModernButton("+  Создать пустую", 160, 36);
+        create.Location = new Point(274, 82);
+        var import = ModernButton("Импорт Modrinth / CurseForge", 245, 36);
+        import.Location = new Point(444, 82);
+        var count = new Label
+        {
+            AutoSize = true,
+            Location = new Point(705, 91),
+            ForeColor = Color.FromArgb(155,165,190),
+            Text = settings.BuildProfiles.Count + " сборок"
+        };
+        toolbar.Controls.AddRange(new Control[] { name, create, import, count });
 
         var list = new FlowLayoutPanel
         {
-            Location = new Point(24, 232),
-            Size = new Size(900, 360),
+            Dock = DockStyle.Fill,
             AutoScroll = true,
             WrapContents = true,
             FlowDirection = FlowDirection.LeftToRight,
-            BackColor = Color.Transparent,
-            Padding = new Padding(0)
+            Padding = new Padding(2, 10, 14, 24),
+            BackColor = Color.FromArgb(13,15,25)
         };
-        p.Controls.Add(list);
 
-        void RefreshBuildList()
+        var progressPanel = new Panel
         {
+            Dock = DockStyle.Bottom,
+            Height = 62,
+            BackColor = Color.FromArgb(22,25,39),
+            Padding = new Padding(12)
+        };
+        var progressLabel = new Label
+        {
+            Text = "Загрузки и установка появятся здесь.",
+            AutoSize = false,
+            Location = new Point(12, 8),
+            Size = new Size(850, 20),
+            ForeColor = Color.FromArgb(195,204,220)
+        };
+        var progressBar = new ProgressBar
+        {
+            Location = new Point(12, 33),
+            Size = new Size(850, 14),
+            Minimum = 0,
+            Maximum = 100,
+            Value = 0,
+            Style = ProgressBarStyle.Continuous
+        };
+        progressPanel.Controls.AddRange(new Control[] { progressLabel, progressBar });
+
+        void RenderProfiles()
+        {
+            list.SuspendLayout();
             list.Controls.Clear();
-            if (settings.SavedBuilds.Count == 0)
+            count.Text = settings.BuildProfiles.Count + " сборок";
+
+            if (settings.BuildProfiles.Count == 0)
             {
-                var empty = new Panel { Width = 860, Height = 150, BackColor = Color.FromArgb(22,25,38), Padding = new Padding(22) };
-                empty.Controls.Add(new Label { Text = "Пока нет сохранённых сборок", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(22,22) });
-                empty.Controls.Add(new Label { Text = "Выбери версию и загрузчик на главной, затем сохрани профиль здесь.", AutoSize = true, ForeColor = Color.FromArgb(155,164,184), Location = new Point(22,58) });
-                list.Controls.Add(empty);
+                list.Controls.Add(new Label
+                {
+                    Text = "Сборок пока нет. Создай пустую или импортируй пакет Modrinth / CurseForge.",
+                    AutoSize = true,
+                    ForeColor = Color.Silver,
+                    Padding = new Padding(16)
+                });
+                list.ResumeLayout();
                 return;
             }
 
-            foreach (var saved in settings.SavedBuilds.Select((value,index) => (value,index)))
+            foreach (var profile in settings.BuildProfiles.ToList())
             {
-                var parts = saved.value.Split('|');
-                var buildName = parts.Length >= 3 ? parts[0] : saved.value;
-                var buildVersion = parts.Length >= 3 ? parts[1] : settings.LastVersion;
-                var buildLoader = parts.Length >= 3 ? parts[2] : "Fabric";
+                var selected = string.Equals(profile.Id, settings.ActiveBuildId, StringComparison.OrdinalIgnoreCase);
+                var card = new Panel
+                {
+                    Width = 390,
+                    Height = 166,
+                    Margin = new Padding(5, 5, 12, 10),
+                    Padding = new Padding(16),
+                    BackColor = selected ? Color.FromArgb(37,34,65) : Color.FromArgb(24,27,42),
+                    BorderStyle = BorderStyle.FixedSingle
+                };
 
-                var card = new Panel { Width = 275, Height = 145, Margin = new Padding(0,0,12,12), BackColor = Color.FromArgb(25,28,45), Padding = new Padding(16) };
-                card.Controls.Add(new Label { Text = buildName, Location = new Point(16,14), Size = new Size(235,26), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold), AutoEllipsis = true });
-                card.Controls.Add(new Label { Text = "Minecraft " + buildVersion, AutoSize = true, Location = new Point(16,47), ForeColor = Color.FromArgb(166,176,198) });
-                card.Controls.Add(new Label { Text = "◆  " + buildLoader, AutoSize = true, Location = new Point(16,70), ForeColor = Color.FromArgb(101,214,173) });
+                card.Controls.Add(new Label
+                {
+                    Text = profile.Name,
+                    Location = new Point(14, 12),
+                    Size = new Size(345, 26),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold),
+                    AutoEllipsis = true
+                });
 
-                var launch = ModernButton("▶  Запустить", 112, 34); launch.Location = new Point(16,100);
+                var sourceLabel = profile.SourcePlatform switch
+                {
+                    "modrinth" => "MODRINTH",
+                    "curseforge" => "CURSEFORGE",
+                    "legacy" => "ПЕРЕНЕСЁННАЯ",
+                    _ => "ЛОКАЛЬНАЯ"
+                };
+                card.Controls.Add(new Label
+                {
+                    Text = sourceLabel,
+                    Location = new Point(16, 43),
+                    AutoSize = true,
+                    ForeColor = Color.FromArgb(110,220,170),
+                    Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold)
+                });
+                card.Controls.Add(new Label
+                {
+                    Text = "Minecraft " + profile.MinecraftVersion + "   ·   " + profile.Loader.ToUpperInvariant() +
+                           (string.IsNullOrWhiteSpace(profile.LoaderVersion) ? "" : " " + profile.LoaderVersion),
+                    Location = new Point(16, 65),
+                    Size = new Size(345, 22),
+                    ForeColor = Color.FromArgb(174,184,205),
+                    AutoEllipsis = true
+                });
+                card.Controls.Add(new Label
+                {
+                    Text = Directory.Exists(profile.GameDirectory) ? "Папка создана" : "Будет создана при установке",
+                    Location = new Point(16, 88),
+                    AutoSize = true,
+                    ForeColor = Color.FromArgb(142,153,177)
+                });
+                if (selected)
+                {
+                    card.Controls.Add(new Label
+                    {
+                        Text = "АКТИВНАЯ",
+                        Location = new Point(290, 12),
+                        AutoSize = true,
+                        ForeColor = Color.FromArgb(170,150,255),
+                        Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold)
+                    });
+                }
+
+                var select = ModernButton(selected ? "Выбрана" : "Выбрать", 100, 32);
+                select.Location = new Point(14, 119);
+                select.Enabled = !selected;
+                select.Click += (_,_) =>
+                {
+                    ActivateBuild(profile);
+                    RenderProfiles();
+                };
+
+                var launch = ModernButton("▶  Играть", 104, 32);
+                launch.Location = new Point(122, 119);
                 launch.Click += async (_,_) =>
                 {
-                    settings.LastVersion = buildVersion;
-                    if (gameLoader.Items.Contains(buildLoader)) gameLoader.SelectedItem = buildLoader;
-                    version.SelectedItem = buildVersion;
-                    SettingsService.Save(settings);
+                    ActivateBuild(profile);
                     ShowNavigationPage(0);
                     await LaunchAsync();
                 };
-                var remove = new Button { Text = "Удалить", Width = 78, Height = 34, Location = new Point(138,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White, Cursor = Cursors.Hand };
-                remove.FlatAppearance.BorderSize = 0;
-                remove.Click += (_,_) =>
+
+                var folder = new Button
                 {
-                    if (saved.index < 0 || saved.index >= settings.SavedBuilds.Count) return;
-                    if (MessageBox.Show("Удалить профиль «" + buildName + "»?", "Удаление сборки", MessageBoxButtons.YesNo, MessageBoxIcon.Question) != DialogResult.Yes) return;
-                    settings.SavedBuilds.RemoveAt(saved.index);
-                    SettingsService.Save(settings);
-                    RefreshBuildList();
+                    Text = "Папка",
+                    Width = 68,
+                    Height = 32,
+                    Location = new Point(234, 119),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(38,42,57),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
                 };
-                var folder = new Button { Text = "Папка", Width = 66, Height = 34, Location = new Point(222,100), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,42,57), ForeColor = Color.White, Cursor = Cursors.Hand };
                 folder.FlatAppearance.BorderSize = 0;
                 folder.Click += (_,_) =>
                 {
                     try
                     {
-                        Directory.CreateDirectory(settings.GameDirectory);
-                        Process.Start(new ProcessStartInfo("explorer.exe", """ + settings.GameDirectory + """) { UseShellExecute = true });
+                        Directory.CreateDirectory(profile.GameDirectory);
+                        Process.Start(new ProcessStartInfo("explorer.exe", "\"" + profile.GameDirectory + "\"") { UseShellExecute = true });
                     }
-                    catch (Exception ex) { Fail("Не удалось открыть папку Minecraft", ex); }
+                    catch (Exception ex) { Fail("Не удалось открыть папку сборки", ex); }
                 };
-                card.Controls.AddRange(new Control[] { launch, remove, folder });
+
+                var remove = new Button
+                {
+                    Text = "×",
+                    Width = 32,
+                    Height = 32,
+                    Location = new Point(312, 119),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(58,36,49),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+                remove.FlatAppearance.BorderSize = 0;
+                remove.Click += (_,_) =>
+                {
+                    if (settings.BuildProfiles.Count <= 1)
+                    {
+                        MessageBox.Show("Нельзя удалить последнюю сборку.", "NovaCraft", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                        return;
+                    }
+                    var answer = MessageBox.Show(
+                        "Убрать сборку «" + profile.Name + "» из списка?\n\nФайлы и миры на диске останутся нетронутыми.",
+                        "Удаление записи сборки",
+                        MessageBoxButtons.YesNo,
+                        MessageBoxIcon.Question);
+                    if (answer != DialogResult.Yes) return;
+
+                    settings.BuildProfiles.Remove(profile);
+                    if (settings.ActiveBuildId == profile.Id)
+                        settings.ActiveBuildId = settings.BuildProfiles[0].Id;
+                    var next = settings.BuildProfiles.First(x => x.Id == settings.ActiveBuildId);
+                    settings.GameDirectory = next.GameDirectory;
+                    settings.LastVersion = next.MinecraftVersion;
+                    settings.ModLoader = next.Loader;
+                    launcher = null;
+                    SettingsService.Save(settings);
+                    RefreshBuildSelector();
+                    RenderProfiles();
+                };
+
+                card.Controls.AddRange(new Control[] { select, launch, folder, remove });
                 list.Controls.Add(card);
             }
+
+            list.ResumeLayout();
         }
 
-        add.Click += (_,_) =>
+        create.Click += (_,_) =>
         {
-            var buildName = string.IsNullOrWhiteSpace(name.Text) ? "Моя сборка " + (settings.SavedBuilds.Count + 1) : name.Text.Trim();
-            var gv = version.SelectedItem?.ToString() ?? settings.LastVersion;
-            var loader = gameLoader.SelectedItem?.ToString() ?? "Fabric";
-            settings.SavedBuilds.Add(buildName + "|" + gv + "|" + loader);
-            SettingsService.Save(settings);
-            name.Clear();
-            RefreshBuildList();
-            status.Text = "Профиль сохранён";
+            try
+            {
+                var id = Guid.NewGuid().ToString("N");
+                var currentVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
+                var currentLoader = gameLoader.SelectedItem?.ToString() switch
+                {
+                    "Forge" => "forge",
+                    "Quilt" => "quilt",
+                    "Vanilla" => "vanilla",
+                    _ => "fabric"
+                };
+                var profile = new BuildProfile
+                {
+                    Id = id,
+                    Name = string.IsNullOrWhiteSpace(name.Text) ? "Новая сборка " + (settings.BuildProfiles.Count + 1) : name.Text.Trim(),
+                    MinecraftVersion = currentVersion,
+                    Loader = currentLoader,
+                    GameDirectory = BuildProfileRules.CreateInstanceDirectory(settings.GameDirectory, id),
+                    SourcePlatform = "local",
+                    InstallState = "Пустая"
+                };
+                settings.BuildProfiles.Add(profile);
+                Directory.CreateDirectory(profile.GameDirectory);
+                SettingsService.Save(settings);
+                name.Clear();
+                ActivateBuild(profile);
+                RenderProfiles();
+                status.Text = "Создана отдельная сборка: " + profile.Name;
+            }
+            catch (Exception ex) { Fail("Не удалось создать сборку", ex); }
         };
 
-        RefreshBuildList();
+        import.Click += async (_,_) =>
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Title = "Импортировать Modrinth или CurseForge",
+                Filter = "Minecraft modpacks (*.mrpack;*.zip)|*.mrpack;*.zip",
+                CheckFileExists = true
+            };
+            if (dialog.ShowDialog() != DialogResult.OK) return;
+
+            BuildProfile? profile = null;
+            try
+            {
+                var descriptor = MinecraftPackManifestReader.Read(dialog.FileName);
+                if (descriptor.Loader == "neoforge")
+                    throw new NotSupportedException("В этом этапе импорт NeoForge ещё не поддерживается. NovaCraft не будет автоматически подменять NeoForge на Forge.");
+
+                string? apiKey = null;
+                if (descriptor.Platform == "curseforge")
+                {
+                    apiKey = PromptCurseForgeApiKey();
+                    if (string.IsNullOrWhiteSpace(apiKey))
+                    {
+                        MessageBox.Show(
+                            "Импорт CurseForge отменён: нужен API-ключ для загрузки файлов. Ключ не сохраняется в настройках.",
+                            "Требуется ключ CurseForge",
+                            MessageBoxButtons.OK,
+                            MessageBoxIcon.Information);
+                        return;
+                    }
+                }
+
+                var id = Guid.NewGuid().ToString("N");
+                profile = new BuildProfile
+                {
+                    Id = id,
+                    Name = descriptor.Name,
+                    MinecraftVersion = descriptor.MinecraftVersion,
+                    Loader = descriptor.Loader,
+                    LoaderVersion = descriptor.LoaderVersion,
+                    GameDirectory = BuildProfileRules.CreateInstanceDirectory(settings.GameDirectory, id),
+                    SourcePlatform = descriptor.Platform,
+                    SourceProjectId = descriptor.ProjectId,
+                    InstallState = "Импортируется"
+                };
+                settings.BuildProfiles.Add(profile);
+                Directory.CreateDirectory(profile.GameDirectory);
+                SettingsService.Save(settings);
+                RefreshBuildSelector();
+                RenderProfiles();
+
+                progressBar.Value = 0;
+                progressLabel.Text = "Подготовка импорта " + profile.Name;
+
+                var progress = new Progress<PackImportProgress>(value =>
+                {
+                    progressLabel.Text = value.Stage + (string.IsNullOrWhiteSpace(value.CurrentFile) ? "" : " · " + value.CurrentFile);
+                    progressBar.Value = Math.Clamp((int)(value.FileProgress * 100), 0, 100);
+                    status.Text = "Импорт: " + Math.Min(value.CompletedFiles, value.TotalFiles) + " / " + value.TotalFiles;
+                });
+
+                await MinecraftPackImportService.ImportAsync(
+                    dialog.FileName,
+                    profile,
+                    http,
+                    apiKey,
+                    progress,
+                    CancellationToken.None);
+
+                profile.InstallState = "Готова";
+                SettingsService.Save(settings);
+                ActivateBuild(profile);
+                RefreshBuildSelector();
+                RenderProfiles();
+                progressLabel.Text = "Импорт завершён: " + profile.Name;
+                progressBar.Value = 100;
+                status.Text = "Сборка импортирована и изолирована: " + profile.Name;
+            }
+            catch (Exception ex)
+            {
+                if (profile != null)
+                {
+                    profile.InstallState = "Требует исправления";
+                    SettingsService.Save(settings);
+                    RenderProfiles();
+                }
+                progressLabel.Text = "Импорт не завершён: " + ex.Message;
+                progressBar.Value = 0;
+                Fail("Не удалось импортировать сборку", ex);
+            }
+        };
+
+        p.Controls.Add(list);
+        p.Controls.Add(progressPanel);
+        p.Controls.Add(toolbar);
+        RenderProfiles();
         return p;
+    }
+
+    string? PromptCurseForgeApiKey()
+    {
+        using var dialog = new Form
+        {
+            Text = "API-ключ CurseForge",
+            Width = 520,
+            Height = 190,
+            StartPosition = FormStartPosition.CenterParent,
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            BackColor = Color.FromArgb(20,23,35),
+            ForeColor = Color.White
+        };
+        var label = new Label
+        {
+            Text = "Введите свой API-ключ CurseForge. NovaCraft использует его только во время импорта и не сохраняет в settings.json.",
+            Location = new Point(16, 14),
+            Size = new Size(470, 48),
+            ForeColor = Color.FromArgb(205,212,226)
+        };
+        var input = new TextBox
+        {
+            Location = new Point(16, 70),
+            Width = 470,
+            UseSystemPasswordChar = true
+        };
+        var ok = ModernButton("Продолжить", 120, 34);
+        ok.Location = new Point(240, 112);
+        ok.DialogResult = DialogResult.OK;
+        var cancel = new Button
+        {
+            Text = "Отмена",
+            Location = new Point(368, 112),
+            Width = 118,
+            Height = 34,
+            DialogResult = DialogResult.Cancel,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(38,42,57),
+            ForeColor = Color.White
+        };
+        cancel.FlatAppearance.BorderSize = 0;
+        dialog.Controls.AddRange(new Control[] { label, input, ok, cancel });
+        dialog.AcceptButton = ok;
+        dialog.CancelButton = cancel;
+        return dialog.ShowDialog(this) == DialogResult.OK ? input.Text.Trim() : null;
     }
 
     TabPage NewsPage()
@@ -1794,7 +2124,7 @@ internal sealed class MainForm : Form
         p.Controls.Add(new Label { Text="Настройки",AutoSize=true,ForeColor=Color.White,Font=new Font("Segoe UI Semibold",24,FontStyle.Bold),Location=new Point(24,20)});
         p.Controls.Add(new Label { Text="Производительность, игра и внешний вид NovaCraft.",AutoSize=true,ForeColor=Color.FromArgb(160,170,195),Location=new Point(27,62)});
 
-        var game=ModernCard(720,190,"ИГРА",Color.FromArgb(25,28,45)); game.Location=new Point(24,105);
+        var game=ModernCard(720,225,"ИГРА",Color.FromArgb(25,28,45)); game.Location=new Point(24,105);
         game.Controls.Add(new Label{Text="Папка Minecraft",AutoSize=true,ForeColor=Color.Silver,Location=new Point(18,44)});
         gameDir.Text=settings.GameDirectory; gameDir.SetBounds(18,68,520,34);
         var browse=new Button{Text="Выбрать…",Width=105,Height=34,Location=new Point(548,68),FlatStyle=FlatStyle.Flat,BackColor=Color.FromArgb(38,43,63),ForeColor=Color.White};browse.FlatAppearance.BorderSize=0;
@@ -1804,11 +2134,20 @@ internal sealed class MainForm : Form
         ram.Minimum=1024;ram.Maximum=8192;ram.Increment=256;ram.Value=Math.Clamp(settings.MaximumRamMb,1024,8192);ram.SetBounds(150,112,170,34);game.Controls.Add(ram);
         game.Controls.Add(new Label{Text="МБ",AutoSize=true,ForeColor=Color.Silver,Location=new Point(325,120)});
         game.Controls.Add(new Label{Text="Разрешение",AutoSize=true,ForeColor=Color.Silver,Location=new Point(390,116)});
-        widthInput=new NumericUpDown{Minimum=800,Maximum=7680,Value=Math.Clamp(settings.ScreenWidth,800,7680),Width=85,Location=new Point(470,112)};
-        heightInput=new NumericUpDown{Minimum=600,Maximum=4320,Value=Math.Clamp(settings.ScreenHeight,600,4320),Width=85,Location=new Point(565,112)};
-        game.Controls.AddRange(new Control[]{widthInput,heightInput});
+        var desktopSize = GetDesktopResolution();
+        widthInput=new NumericUpDown{Minimum=800,Maximum=7680,Value=Math.Clamp(settings.UseDesktopResolution ? desktopSize.Width : settings.ScreenWidth,800,7680),Width=85,Location=new Point(470,112)};
+        heightInput=new NumericUpDown{Minimum=600,Maximum=4320,Value=Math.Clamp(settings.UseDesktopResolution ? desktopSize.Height : settings.ScreenHeight,600,4320),Width=85,Location=new Point(565,112)};
+        useDesktopResolutionInput=new CheckBox{Text=$"Использовать разрешение Windows ({desktopSize.Width}×{desktopSize.Height})",Checked=settings.UseDesktopResolution,AutoSize=true,Location=new Point(18,166),ForeColor=Color.White};
+        void UpdateResolutionInputs()
+        {
+            widthInput.Enabled = !(useDesktopResolutionInput?.Checked ?? true);
+            heightInput.Enabled = !(useDesktopResolutionInput?.Checked ?? true);
+        }
+        useDesktopResolutionInput.CheckedChanged += (_,_) => UpdateResolutionInputs();
+        UpdateResolutionInputs();
+        game.Controls.AddRange(new Control[]{widthInput,heightInput,useDesktopResolutionInput});
 
-        var launch=ModernCard(720,225,"ЗАПУСК",Color.FromArgb(25,28,45));launch.Location=new Point(24,310);
+        var launch=ModernCard(720,225,"ЗАПУСК",Color.FromArgb(25,28,45));launch.Location=new Point(24,345);
         fullScreenInput=new CheckBox{Text="Полный экран",Checked=settings.FullScreen,AutoSize=true,Location=new Point(18,48),ForeColor=Color.White};
         closeAfterLaunchInput=new CheckBox{Text="Закрывать NovaCraft после запуска Minecraft",Checked=settings.CloseAfterLaunch,AutoSize=true,Location=new Point(18,82),ForeColor=Color.White};
         autoRepairInput=new CheckBox{Text="Автоисправление типовых ошибок",Checked=settings.AutoRepair,AutoSize=true,Location=new Point(18,116),ForeColor=Color.White};
@@ -1817,7 +2156,7 @@ internal sealed class MainForm : Form
         jvmArgsInput=new TextBox{Text=settings.ExtraJvmArguments,Width=650,Location=new Point(18,174),BackColor=Color.FromArgb(34,37,58),ForeColor=Color.White};
         launch.Controls.Add(jvmArgsInput);
 
-        var save=ModernButton("✓  Сохранить настройки",210,42);save.Location=new Point(24,560);save.Click+=(_,_)=>{try{SaveSettings();status.Text="Настройки сохранены";}catch(Exception ex){Fail("Не удалось сохранить настройки",ex);}};p.Controls.AddRange(new Control[]{game,launch,save});
+        var save=ModernButton("✓  Сохранить настройки",210,42);save.Location=new Point(24,595);save.Click+=(_,_)=>{try{SaveSettings();status.Text="Настройки сохранены";}catch(Exception ex){Fail("Не удалось сохранить настройки",ex);}};p.Controls.AddRange(new Control[]{game,launch,save});
         return p;
     }
 
