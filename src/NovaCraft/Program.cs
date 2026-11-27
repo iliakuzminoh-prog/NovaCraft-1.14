@@ -87,6 +87,7 @@ internal sealed class LauncherSettings
     public string ActiveBuildId { get; set; } = "";
     public bool UseDesktopResolution { get; set; } = true;
     public List<string> FavoriteServers { get; set; } = new();
+    public List<string> MusicPlaylist { get; set; } = new();
 }
 
 internal sealed class HiddenTabControl : TabControl
@@ -164,6 +165,8 @@ internal sealed class MainForm : Form
     bool modFeedLoading;
     bool modFeedReloadPending;
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromMinutes(3) };
+    LocalMusicPlayer? localMusicPlayer;
+    System.Windows.Forms.Timer? localMusicTimer;
 
     public MainForm()
     {
@@ -227,6 +230,12 @@ internal sealed class MainForm : Form
         Font = new Font("Segoe UI", 10); StartPosition = FormStartPosition.CenterScreen;
 
         BuildUi();
+        FormClosed += (_, _) =>
+        {
+            localMusicTimer?.Stop();
+            localMusicTimer?.Dispose();
+            localMusicPlayer?.Dispose();
+        };
 
         // Лаунчер должен открываться даже при недоступном интернете.
         // Сеть используется уже после отображения главного окна.
@@ -1952,17 +1961,277 @@ internal sealed class MainForm : Form
 
     TabPage MusicPage()
     {
-        var p = new TabPage("Музыка") { BackColor = Color.FromArgb(18, 19, 23), Padding = new Padding(26) };
-        p.Controls.Add(new Label { Text = "СВОЯ МУЗЫКА В MINECRAFT", Font = new Font("Segoe UI Semibold", 19, FontStyle.Bold), AutoSize = true, ForeColor = Color.White, Location = new Point(24, 24) });
+        var p = new TabPage("Музыка")
+        {
+            BackColor = Color.FromArgb(18, 19, 23),
+            Padding = new Padding(24),
+            AutoScroll = true
+        };
         p.Controls.Add(new Label
         {
-            Text = "Выбери собственный файл OGG. NovaCraft соберёт ресурс-пак, который заменяет фоновую музыку игры. Исходные файлы Minecraft не перезаписываются.",
-            AutoSize = false, Size = new Size(760, 58), ForeColor = Color.Silver, Location = new Point(26, 76)
+            Text = "МУЗЫКА И АУДИО",
+            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
+            AutoSize = true,
+            ForeColor = Color.White,
+            Location = new Point(24, 18)
         });
-        customMusicPath = new TextBox { Location = new Point(26, 150), Width = 560, Height = 34, ReadOnly = true };
-        var browse = new Button { Text = "Выбрать OGG…", Location = new Point(600, 148), Width = 150, Height = 38 };
-        var installPack = new Button { Text = "Создать ресурс-пак", Location = new Point(26, 210), Width = 190, Height = 42 };
-        var result = new Label { Text = "Поддерживается OGG — это формат звука, который использует Minecraft Java.", Location = new Point(26, 270), Size = new Size(760, 90), ForeColor = Color.Silver };
+        p.Controls.Add(new Label
+        {
+            Text = "Локальный проигрыватель MP3/WAV и генератор OGG-ресурс-пака для Minecraft.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(151, 161, 183),
+            Location = new Point(27, 62)
+        });
+
+        var playerCard = ModernCard(820, 390, "ПРОИГРЫВАТЕЛЬ NOVACRAFT", Color.FromArgb(22, 25, 39));
+        playerCard.Location = new Point(24, 100);
+        var trackList = new ListBox
+        {
+            Location = new Point(18, 50),
+            Size = new Size(490, 220),
+            BackColor = Color.FromArgb(17, 20, 31),
+            ForeColor = Color.White,
+            BorderStyle = BorderStyle.None,
+            IntegralHeight = false
+        };
+        var playerState = new Label
+        {
+            Text = "Выбери MP3 или WAV-файлы. Плейлист сохраняется на этом компьютере.",
+            Location = new Point(18, 328),
+            Size = new Size(770, 36),
+            ForeColor = Color.FromArgb(160, 174, 197),
+            AutoEllipsis = true
+        };
+        var nowPlaying = new Label
+        {
+            Text = "Сейчас ничего не воспроизводится",
+            Location = new Point(18, 282),
+            Size = new Size(490, 30),
+            ForeColor = Color.White,
+            AutoEllipsis = true
+        };
+        var volumeLabel = new Label
+        {
+            Text = "Громкость",
+            Location = new Point(535, 286),
+            AutoSize = true,
+            ForeColor = Color.Silver
+        };
+        var volume = new TrackBar
+        {
+            Minimum = 0,
+            Maximum = 100,
+            Value = 70,
+            TickFrequency = 10,
+            Location = new Point(615, 270),
+            Size = new Size(170, 45)
+        };
+
+        var addTracks = ModernButton("+ Добавить файлы", 145, 36);
+        addTracks.Location = new Point(535, 50);
+        var removeTrack = ModernButton("Удалить из списка", 145, 36);
+        removeTrack.Location = new Point(535, 94);
+        removeTrack.BackColor = Color.FromArgb(42, 46, 62);
+        var previousTrack = ModernButton("◀ Предыдущая", 145, 36);
+        previousTrack.Location = new Point(535, 138);
+        previousTrack.BackColor = Color.FromArgb(42, 46, 62);
+        var playPause = ModernButton("▶  Играть / пауза", 145, 36);
+        playPause.Location = new Point(535, 182);
+        var stopTrack = ModernButton("■  Стоп", 145, 36);
+        stopTrack.Location = new Point(535, 226);
+        stopTrack.BackColor = Color.FromArgb(42, 46, 62);
+
+        settings.MusicPlaylist = MusicPlaylistRules.Normalize(settings.MusicPlaylist);
+
+        void SavePlaylist()
+        {
+            settings.MusicPlaylist = trackList.Items.Cast<MusicTrackEntry>()
+                .Select(x => x.FullPath).ToList();
+            SettingsService.Save(settings);
+        }
+
+        void RefreshPlaylist(int selectedIndex = -1)
+        {
+            trackList.BeginUpdate();
+            trackList.Items.Clear();
+            foreach (var path in settings.MusicPlaylist)
+                trackList.Items.Add(new MusicTrackEntry(path));
+            if (trackList.Items.Count > 0)
+                trackList.SelectedIndex = Math.Clamp(selectedIndex < 0 ? 0 : selectedIndex, 0, trackList.Items.Count - 1);
+            trackList.EndUpdate();
+            playerState.Text = $"{trackList.Items.Count} трек(ов) в сохранённом плейлисте. Файлы остаются в исходных папках.";
+        }
+
+        void StopPlayback()
+        {
+            if (localMusicPlayer?.IsOpen == true)
+            {
+                try { localMusicPlayer.Stop(); } catch { }
+            }
+            if (localMusicTimer != null)
+                localMusicTimer.Stop();
+        }
+
+        void PlayAt(int index)
+        {
+            if (index < 0 || index >= trackList.Items.Count)
+                return;
+
+            var entry = (MusicTrackEntry)trackList.Items[index];
+            try
+            {
+                localMusicPlayer ??= new LocalMusicPlayer();
+                localMusicPlayer.Open(entry.FullPath);
+                try { localMusicPlayer.SetVolume(volume.Value); } catch { /* Some Windows audio drivers do not expose MCI volume control. */ }
+                localMusicPlayer.Play();
+                trackList.SelectedIndex = index;
+                nowPlaying.Text = "Сейчас играет: " + entry.ToString();
+                playerState.Text = "Воспроизведение. Следующий трек включится автоматически.";
+                if (localMusicTimer == null)
+                {
+                    localMusicTimer = new System.Windows.Forms.Timer { Interval = 900 };
+                    localMusicTimer.Tick += (_, _) =>
+                    {
+                        if (localMusicPlayer?.IsOpen != true || trackList.Items.Count == 0)
+                            return;
+                        try
+                        {
+                            if (string.Equals(localMusicPlayer.GetMode(), "stopped", StringComparison.OrdinalIgnoreCase))
+                            {
+                                var next = trackList.SelectedIndex + 1;
+                                PlayAt(next >= trackList.Items.Count ? 0 : next);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            localMusicTimer.Stop();
+                            playerState.Text = "Проигрыватель остановлен: " + ex.Message;
+                        }
+                    };
+                }
+                localMusicTimer.Start();
+            }
+            catch (Exception ex)
+            {
+                if (localMusicTimer != null)
+                    localMusicTimer.Stop();
+                nowPlaying.Text = "Не удалось воспроизвести: " + entry.ToString();
+                playerState.Text = ex.Message;
+            }
+        }
+
+        addTracks.Click += (_, _) =>
+        {
+            using var dialog = new OpenFileDialog
+            {
+                Filter = "Музыка MP3/WAV (*.mp3;*.wav)|*.mp3;*.wav",
+                Title = "Добавить музыку в плейлист",
+                Multiselect = true
+            };
+            if (dialog.ShowDialog() != DialogResult.OK)
+                return;
+
+            var playlist = settings.MusicPlaylist.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            foreach (var path in dialog.FileNames)
+            {
+                try { playlist.Add(MusicPlaylistRules.ValidateExistingFile(path)); }
+                catch (Exception ex) { playerState.Text = ex.Message; }
+            }
+            settings.MusicPlaylist = playlist.ToList();
+            RefreshPlaylist(trackList.Items.Count);
+            SavePlaylist();
+        };
+
+        removeTrack.Click += (_, _) =>
+        {
+            var index = trackList.SelectedIndex;
+            if (index < 0)
+                return;
+            var removed = (MusicTrackEntry)trackList.Items[index];
+            if (string.Equals(localMusicPlayer?.CurrentPath, removed.FullPath, StringComparison.OrdinalIgnoreCase))
+            {
+                StopPlayback();
+                localMusicPlayer?.Dispose();
+                localMusicPlayer = null;
+                nowPlaying.Text = "Сейчас ничего не воспроизводится";
+            }
+            settings.MusicPlaylist.RemoveAll(x => string.Equals(x, removed.FullPath, StringComparison.OrdinalIgnoreCase));
+            RefreshPlaylist(Math.Max(0, index - 1));
+            SavePlaylist();
+        };
+
+        previousTrack.Click += (_, _) =>
+        {
+            if (trackList.Items.Count == 0) return;
+            var index = trackList.SelectedIndex <= 0 ? trackList.Items.Count - 1 : trackList.SelectedIndex - 1;
+            PlayAt(index);
+        };
+        playPause.Click += (_, _) =>
+        {
+            if (localMusicPlayer?.IsOpen != true)
+            {
+                PlayAt(trackList.SelectedIndex >= 0 ? trackList.SelectedIndex : 0);
+                return;
+            }
+            try
+            {
+                if (string.Equals(localMusicPlayer.GetMode(), "paused", StringComparison.OrdinalIgnoreCase))
+                {
+                    localMusicPlayer.Resume();
+                    playerState.Text = "Воспроизведение продолжено.";
+                }
+                else
+                {
+                    localMusicPlayer.Pause();
+                    playerState.Text = "Пауза.";
+                }
+            }
+            catch (Exception ex) { playerState.Text = ex.Message; }
+        };
+        stopTrack.Click += (_, _) =>
+        {
+            StopPlayback();
+            nowPlaying.Text = "Воспроизведение остановлено";
+            playerState.Text = "Нажми «Играть», чтобы продолжить с выбранного трека.";
+        };
+        volume.Scroll += (_, _) =>
+        {
+            if (localMusicPlayer?.IsOpen != true) return;
+            try { localMusicPlayer.SetVolume(volume.Value); }
+            catch (Exception ex) { playerState.Text = "Громкость не поддерживается аудиоустройством: " + ex.Message; }
+        };
+        trackList.DoubleClick += (_, _) => PlayAt(trackList.SelectedIndex);
+
+        RefreshPlaylist();
+        playerCard.Controls.AddRange(new Control[]
+        {
+            trackList, playerState, nowPlaying, volumeLabel, volume,
+            addTracks, removeTrack, previousTrack, playPause, stopTrack
+        });
+
+        var packCard = ModernCard(820, 220, "СВОЯ МУЗЫКА В MINECRAFT", Color.FromArgb(22, 25, 39));
+        packCard.Location = new Point(24, 510);
+        packCard.Controls.Add(new Label
+        {
+            Text = "Выбери OGG-файл. NovaCraft соберёт ресурс-пак для Minecraft 1.21.1. Исходные файлы игры не перезаписываются.",
+            AutoSize = false,
+            Size = new Size(760, 42),
+            ForeColor = Color.FromArgb(181, 190, 207),
+            Location = new Point(18, 48)
+        });
+        customMusicPath = new TextBox { Location = new Point(18, 100), Width = 520, Height = 34, ReadOnly = true };
+        var browse = ModernButton("Выбрать OGG…", 130, 36);
+        browse.Location = new Point(550, 98);
+        var installPack = ModernButton("Создать ресурс-пак", 190, 38);
+        installPack.Location = new Point(18, 148);
+        var packResult = new Label
+        {
+            Text = "Ресурс-пак включается внутри Minecraft в настройках ресурсов.",
+            Location = new Point(220, 150),
+            Size = new Size(570, 46),
+            ForeColor = Color.FromArgb(160, 174, 197),
+            AutoEllipsis = true
+        };
         browse.Click += (_, _) =>
         {
             using var dialog = new OpenFileDialog { Filter = "OGG audio (*.ogg)|*.ogg", Title = "Выбери музыкальный файл" };
@@ -1970,6 +2239,7 @@ internal sealed class MainForm : Form
         };
         installPack.Click += (_, _) =>
         {
+            string? temp = null;
             try
             {
                 var source = customMusicPath.Text;
@@ -1977,13 +2247,13 @@ internal sealed class MainForm : Form
                     throw new InvalidOperationException("Сначала выбери существующий файл .ogg.");
                 var selectedGameVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
                 if (selectedGameVersion != "1.21.1")
-                    throw new InvalidOperationException("В этой версии генератор музыки формирует ресурс-пак для Minecraft 1.21.1 (pack_format 34). Выбери Minecraft 1.21.1, иначе игра может отклонить ресурс-пак.");
+                    throw new InvalidOperationException("Генератор формирует ресурс-пак для Minecraft 1.21.1 (pack_format 34). Выбери эту версию, иначе игра может отклонить ресурс-пак.");
                 if (!string.Equals(Path.GetExtension(source), ".ogg", StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidOperationException("Minecraft Java принимает этот ресурс-пак с аудио в формате OGG.");
-                var targetDir = Path.Combine(settings.GameDirectory, "resourcepacks");
+                    throw new InvalidOperationException("Для этого ресурс-пака нужен файл OGG.");
+                var targetDir = Path.Combine(ActiveBuild.GameDirectory, "resourcepacks");
                 Directory.CreateDirectory(targetDir);
                 var target = Path.Combine(targetDir, "NovaCraftCustomMusic.zip");
-                var temp = target + ".tmp";
+                temp = target + ".tmp";
                 if (File.Exists(temp)) File.Delete(temp);
                 using (var archive = ZipFile.Open(temp, ZipArchiveMode.Create))
                 {
@@ -1999,11 +2269,18 @@ internal sealed class MainForm : Form
                     input.CopyTo(output);
                 }
                 File.Move(temp, target, true);
-                result.Text = "Ресурс-пак создан:\n" + target + "\nОткрой Minecraft → Настройки → Ресурс-паки и включи NovaCraftCustomMusic. Он меняет фоновую музыку игры, не звуки шагов/ударов.";
+                packResult.Text = "Создано: " + target + ". Включи NovaCraftCustomMusic в настройках ресурс-паков Minecraft.";
             }
-            catch (Exception ex) { result.Text = "Не удалось создать ресурс-пак: " + ex.Message; }
+            catch (Exception ex)
+            {
+                if (temp != null && File.Exists(temp))
+                    try { File.Delete(temp); } catch { }
+                packResult.Text = "Не удалось создать ресурс-пак: " + ex.Message;
+            }
         };
-        p.Controls.AddRange(new Control[] { customMusicPath, browse, installPack, result });
+
+        packCard.Controls.AddRange(new Control[] { customMusicPath, browse, installPack, packResult });
+        p.Controls.AddRange(new Control[] { playerCard, packCard });
         return p;
     }
 
@@ -2456,22 +2733,93 @@ internal sealed class MainForm : Form
 
     TabPage PerformancePage()
     {
-        var p = new TabPage("Производительность") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
-        p.Controls.Add(new Label { Text = "ПРОИЗВОДИТЕЛЬНОСТЬ", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold), Location = new Point(24,18) });
-        p.Controls.Add(new Label { Text = "Готовые профили без опасных твиков Windows и без фоновых программ.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) });
-        var active = new Label { Text = "Текущий профиль: " + (settings.FpsBoost ? "FPS BOOST" : "Сбалансированный"), AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(28,105) };
-        p.Controls.Add(active);
-        var balanced = ModernCard(410, 180, "СБАЛАНСИРОВАННЫЙ", Color.FromArgb(23,27,42)); balanced.Location = new Point(24,145);
-        balanced.Controls.Add(new Label { Text = "Для обычной игры и слабых ПК.\nПамять: 2 ГБ\nFPS Boost: выключен", AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50) });
-        var b1 = ModernButton("Применить", 130, 38); b1.Location = new Point(18,125);
-        b1.Click += (_,_) => { settings.MaximumRamMb = 2048; settings.FpsBoost = false; SettingsService.Save(settings); active.Text = "Текущий профиль: Сбалансированный"; status.Text = "Профиль применён"; }; balanced.Controls.Add(b1);
-        var boostCard = ModernCard(410, 180, "FPS BOOST", Color.FromArgb(27,25,45)); boostCard.Location = new Point(455,145);
-        boostCard.Controls.Add(new Label { Text = "Для максимальной отзывчивости.\nПамять: 3 ГБ\nFPS Boost: включен", AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50) });
-        var b2 = ModernButton("Включить", 130, 38); b2.Location = new Point(18,125);
-        b2.Click += (_,_) => { settings.MaximumRamMb = 3072; settings.FpsBoost = true; SettingsService.Save(settings); active.Text = "Текущий профиль: FPS BOOST"; status.Text = "FPS Boost включён"; }; boostCard.Controls.Add(b2);
-        var safe = ModernCard(841, 175, "БЕЗОПАСНОСТЬ", Color.FromArgb(22,25,39)); safe.Location = new Point(24,345);
-        safe.Controls.Add(new Label { Text = "NovaCraft не меняет реестр, не отключает защиту Windows и не запускает скрытые процессы.\nПрофиль меняет только параметры запуска Minecraft.", AutoSize = true, ForeColor = Color.FromArgb(181,190,207), Location = new Point(18,52) });
-        p.Controls.AddRange(new Control[] { balanced, boostCard, safe }); return p;
+        var p = new TabPage("Производительность")
+        {
+            BackColor = Color.FromArgb(13, 15, 25),
+            Padding = new Padding(24),
+            AutoScroll = true
+        };
+        p.Controls.Add(new Label
+        {
+            Text = "ПРОИЗВОДИТЕЛЬНОСТЬ",
+            AutoSize = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
+            Location = new Point(24, 18)
+        });
+
+        var memory = SystemMemoryStatus.Read();
+        var recommended = PerformanceProfileRules.RecommendedHeapMb(memory);
+        var memoryInfo = new Label
+        {
+            Text = PerformanceProfileRules.Describe(memory),
+            AutoSize = false,
+            Size = new Size(810, 64),
+            ForeColor = Color.FromArgb(190, 200, 218),
+            Location = new Point(27, 68)
+        };
+        p.Controls.Add(memoryInfo);
+
+        var autoCard = ModernCard(820, 190, "БЕЗОПАСНЫЙ ЛИМИТ ОЗУ JAVA", Color.FromArgb(23, 27, 42));
+        autoCard.Location = new Point(24, 145);
+        autoCard.Controls.Add(new Label
+        {
+            Text = $"Текущий лимит: {settings.MaximumRamMb} МБ\nРекомендация для текущей свободной памяти: {recommended} МБ\nЛимит пересчитывается по фактической памяти Windows, а не по выдуманному FPS-профилю.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(190, 198, 215),
+            Location = new Point(18, 50)
+        });
+        var apply = ModernButton("Применить рекомендацию", 220, 38);
+        apply.Location = new Point(18, 132);
+        apply.Click += (_, _) =>
+        {
+            settings.MaximumRamMb = recommended;
+            settings.FpsBoost = false;
+            ram.Value = Math.Clamp(recommended, (int)ram.Minimum, (int)ram.Maximum);
+            SettingsService.Save(settings);
+            status.Text = $"Лимит Java установлен: {recommended} МБ";
+            MessageBox.Show(
+                "Изменён только лимит памяти Java. Это не FPS-мод и не гарантия прироста кадров. Для тяжёлых сборок может потребоваться больше памяти.",
+                "Параметры запуска обновлены",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        };
+        autoCard.Controls.Add(apply);
+
+        var modsCard = ModernCard(820, 190, "ОПТИМИЗАЦИЯ ГРАФИКИ И МОДОВ", Color.FromArgb(22, 25, 39));
+        modsCard.Location = new Point(24, 355);
+        modsCard.Controls.Add(new Label
+        {
+            Text = "В этой сборке NovaCraft не устанавливает собственный Java-мод и не обещает автоматический прирост FPS.\nДля Fabric обычно рассматривают Sodium (рендеринг), Lithium (логика игры) и FerriteCore (память),\nно совместимость зависит от версии Minecraft, загрузчика и остальных модов.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(181, 190, 207),
+            Location = new Point(18, 50)
+        });
+        var openModrinth = ModernButton("Открыть оптимизационные моды на Modrinth", 330, 38);
+        openModrinth.Location = new Point(18, 132);
+        openModrinth.Click += (_, _) =>
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(
+                    "https://modrinth.com/mods?g=categories:optimization&v=" + Uri.EscapeDataString(ActiveBuild.MinecraftVersion) +
+                    "&l=" + Uri.EscapeDataString(ActiveBuild.Loader))
+                { UseShellExecute = true });
+            }
+            catch (Exception ex) { MessageBox.Show("Не удалось открыть Modrinth: " + ex.Message); }
+        };
+        modsCard.Controls.Add(openModrinth);
+
+        var safety = new Label
+        {
+            Text = "NovaCraft не меняет реестр, драйверы и настройки Windows, не отключает защиту и не добавляет себя в автозагрузку. Дополнительные JVM-аргументы задаются вручную в настройках.",
+            AutoSize = false,
+            Size = new Size(810, 48),
+            ForeColor = Color.FromArgb(151, 161, 183),
+            Location = new Point(27, 565)
+        };
+        p.Controls.AddRange(new Control[] { autoCard, modsCard, safety });
+        return p;
     }
 
     TabPage ServersPage()
@@ -3020,14 +3368,6 @@ internal sealed class MainForm : Form
             FullScreen = settings.FullScreen
         };
         var extra = new List<MArgument>();
-        if (boost.Checked)
-        {
-            extra.Add(MArgument.FromCommandLine("-XX:+UseG1GC"));
-            extra.Add(MArgument.FromCommandLine("-XX:+ParallelRefProcEnabled"));
-            extra.Add(MArgument.FromCommandLine("-XX:MaxGCPauseMillis=100"));
-            extra.Add(MArgument.FromCommandLine("-XX:+UnlockExperimentalVMOptions"));
-            extra.Add(MArgument.FromCommandLine("-XX:+DisableExplicitGC"));
-        }
         if (!string.IsNullOrWhiteSpace(settings.ExtraJvmArguments))
             extra.Add(MArgument.FromCommandLine(settings.ExtraJvmArguments));
         if (extra.Count > 0) option.ExtraJvmArguments = extra;
@@ -3649,7 +3989,7 @@ internal sealed class MainForm : Form
             throw new InvalidOperationException(nicknameValidation.error);
         settings.Username = activeProfile.Username;
         settings.MaximumRamMb = (int)ram.Value;
-        settings.FpsBoost = boost.Checked;
+        settings.FpsBoost = false;
         settings.GameDirectory = gameDir.Text.Trim();
         settings.LastVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
         settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
@@ -3732,8 +4072,8 @@ internal sealed class MainForm : Form
 
             notes.Add((await CheckJavaAsync()).Replace("\n", " "));
 
-            var availableMb = (int)(GC.GetGCMemoryInfo().TotalAvailableMemoryBytes / 1024 / 1024);
-            var safeLimit = Math.Clamp((int)(availableMb * 0.55), 1024, 8192);
+            var memory = SystemMemoryStatus.Read();
+            var safeLimit = PerformanceProfileRules.RecommendedHeapMb(memory);
             if (settings.MaximumRamMb > safeLimit)
             {
                 settings.MaximumRamMb = safeLimit;
@@ -3838,7 +4178,7 @@ static class SettingsService
         try
         {
             var loaded = JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(PathName)) ?? new LauncherSettings();
-            loaded.SchemaVersion = Math.Max(loaded.SchemaVersion, 2);
+            loaded.SchemaVersion = Math.Max(loaded.SchemaVersion, 3);
             if (string.IsNullOrWhiteSpace(loaded.GameDirectory))
                 loaded.GameDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "NovaCraft", "minecraft");
             loaded.MaximumRamMb = Math.Clamp(loaded.MaximumRamMb, 1024, 8192);
@@ -3849,6 +4189,7 @@ static class SettingsService
             if (string.IsNullOrWhiteSpace(loaded.Username))
                 loaded.Username = "NovaPlayer";
             loaded.SavedBuilds ??= new List<string>();
+            loaded.MusicPlaylist = MusicPlaylistRules.Normalize(loaded.MusicPlaylist);
             loaded.BuildProfiles ??= new List<BuildProfile>();
             loaded.OfflineProfiles ??= new List<OfflineProfile>();
             if (loaded.OfflineProfiles.Count == 0)
