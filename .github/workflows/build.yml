@@ -43,15 +43,6 @@ jobs:
       - name: Package portable ZIP
         shell: pwsh
         run: Compress-Archive -Path publish/NovaCraft.exe -DestinationPath NovaCraft-1.14-win-x64-portable.zip -Force
-      - name: Download Microsoft Visual C++ Runtime
-        shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path installer\redist | Out-Null
-          Invoke-WebRequest -Uri "https://aka.ms/vc14/vc_redist.x64.exe" -OutFile "installer\redist\vc_redist.x64.exe"
-          if (!(Test-Path "installer\redist\vc_redist.x64.exe")) { throw "VC++ Redistributable download failed" }
-          $size = (Get-Item "installer\redist\vc_redist.x64.exe").Length
-          if ($size -lt 1MB) { throw "VC++ Redistributable download unexpectedly small: $size bytes" }
-          Write-Host "VC++ Redistributable: $([math]::Round($size / 1MB,2)) MB"
       - name: Install Inno Setup
         shell: pwsh
         run: choco install innosetup --yes --no-progress
