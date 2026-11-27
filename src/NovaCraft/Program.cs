@@ -1538,6 +1538,7 @@ internal sealed class MainForm : Form
             if (dialog.ShowDialog() != DialogResult.OK) return;
 
             BuildProfile? profile = null;
+            LauncherDownloadTask? importTask = null;
             try
             {
                 var descriptor = MinecraftPackManifestReader.Read(dialog.FileName);
@@ -1577,6 +1578,7 @@ internal sealed class MainForm : Form
                 SettingsService.Save(settings);
                 RefreshBuildSelector();
                 RenderProfiles();
+                importTask = BeginDownloadTask(profile.Name, Path.GetFileName(dialog.FileName), descriptor.Platform, profile.Name);
 
                 progressBar.Value = 0;
                 progressLabel.Text = "Подготовка импорта " + profile.Name;
@@ -1586,6 +1588,13 @@ internal sealed class MainForm : Form
                     progressLabel.Text = value.Stage + (string.IsNullOrWhiteSpace(value.CurrentFile) ? "" : " · " + value.CurrentFile);
                     progressBar.Value = Math.Clamp((int)(value.FileProgress * 100), 0, 100);
                     status.Text = "Импорт: " + Math.Min(value.CompletedFiles, value.TotalFiles) + " / " + value.TotalFiles;
+                    var progressValue = value.TotalFiles <= 0
+                        ? 0
+                        : Math.Clamp((value.CompletedFiles + value.FileProgress) / value.TotalFiles, 0, 1);
+                    var taskStatus = value.Stage.Contains("провер", StringComparison.OrdinalIgnoreCase)
+                        ? "Проверка"
+                        : "Устанавливается";
+                    UpdateDownloadTask(importTask, taskStatus, progressValue, value.Stage + (string.IsNullOrWhiteSpace(value.CurrentFile) ? "" : " · " + value.CurrentFile));
                 });
 
                 await MinecraftPackImportService.ImportAsync(
@@ -1598,6 +1607,7 @@ internal sealed class MainForm : Form
 
                 profile.InstallState = "Готова";
                 SettingsService.Save(settings);
+                CompleteDownloadTask(importTask, "Все обязательные файлы и overrides установлены в отдельную папку");
                 ActivateBuild(profile);
                 RefreshBuildSelector();
                 RenderProfiles();
@@ -1607,6 +1617,8 @@ internal sealed class MainForm : Form
             }
             catch (Exception ex)
             {
+                if (importTask != null)
+                    FailDownloadTask(importTask, ex);
                 if (profile != null)
                 {
                     profile.InstallState = "Требует исправления";
