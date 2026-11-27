@@ -83,6 +83,9 @@ internal sealed class LauncherSettings
     public bool AutoRepair { get; set; } = true;
     public string ExtraJvmArguments { get; set; } = "";
     public List<string> SavedBuilds { get; set; } = new();
+    public List<BuildProfile> BuildProfiles { get; set; } = new();
+    public string ActiveBuildId { get; set; } = "";
+    public bool UseDesktopResolution { get; set; } = true;
     public List<string> FavoriteServers { get; set; } = new();
 }
 
@@ -136,6 +139,8 @@ internal sealed class MainForm : Form
     TextBox? jvmArgsInput;
     readonly Button play = new();
     readonly Button install = new();
+    readonly ComboBox buildSelector = new();
+    bool updatingBuildSelector;
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly FlowLayoutPanel modCards = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly ComboBox modLoader = new();
@@ -151,6 +156,15 @@ internal sealed class MainForm : Form
     public MainForm()
     {
         settings = SettingsService.Load();
+        BuildProfileRules.EnsureProfiles(settings);
+        gameLoader.Items.AddRange(new object[] { "Vanilla", "Fabric", "Forge", "Quilt" });
+        gameLoader.SelectedItem = settings.ModLoader switch
+        {
+            "vanilla" => "Vanilla",
+            "forge" => "Forge",
+            "quilt" => "Quilt",
+            _ => "Fabric"
+        };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("NovaCraft/1.14 (https://github.com/iliakuzminoh-prog/NovaCraft-1.14)");
         // Не создаём MinecraftLauncher в конструкторе: старый/недоступный путь игры
         // не должен блокировать запуск самого лаунчера. Он создаётся только при
@@ -192,6 +206,75 @@ internal sealed class MainForm : Form
             status.Text = "Готов. Проверяю список версий в фоне…";
             _ = RefreshVersionsAsync();
         };
+    }
+
+    BuildProfile ActiveBuild
+        => settings.BuildProfiles.First(p => string.Equals(p.Id, settings.ActiveBuildId, StringComparison.OrdinalIgnoreCase));
+
+    void RefreshBuildSelector()
+    {
+        updatingBuildSelector = true;
+        try
+        {
+            buildSelector.BeginUpdate();
+            buildSelector.Items.Clear();
+            foreach (var profile in settings.BuildProfiles)
+                buildSelector.Items.Add(profile);
+            buildSelector.SelectedItem = settings.BuildProfiles.FirstOrDefault(p => p.Id == settings.ActiveBuildId)
+                ?? settings.BuildProfiles.FirstOrDefault();
+        }
+        finally
+        {
+            buildSelector.EndUpdate();
+            updatingBuildSelector = false;
+        }
+    }
+
+    void ActivateBuild(BuildProfile profile, bool persist = true)
+    {
+        if (profile == null) return;
+        if (string.Equals(settings.ActiveBuildId, profile.Id, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        settings.ActiveBuildId = profile.Id;
+        settings.GameDirectory = profile.GameDirectory;
+        settings.LastVersion = profile.MinecraftVersion;
+        settings.ModLoader = BuildProfileRules.NormalizeLoader(profile.Loader);
+        launcher = null;
+
+        Directory.CreateDirectory(settings.GameDirectory);
+        version.Items.Clear();
+        version.Items.Add(settings.LastVersion);
+        version.SelectedIndex = 0;
+        gameLoader.SelectedItem = settings.ModLoader switch
+        {
+            "vanilla" => "Vanilla",
+            "forge" => "Forge",
+            "quilt" => "Quilt",
+            _ => "Fabric"
+        };
+
+        if (!string.IsNullOrWhiteSpace(gameDir.Text))
+            gameDir.Text = settings.GameDirectory;
+
+        if (persist)
+            SettingsService.Save(settings);
+
+        status.Text = "Активная сборка: " + profile.Name;
+        RefreshBuildSelector();
+    }
+
+    static Size GetDesktopResolution()
+    {
+        try
+        {
+            var bounds = Screen.PrimaryScreen?.Bounds;
+            if (bounds is { Width: >= 800, Height: >= 600 })
+                return new Size(bounds.Value.Width, bounds.Value.Height);
+        }
+        catch { }
+
+        return new Size(1280, 720);
     }
 
     static Bitmap LoadHeroArt()
@@ -300,7 +383,19 @@ internal sealed class MainForm : Form
     {
         var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.FromArgb(17, 19, 30), Padding = new Padding(18, 8, 18, 8) };
         header.Controls.Add(new Label { Text = "◆  NOVACRAFT", Font = new Font("Segoe UI Semibold", 21, FontStyle.Bold), AutoSize = true, Location = new Point(18, 13), ForeColor = Color.White });
-        header.Controls.Add(new Label { Text = "Minecraft Java · лаунчер без рекламы и фоновых служб", AutoSize = true, Location = new Point(250, 26), ForeColor = Color.FromArgb(160, 170, 190) });
+        header.Controls.Add(new Label { Text = "Minecraft Java", AutoSize = true, Location = new Point(250, 26), ForeColor = Color.FromArgb(160, 170, 190) });
+        buildSelector.DropDownStyle = ComboBoxStyle.DropDownList;
+        buildSelector.SetBounds(650, 18, 290, 34);
+        buildSelector.BackColor = Color.FromArgb(28, 31, 47);
+        buildSelector.ForeColor = Color.White;
+        buildSelector.Font = new Font("Segoe UI Semibold", 9.5f);
+        buildSelector.SelectedIndexChanged += (_, _) =>
+        {
+            if (updatingBuildSelector || buildSelector.SelectedItem is not BuildProfile selectedBuild) return;
+            ActivateBuild(selectedBuild);
+        };
+        header.Controls.Add(buildSelector);
+        RefreshBuildSelector();
 
         var sidebar = new Panel { Dock = DockStyle.Left, Width = 252, BackColor = Color.FromArgb(15, 17, 27), Padding = new Padding(12, 14, 12, 10) };
         var navSearch = new TextBox { PlaceholderText = "⌕  Поиск раздела…", Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(28,31,47), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
@@ -582,20 +677,19 @@ internal sealed class MainForm : Form
         };
         quick.Controls.AddRange(new Control[]{quickVersion,quickLoader,quickPlay});
 
-        var buildsCard = ModernCard(440, 185, "ПОПУЛЯРНЫЕ СБОРКИ", Color.FromArgb(25,28,45));
+        var buildsCard = ModernCard(440, 185, "МОИ СБОРКИ", Color.FromArgb(25,28,45));
         var buildFlow = new FlowLayoutPanel { Location = new Point(14, 43), Size = new Size(408, 120), AutoScroll = true, WrapContents = false, BackColor = Color.Transparent };
-        if (settings.SavedBuilds.Count == 0)
+        if (settings.BuildProfiles.Count == 0)
         {
-            buildFlow.Controls.Add(new Label { Text = "Здесь появятся твои сохранённые профили.\nСоздай первую сборку во вкладке «Сборки».", AutoSize = true, ForeColor = Color.Silver, Padding = new Padding(10,15,0,0) });
+            buildFlow.Controls.Add(new Label { Text = "Создай отдельную сборку или импортируй Modrinth / CurseForge.", AutoSize = true, ForeColor = Color.Silver, Padding = new Padding(10,15,0,0) });
         }
         else
         {
-            foreach (var saved in settings.SavedBuilds.Take(4))
+            foreach (var build in settings.BuildProfiles.Take(4))
             {
-                var parts = saved.Split('|');
                 var b = new Panel { Width = 175, Height = 100, BackColor = Color.FromArgb(33,37,61), Margin = new Padding(4) };
-                b.Controls.Add(new Label { Text = parts[0], Location = new Point(10,10), Size = new Size(150,40), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold), AutoEllipsis = true });
-                b.Controls.Add(new Label { Text = parts.Length>1 ? parts[1] : "", Location = new Point(10,54), AutoSize = true, ForeColor = Color.FromArgb(170,180,205) });
+                b.Controls.Add(new Label { Text = build.Name, Location = new Point(10,10), Size = new Size(150,38), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold), AutoEllipsis = true });
+                b.Controls.Add(new Label { Text = build.MinecraftVersion + " · " + build.Loader.ToUpperInvariant(), Location = new Point(10,54), AutoSize = true, ForeColor = Color.FromArgb(170,180,205) });
                 buildFlow.Controls.Add(b);
             }
         }
@@ -1842,10 +1936,13 @@ internal sealed class MainForm : Form
         else if (loaderName == "forge")
         {
             var forge = new ForgeInstaller(GetLauncher());
-            installedId = await forge.Install(vanillaVersion, new ForgeInstallOptions
+            var forgeOptions = new ForgeInstallOptions
             {
                 InstallerOutput = new Progress<string>(line => WriteLog(line))
-            });
+            };
+            installedId = string.IsNullOrWhiteSpace(ActiveBuild.LoaderVersion)
+                ? await forge.Install(vanillaVersion, forgeOptions)
+                : await forge.Install(vanillaVersion, ActiveBuild.LoaderVersion, forgeOptions);
         }
         else if (loaderName == "quilt")
         {
@@ -1905,8 +2002,8 @@ internal sealed class MainForm : Form
         {
             Session = CreateOfflineSessionForActiveProfile(),
             MaximumRamMb = settings.MaximumRamMb,
-            ScreenWidth = settings.ScreenWidth,
-            ScreenHeight = settings.ScreenHeight,
+            ScreenWidth = settings.UseDesktopResolution ? GetDesktopResolution().Width : settings.ScreenWidth,
+            ScreenHeight = settings.UseDesktopResolution ? GetDesktopResolution().Height : settings.ScreenHeight,
             FullScreen = settings.FullScreen
         };
         var extra = new List<MArgument>();
@@ -1950,6 +2047,9 @@ internal sealed class MainForm : Form
                 WriteLog("Minecraft завершился. ExitCode=" + process.ExitCode);
             }));
             process.Start();
+            ActiveBuild.LastPlayedUtc = DateTime.UtcNow;
+            ActiveBuild.MinecraftVersion = v;
+            SettingsService.Save(settings);
             WriteLog("Minecraft запущен: " + launchVersion);
             status.Text = "Игра запущена";
             if (settings.CloseAfterLaunch) BeginInvoke(new Action(Close));
@@ -2442,6 +2542,11 @@ internal sealed class MainForm : Form
         settings.GameDirectory = gameDir.Text.Trim();
         settings.LastVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
         settings.ModLoader = gameLoader.SelectedItem?.ToString() switch { "Forge" => "forge", "Quilt" => "quilt", "Vanilla" => "vanilla", _ => "fabric" };
+        var activeBuild = settings.BuildProfiles.First(p => p.Id == settings.ActiveBuildId);
+        activeBuild.GameDirectory = Path.GetFullPath(settings.GameDirectory);
+        activeBuild.MinecraftVersion = settings.LastVersion;
+        activeBuild.Loader = settings.ModLoader;
+        settings.UseDesktopResolution = useDesktopResolutionInput?.Checked ?? settings.UseDesktopResolution;
         settings.ScreenWidth = (int)(widthInput?.Value ?? settings.ScreenWidth);
         settings.ScreenHeight = (int)(heightInput?.Value ?? settings.ScreenHeight);
         settings.FullScreen = fullScreenInput?.Checked ?? settings.FullScreen;
@@ -2600,6 +2705,7 @@ static class SettingsService
             if (string.IsNullOrWhiteSpace(loaded.Username))
                 loaded.Username = "NovaPlayer";
             loaded.SavedBuilds ??= new List<string>();
+            loaded.BuildProfiles ??= new List<BuildProfile>();
             loaded.OfflineProfiles ??= new List<OfflineProfile>();
             if (loaded.OfflineProfiles.Count == 0)
             {
@@ -2614,6 +2720,7 @@ static class SettingsService
                 if (!Guid.TryParse(profile.Uuid, out _))
                     profile.Uuid = OfflineProfileRules.OfflineUuid(profile.Username);
             }
+            BuildProfileRules.EnsureProfiles(loaded);
             return loaded;
         }
         catch (Exception ex)
@@ -2628,7 +2735,9 @@ static class SettingsService
             catch { }
             MessageBox.Show("Файл настроек повреждён или имеет неверный формат. NovaCraft запустится с настройками по умолчанию.\n" + backupMessage + "\n\nПричина: " + ex.Message,
                 "Восстановление настроек", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return new LauncherSettings();
+            var defaults = new LauncherSettings();
+            BuildProfileRules.EnsureProfiles(defaults);
+            return defaults;
         }
     }
 
