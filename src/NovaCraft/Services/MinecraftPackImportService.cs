@@ -237,39 +237,45 @@ public static class MinecraftPackImportService
             if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > MaxModFileBytes))
                 throw new InvalidDataException("CurseForge-файл имеет недопустимый размер.");
 
-            await using var input = await response.Content.ReadAsStreamAsync(cancellationToken);
-            await using var output = new FileStream(
+            byte[] actualHash;
+            await using (var input = await response.Content.ReadAsStreamAsync(cancellationToken))
+            await using (var output = new FileStream(
                 temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
-            using var sha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1);
-            var buffer = new byte[128 * 1024];
-            long total = 0;
-            var lastPercent = -1;
-
-            while (true)
+                128 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan))
+            using (var sha1 = IncrementalHash.CreateHash(HashAlgorithmName.SHA1))
             {
-                var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
-                if (read == 0) break;
-                total += read;
-                if (total > MaxModFileBytes)
-                    throw new InvalidDataException("CurseForge-файл превышает лимит 250 МБ.");
+                var buffer = new byte[128 * 1024];
+                long total = 0;
+                var lastPercent = -1;
 
-                sha1.AppendData(buffer, 0, read);
-                await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-
-                if (response.Content.Headers.ContentLength is long declared && declared > 0)
+                while (true)
                 {
-                    var percent = (int)Math.Clamp(total * 100 / declared, 0, 100);
-                    if (percent != lastPercent)
+                    var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+                    if (read == 0) break;
+                    total += read;
+                    if (total > MaxModFileBytes)
+                        throw new InvalidDataException("CurseForge-файл превышает лимит 250 МБ.");
+
+                    sha1.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+
+                    if (response.Content.Headers.ContentLength is long declared && declared > 0)
                     {
-                        lastPercent = percent;
-                        progress?.Report(percent / 100d);
+                        var percent = (int)Math.Clamp(total * 100 / declared, 0, 100);
+                        if (percent != lastPercent)
+                        {
+                            lastPercent = percent;
+                            progress?.Report(percent / 100d);
+                        }
                     }
                 }
+
+                await output.FlushAsync(cancellationToken);
+                actualHash = sha1.GetHashAndReset();
             }
 
-            await output.FlushAsync(cancellationToken);
-            var actual = Convert.ToHexString(sha1.GetHashAndReset());
+            // Close all streams before opening the archive for signature validation and moving it.
+            var actual = Convert.ToHexString(actualHash);
             if (!CryptographicOperations.FixedTimeEquals(Convert.FromHexString(actual), Convert.FromHexString(expectedSha1)))
                 throw new CryptographicException("SHA-1 CurseForge не совпадает. Файл отклонён.");
 
@@ -373,34 +379,38 @@ public static class MinecraftPackImportService
 
             try
             {
-                await using var input = entry.Open();
-                await using var output = new FileStream(
+                await using (var input = entry.Open())
+                await using (var output = new FileStream(
                     temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
-                    81920, FileOptions.Asynchronous | FileOptions.SequentialScan);
-                var buffer = new byte[81920];
-                long copiedBytes = 0;
-
-                while (true)
+                    81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
                 {
-                    var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
-                    if (read == 0) break;
+                    var buffer = new byte[81920];
+                    long copiedBytes = 0;
 
-                    copiedBytes = checked(copiedBytes + read);
-                    totalBytes = checked(totalBytes + read);
-                    if (copiedBytes > MaxOverrideFileBytes)
-                        throw new InvalidDataException("Распакованный файл overrides превысил 256 МБ.");
-                    if (totalBytes > MaxOverrideTotalBytes)
-                        throw new InvalidDataException("Фактический распакованный размер overrides превысил 1 ГБ.");
-                    if (copiedBytes > entry.Length)
-                        throw new InvalidDataException("ZIP сообщил неверный размер файла overrides.");
+                    while (true)
+                    {
+                        var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+                        if (read == 0) break;
 
-                    await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                        copiedBytes = checked(copiedBytes + read);
+                        totalBytes = checked(totalBytes + read);
+                        if (copiedBytes > MaxOverrideFileBytes)
+                            throw new InvalidDataException("Распакованный файл overrides превысил 256 МБ.");
+                        if (totalBytes > MaxOverrideTotalBytes)
+                            throw new InvalidDataException("Фактический распакованный размер overrides превысил 1 ГБ.");
+                        if (copiedBytes > entry.Length)
+                            throw new InvalidDataException("ZIP сообщил неверный размер файла overrides.");
+
+                        await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                    }
+
+                    if (copiedBytes != entry.Length)
+                        throw new InvalidDataException("Размер файла overrides не совпадает с ZIP-записью: " + relativePath);
+
+                    await output.FlushAsync(cancellationToken);
                 }
 
-                if (copiedBytes != entry.Length)
-                    throw new InvalidDataException("Размер файла overrides не совпадает с ZIP-записью: " + relativePath);
-
-                await output.FlushAsync(cancellationToken);
+                // Both ZIP input and temporary output are disposed before the atomic replacement.
                 File.Move(temporary, destination, true);
             }
             finally
