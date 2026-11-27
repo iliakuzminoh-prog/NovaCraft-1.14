@@ -15,7 +15,8 @@ public static class DownloadService
         long maxBytes,
         IProgress<double>? progress,
         CancellationToken ct,
-        Func<string, bool>? confirm = null)
+        Func<string, bool>? confirm = null,
+        Func<string, CancellationToken, Task>? validate = null)
     {
         if (uri.Scheme != Uri.UriSchemeHttps)
             throw new SecurityException("Разрешены только HTTPS-загрузки.");
@@ -104,6 +105,8 @@ public static class DownloadService
                 throw new CryptographicException("SHA-512 не совпадает с метаданными Modrinth.");
 
             await ValidateArchiveSignatureAsync(temporary, extension, ct);
+            if (validate != null)
+                await validate(temporary, ct);
             File.Move(temporary, destination, false);
             return destination;
         }
