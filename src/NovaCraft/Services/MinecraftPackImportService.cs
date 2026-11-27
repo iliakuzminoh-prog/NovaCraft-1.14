@@ -353,8 +353,11 @@ public static class MinecraftPackImportService
         if (entries.Count > MaxOverrideEntries)
             throw new InvalidDataException("В overrides слишком много файлов.");
 
-        long totalBytes = 0;
+        // Preflight every path and archive entry before writing the first file.
         var seenPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var planned = new List<(ZipArchiveEntry Entry, string RelativePath, string Destination)>();
+        long declaredTotalBytes = 0;
+
         foreach (var entry in entries)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -373,45 +376,55 @@ public static class MinecraftPackImportService
             if (entry.Length < 0 || entry.Length > MaxOverrideFileBytes)
                 throw new InvalidDataException("Один файл overrides превышает 256 МБ.");
 
+            declaredTotalBytes = checked(declaredTotalBytes + entry.Length);
+            if (declaredTotalBytes > MaxOverrideTotalBytes)
+                throw new InvalidDataException("Заявленный размер overrides превышает 1 ГБ.");
+
             var destination = MinecraftPackManifestReader.SafeDestination(destinationRoot, relativePath);
-            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
-            var temporary = destination + ".novacraft-import";
+            planned.Add((entry, relativePath, destination));
+        }
+
+        // Copy each validated entry to a temporary file; close both streams before moving it.
+        long actualTotalBytes = 0;
+        foreach (var item in planned)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            Directory.CreateDirectory(Path.GetDirectoryName(item.Destination)!);
+            var temporary = item.Destination + ".novacraft-import";
 
             try
             {
-                await using (var input = entry.Open())
+                long copiedBytes = 0;
+                await using (var input = item.Entry.Open())
                 await using (var output = new FileStream(
                     temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None,
                     81920, FileOptions.Asynchronous | FileOptions.SequentialScan))
                 {
                     var buffer = new byte[81920];
-                    long copiedBytes = 0;
-
                     while (true)
                     {
                         var read = await input.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
                         if (read == 0) break;
 
                         copiedBytes = checked(copiedBytes + read);
-                        totalBytes = checked(totalBytes + read);
+                        actualTotalBytes = checked(actualTotalBytes + read);
                         if (copiedBytes > MaxOverrideFileBytes)
                             throw new InvalidDataException("Распакованный файл overrides превысил 256 МБ.");
-                        if (totalBytes > MaxOverrideTotalBytes)
+                        if (actualTotalBytes > MaxOverrideTotalBytes)
                             throw new InvalidDataException("Фактический распакованный размер overrides превысил 1 ГБ.");
-                        if (copiedBytes > entry.Length)
+                        if (copiedBytes > item.Entry.Length)
                             throw new InvalidDataException("ZIP сообщил неверный размер файла overrides.");
 
                         await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     }
 
-                    if (copiedBytes != entry.Length)
-                        throw new InvalidDataException("Размер файла overrides не совпадает с ZIP-записью: " + relativePath);
+                    if (copiedBytes != item.Entry.Length)
+                        throw new InvalidDataException("Размер файла overrides не совпадает с ZIP-записью: " + item.RelativePath);
 
                     await output.FlushAsync(cancellationToken);
                 }
 
-                // Both ZIP input and temporary output are disposed before the atomic replacement.
-                File.Move(temporary, destination, true);
+                File.Move(temporary, item.Destination, true);
             }
             finally
             {
