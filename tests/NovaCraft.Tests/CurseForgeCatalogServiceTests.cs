@@ -51,10 +51,7 @@ public sealed class CurseForgeCatalogServiceTests
             Assert.Equal("/v1/mods/42/files", request.RequestUri!.AbsolutePath);
             Assert.Contains("gameVersion=1.21.1", request.RequestUri.Query);
             Assert.Contains("modLoaderType=4", request.RequestUri.Query);
-            return Json("""{"data":[
-              {"id":101,"fileName":"sodium-fabric.jar","displayName":"Sodium Fabric","fileLength":12345,"releaseType":1,"isAvailable":true,"downloadUrl":"https://edge.forgecdn.net/files/101/sodium.jar","hashes":[{"algo":2,"value":"md5"},{"algo":1,"value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"gameVersions":["1.21.1"]},
-              {"id":102,"fileName":"not-a-mod.txt","fileLength":10,"releaseType":1,"isAvailable":true,"hashes":[{"algo":1,"value":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}
-            ]}""");
+            return Json("""{"data":[{"id":101,"fileName":"sodium-fabric.jar","displayName":"Sodium Fabric","fileLength":12345,"releaseType":1,"isAvailable":true,"downloadUrl":"https://edge.forgecdn.net/files/101/sodium.jar","hashes":[{"algo":2,"value":"md5"},{"algo":1,"value":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}],"gameVersions":["1.21.1"]},{"id":102,"fileName":"not-a-mod.txt","fileLength":10,"releaseType":1,"isAvailable":true,"hashes":[{"algo":1,"value":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]}]}""");
         });
 
         using var http = new HttpClient(handler);
