@@ -3192,6 +3192,28 @@ internal sealed class MainForm : Form
     }
 
 
+    static async Task<string> ComputeSha512HexAsync(string path, CancellationToken cancellationToken = default)
+    {
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.Read,
+            128 * 1024,
+            FileOptions.Asynchronous | FileOptions.SequentialScan);
+        using var sha512 = IncrementalHash.CreateHash(HashAlgorithmName.SHA512);
+        var buffer = new byte[128 * 1024];
+
+        while (true)
+        {
+            var read = await stream.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+            if (read == 0) break;
+            sha512.AppendData(buffer, 0, read);
+        }
+
+        return Convert.ToHexString(sha512.GetHashAndReset());
+    }
+
     static async Task<byte[]> ReadBoundedContentAsync(HttpContent content, int maxBytes)
     {
         await using var input = await content.ReadAsStreamAsync();
@@ -3559,9 +3581,18 @@ internal sealed class MainForm : Form
                 activeDownloadTask = BeginDownloadTask(entry.Title, name, "Modrinth", targetBuild.Name);
                 if (File.Exists(destination))
                 {
+                    var existingSha512 = await ComputeSha512HexAsync(destination, CancellationToken.None);
+                    var hashMatches = CryptographicOperations.FixedTimeEquals(
+                        Convert.FromHexString(existingSha512),
+                        Convert.FromHexString(expectedSha512));
+
+                    if (!hashMatches)
+                        throw new CryptographicException(
+                            "В активной сборке уже есть файл с таким именем, но SHA-512 не совпадает. NovaCraft не перезаписывал существующий файл: " + name);
+
                     activeDownloadTask.Status = "Уже установлено";
                     activeDownloadTask.Progress = 1;
-                    activeDownloadTask.Detail = "Файл уже находится в активной сборке";
+                    activeDownloadTask.Detail = "Локальный SHA-512 совпадает с Modrinth";
                     RefreshDownloadTaskPage();
                     continue;
                 }
