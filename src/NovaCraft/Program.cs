@@ -162,6 +162,7 @@ internal sealed class MainForm : Form
     string modFeedSort = "downloads";
     int modFeedOffset;
     bool modFeedLoading;
+    bool modFeedReloadPending;
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromMinutes(3) };
 
     public MainForm()
@@ -531,6 +532,23 @@ internal sealed class MainForm : Form
 
         status.Text = "Активная сборка: " + profile.Name;
         RefreshBuildSelector();
+
+        // The mod feed is version/loader dependent. Discard its old result and
+        // reload it for the newly selected build if its page is currently open.
+        if (navigationInitialized.Count > 3 && navigationInitialized[3])
+        {
+            modCards.Controls.Clear();
+            modFeedOffset = 0;
+            modFeedQuery = "";
+            modFeedSort = "downloads";
+            if (pageHost.SelectedIndex == 3)
+            {
+                if (modFeedLoading)
+                    modFeedReloadPending = true;
+                else
+                    _ = LoadModFeedAsync(true);
+            }
+        }
     }
 
     static bool IsDirectoryWithin(string rootDirectory, string candidateDirectory)
@@ -2731,14 +2749,28 @@ internal sealed class MainForm : Form
 
     async Task RefreshVersionsAsync()
     {
-        try {
-            status.Text="Получение списка версий…";
-            var all=await GetLauncher().GetAllVersionsAsync();
-            var releases=all?.Where(v=>string.Equals(v?.Type?.ToString(),"release",StringComparison.OrdinalIgnoreCase))
-                .Select(v=>v!.Name).Distinct().Take(100).ToList() ?? new List<string>();
-            version.Items.Clear(); foreach(var v in releases) version.Items.Add(v);
-            version.SelectedItem = releases.Contains(settings.LastVersion) ? settings.LastVersion : releases.FirstOrDefault();
-            if(version.Tag is ListView list)
+        var requestedBuildId = settings.ActiveBuildId;
+        var requestedDirectory = Path.GetFullPath(ActiveBuild.GameDirectory);
+        var requestedVersion = ActiveBuild.MinecraftVersion;
+        try
+        {
+            status.Text = "Получение списка версий…";
+            var launcherForRequestedBuild = new MinecraftLauncher(new MinecraftPath(requestedDirectory));
+            var all = await launcherForRequestedBuild.GetAllVersionsAsync();
+
+            // Do not let a delayed response for an old profile overwrite the newly selected build.
+            if (!string.Equals(settings.ActiveBuildId, requestedBuildId, StringComparison.OrdinalIgnoreCase))
+                return;
+
+            var releases = all?.Where(v => string.Equals(v?.Type?.ToString(), "release", StringComparison.OrdinalIgnoreCase))
+                .Select(v => v!.Name).Distinct().Take(100).ToList() ?? new List<string>();
+            version.Items.Clear();
+            foreach (var item in releases) version.Items.Add(item);
+            version.SelectedItem = releases.Contains(requestedVersion) ? requestedVersion : releases.FirstOrDefault();
+            if (version.SelectedItem is string selectedVersion)
+                settings.LastVersion = selectedVersion;
+
+            if (version.Tag is ListView list)
             {
                 list.Tag = releases;
                 list.Items.Clear();
@@ -2749,8 +2781,15 @@ internal sealed class MainForm : Form
                     list.Items.Add(row);
                 }
             }
-            WriteLog("Версий получено: "+releases.Count); status.Text="Готов";
-        } catch(Exception ex){Fail("Не удалось получить список версий",ex);}
+
+            WriteLog("Версий получено: " + releases.Count);
+            status.Text = "Готов";
+        }
+        catch (Exception ex)
+        {
+            if (string.Equals(settings.ActiveBuildId, requestedBuildId, StringComparison.OrdinalIgnoreCase))
+                Fail("Не удалось получить список версий", ex);
+        }
     }
 
     static string FormatDownloadBytes(long bytes)
@@ -3202,26 +3241,38 @@ internal sealed class MainForm : Form
     async Task LoadModFeedAsync(bool reset)
     {
         if (modFeedLoading) return;
+
+        var requestedBuildId = settings.ActiveBuildId;
+        var requestedVersion = version.SelectedItem?.ToString() ?? ActiveBuild.MinecraftVersion;
+        var requestedLoader = ActiveBuild.Loader;
+        var requestedOffset = reset ? 0 : modFeedOffset;
+        var requestedQuery = modFeedQuery;
+        var requestedSort = modFeedSort;
+
         modFeedLoading = true;
         try
         {
-            status.Text = modFeedOffset == 0 ? "Загружаю моды Modrinth…" : "Загружаю ещё моды…";
-            var loaderFacet = settings.ModLoader switch
+            status.Text = requestedOffset == 0 ? "Загружаю моды Modrinth…" : "Загружаю ещё моды…";
+            var loaderFacet = requestedLoader switch
             {
                 "forge" => "categories:forge",
                 "quilt" => "categories:quilt",
                 _ => "categories:fabric"
             };
-            var selectedVersion = version.SelectedItem?.ToString();
             var facetGroups = new List<string[]> { new[] { "project_type:mod" }, new[] { loaderFacet } };
-            if (!string.IsNullOrWhiteSpace(selectedVersion))
-                facetGroups.Add(new[] { "versions:" + selectedVersion });
+            if (!string.IsNullOrWhiteSpace(requestedVersion))
+                facetGroups.Add(new[] { "versions:" + requestedVersion });
             var facets = Uri.EscapeDataString(JsonSerializer.Serialize(facetGroups));
-            var query = string.IsNullOrWhiteSpace(modFeedQuery) ? "" : "&query=" + Uri.EscapeDataString(modFeedQuery);
-            var url = "https://api.modrinth.com/v2/search?limit=24&offset=" + modFeedOffset +
-                      "&index=" + Uri.EscapeDataString(modFeedSort) + query + "&facets=" + facets;
+            var query = string.IsNullOrWhiteSpace(requestedQuery) ? "" : "&query=" + Uri.EscapeDataString(requestedQuery);
+            var url = "https://api.modrinth.com/v2/search?limit=24&offset=" + requestedOffset +
+                      "&index=" + Uri.EscapeDataString(requestedSort) + query + "&facets=" + facets;
             var root = JsonNode.Parse(await http.GetStringAsync(url));
             var hits = (root?["hits"]?.AsArray() ?? new JsonArray()).ToList();
+
+            if (!string.Equals(settings.ActiveBuildId, requestedBuildId, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(ActiveBuild.Loader, requestedLoader, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(version.SelectedItem?.ToString() ?? ActiveBuild.MinecraftVersion, requestedVersion, StringComparison.OrdinalIgnoreCase))
+                return;
 
             if (reset) modCards.Controls.Clear();
 
@@ -3234,19 +3285,32 @@ internal sealed class MainForm : Form
                 iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
             }
 
-            modFeedOffset += hits.Count;
+            modFeedOffset = requestedOffset + hits.Count;
             await Task.WhenAll(iconTasks);
-            status.Text = hits.Count == 0
-                ? "Больше проектов не найдено"
-                : $"Показано модов: {modFeedOffset}";
+
+            if (string.Equals(settings.ActiveBuildId, requestedBuildId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(ActiveBuild.Loader, requestedLoader, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(version.SelectedItem?.ToString() ?? ActiveBuild.MinecraftVersion, requestedVersion, StringComparison.OrdinalIgnoreCase))
+            {
+                status.Text = hits.Count == 0
+                    ? "Больше проектов не найдено"
+                    : $"Показано модов: {modFeedOffset}";
+            }
         }
         catch (Exception ex)
         {
-            Fail("Не удалось загрузить каталог модов Modrinth", ex);
+            if (string.Equals(settings.ActiveBuildId, requestedBuildId, StringComparison.OrdinalIgnoreCase))
+                Fail("Не удалось загрузить каталог модов Modrinth", ex);
         }
         finally
         {
             modFeedLoading = false;
+            if (modFeedReloadPending && pageHost.SelectedIndex == 3)
+            {
+                modFeedReloadPending = false;
+                modFeedOffset = 0;
+                _ = LoadModFeedAsync(true);
+            }
         }
     }
 
