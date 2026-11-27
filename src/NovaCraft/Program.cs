@@ -153,6 +153,7 @@ internal sealed class MainForm : Form
     string? selectedModProject;
     string? selectedModTitle;
     string? selectedDatapackWorldDirectory;
+    Label? selectedDatapackWorldLabel;
     string modFeedQuery = "";
     string modFeedSort = "downloads";
     int modFeedOffset;
@@ -389,6 +390,9 @@ internal sealed class MainForm : Form
 
         settings.ActiveBuildId = profile.Id;
         settings.GameDirectory = profile.GameDirectory;
+        selectedDatapackWorldDirectory = null;
+        if (selectedDatapackWorldLabel != null)
+            selectedDatapackWorldLabel.Text = "Мир не выбран";
         settings.LastVersion = profile.MinecraftVersion;
         settings.ModLoader = BuildProfileRules.NormalizeLoader(profile.Loader);
         launcher = null;
@@ -427,6 +431,14 @@ internal sealed class MainForm : Form
 
         status.Text = "Активная сборка: " + profile.Name;
         RefreshBuildSelector();
+    }
+
+    static bool IsDirectoryWithin(string rootDirectory, string candidateDirectory)
+    {
+        var root = Path.GetFullPath(rootDirectory).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+                   + Path.DirectorySeparatorChar;
+        var candidate = Path.GetFullPath(candidateDirectory);
+        return candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase);
     }
 
     static Size GetDesktopResolution()
@@ -1142,16 +1154,28 @@ internal sealed class MainForm : Form
             worldButton = new Button { Text = "Папка мира…", Location = new Point(708,72), Width = 125, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,43,63), ForeColor = Color.White };
             worldButton.FlatAppearance.BorderSize = 0;
             worldCaption = new Label { Text = "Мир не выбран", AutoSize = true, ForeColor = Color.FromArgb(145,155,178), Location = new Point(842,82) };
+            selectedDatapackWorldLabel = worldCaption;
             worldButton.Click += (_, _) =>
             {
-                using var dialog = new FolderBrowserDialog { Description = "Выбери папку мира Minecraft, в которой находится level.dat", SelectedPath = selectedDatapackWorldDirectory ?? settings.GameDirectory };
+                var savesRoot = Path.Combine(settings.GameDirectory, "saves");
+                Directory.CreateDirectory(savesRoot);
+                using var dialog = new FolderBrowserDialog
+                {
+                    Description = "Выбери мир внутри папки saves активной сборки (там должен находиться level.dat)",
+                    SelectedPath = selectedDatapackWorldDirectory ?? savesRoot
+                };
                 if (dialog.ShowDialog() != DialogResult.OK) return;
+                if (!IsDirectoryWithin(savesRoot, dialog.SelectedPath))
+                {
+                    MessageBox.Show("Этот мир находится вне активной сборки. Выбери папку внутри её saves.", "Другая сборка", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    return;
+                }
                 if (!File.Exists(Path.Combine(dialog.SelectedPath, "level.dat")))
                 {
                     MessageBox.Show("В выбранной папке нет level.dat.", "Не папка мира", MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
-                selectedDatapackWorldDirectory = dialog.SelectedPath;
+                selectedDatapackWorldDirectory = Path.GetFullPath(dialog.SelectedPath);
                 worldCaption!.Text = "Мир: " + Path.GetFileName(dialog.SelectedPath);
             };
         }
@@ -3004,8 +3028,11 @@ internal sealed class MainForm : Form
             }
             else if (projectType == "datapack")
             {
-                if (string.IsNullOrWhiteSpace(worldDirectory) || !File.Exists(Path.Combine(worldDirectory, "level.dat")))
-                    throw new InvalidOperationException("Сначала выбери папку мира Minecraft с файлом level.dat.");
+                var savesRoot = Path.Combine(settings.GameDirectory, "saves");
+                if (string.IsNullOrWhiteSpace(worldDirectory) ||
+                    !IsDirectoryWithin(savesRoot, worldDirectory) ||
+                    !File.Exists(Path.Combine(worldDirectory, "level.dat")))
+                    throw new InvalidOperationException("Выбери мир с level.dat внутри папки saves текущей активной сборки.");
                 folderName = "datapacks";
                 targetDir = Path.Combine(worldDirectory, folderName);
             }
