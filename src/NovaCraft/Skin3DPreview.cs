@@ -330,8 +330,8 @@ internal sealed class Skin3DPreview : Control
             : new FaceUv(
                 new Rectangle(36, 52, (int)armWidth, 12),
                 new Rectangle(44, 52, (int)armWidth, 12),
-                new Rectangle(32, 52, 4, 12),
-                new Rectangle(40, 52, 4, 12),
+                new Rectangle(32, 52, armSideWidth, 12),
+                new Rectangle(40, 52, armSideWidth, 12),
                 new Rectangle(36, 48, (int)armWidth, 4),
                 new Rectangle(40, 48, (int)armWidth, 4));
 
@@ -387,8 +387,8 @@ internal sealed class Skin3DPreview : Control
         var leftSleeve = new FaceUv(
             new Rectangle(52, 52, (int)armWidth, 12),
             new Rectangle(60, 52, (int)armWidth, 12),
-            new Rectangle(48, 52, 4, 12),
-            new Rectangle(56, 52, 4, 12),
+            new Rectangle(48, 52, armSideWidth, 12),
+            new Rectangle(56, 52, armSideWidth, 12),
             new Rectangle(52, 48, (int)armWidth, 4),
             new Rectangle(56, 48, (int)armWidth, 4));
 
