@@ -19,6 +19,7 @@ public sealed class MinecraftPackDescriptor
     public string Summary { get; init; } = "";
     public string MinecraftVersion { get; init; } = "1.21.1";
     public string Loader { get; init; } = "fabric";
+    public string LoaderVersion { get; init; } = "";
     public string Platform { get; init; } = "local";
     public string ProjectId { get; init; } = "";
     public List<PackFileReference> Files { get; init; } = new();
@@ -71,6 +72,7 @@ public static class MinecraftPackManifestReader
             throw new InvalidDataException("В Modrinth manifest не указана версия Minecraft.");
 
         var loader = "vanilla";
+        var loaderVersion = "";
         foreach (var candidate in new[] { "forge", "neoforge", "fabric-loader", "quilt-loader" })
         {
             var value = GetString(dependencies, candidate);
@@ -82,6 +84,7 @@ public static class MinecraftPackManifestReader
                     "quilt-loader" => "quilt",
                     _ => candidate
                 };
+                loaderVersion = value;
                 break;
             }
         }
@@ -132,6 +135,7 @@ public static class MinecraftPackManifestReader
             Summary = GetString(root, "summary") ?? "",
             MinecraftVersion = gameVersion,
             Loader = loader,
+            LoaderVersion = loaderVersion,
             Platform = "modrinth",
             ProjectId = GetString(root, "versionId") ?? "",
             Files = files,
@@ -159,6 +163,7 @@ public static class MinecraftPackManifestReader
             throw new InvalidDataException("В CurseForge manifest не указана версия Minecraft.");
 
         var loader = "vanilla";
+        var loaderVersion = "";
         if (minecraft.TryGetProperty("modLoaders", out var loaders) && loaders.ValueKind == JsonValueKind.Array)
         {
             foreach (var item in loaders.EnumerateArray())
@@ -171,6 +176,7 @@ public static class MinecraftPackManifestReader
                 if (prefix is "forge" or "fabric" or "neoforge" or "quilt")
                 {
                     loader = prefix;
+                    loaderVersion = id[(prefix.Length + 1)..];
                     break;
                 }
             }
@@ -210,6 +216,7 @@ public static class MinecraftPackManifestReader
             Summary = GetString(root, "version") ?? "",
             MinecraftVersion = gameVersion,
             Loader = loader,
+            LoaderVersion = loaderVersion,
             Platform = "curseforge",
             ProjectId = GetString(root, "author") ?? "",
             Files = files.Where(f => f.Required).ToList(),
