@@ -25,6 +25,6 @@ public sealed class PerformanceProfileRulesTests
     [Fact]
     public void FallsBackWhenWindowsMemoryInformationIsUnavailable()
     {
-        Assert.Equal(1024, PerformanceProfileRules.RecommendedHeapMb(new SystemMemorySnapshot(0, 0)));
+        Assert.Null(PerformanceProfileRules.RecommendedHeapMb(new SystemMemorySnapshot(0, 0)));
     }
 }
