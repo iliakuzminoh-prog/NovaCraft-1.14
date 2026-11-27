@@ -285,9 +285,13 @@ internal sealed class MainForm : Form
     {
         try
         {
-            var bounds = Screen.PrimaryScreen?.Bounds;
-            if (bounds is { Width: >= 800, Height: >= 600 })
-                return new Size(bounds.Value.Width, bounds.Value.Height);
+            var primary = Screen.PrimaryScreen;
+            if (primary != null)
+            {
+                var bounds = primary.Bounds;
+                if (bounds.Width >= 800 && bounds.Height >= 600)
+                    return new Size(bounds.Width, bounds.Height);
+            }
         }
         catch { }
 
@@ -2154,17 +2158,20 @@ internal sealed class MainForm : Form
         game.Controls.Add(new Label{Text="МБ",AutoSize=true,ForeColor=Color.Silver,Location=new Point(325,120)});
         game.Controls.Add(new Label{Text="Разрешение",AutoSize=true,ForeColor=Color.Silver,Location=new Point(390,116)});
         var desktopSize = GetDesktopResolution();
-        widthInput=new NumericUpDown{Minimum=800,Maximum=7680,Value=Math.Clamp(settings.UseDesktopResolution ? desktopSize.Width : settings.ScreenWidth,800,7680),Width=85,Location=new Point(470,112)};
-        heightInput=new NumericUpDown{Minimum=600,Maximum=4320,Value=Math.Clamp(settings.UseDesktopResolution ? desktopSize.Height : settings.ScreenHeight,600,4320),Width=85,Location=new Point(565,112)};
-        useDesktopResolutionInput=new CheckBox{Text=$"Использовать разрешение Windows ({desktopSize.Width}×{desktopSize.Height})",Checked=settings.UseDesktopResolution,AutoSize=true,Location=new Point(18,166),ForeColor=Color.White};
+        var screenWidthControl = new NumericUpDown { Minimum=800, Maximum=7680, Value=Math.Clamp(settings.UseDesktopResolution ? desktopSize.Width : settings.ScreenWidth,800,7680), Width=85, Location=new Point(470,112) };
+        var screenHeightControl = new NumericUpDown { Minimum=600, Maximum=4320, Value=Math.Clamp(settings.UseDesktopResolution ? desktopSize.Height : settings.ScreenHeight,600,4320), Width=85, Location=new Point(565,112) };
+        widthInput = screenWidthControl;
+        heightInput = screenHeightControl;
+        var desktopResolutionCheck = new CheckBox { Text=$"Использовать разрешение Windows ({desktopSize.Width}×{desktopSize.Height})", Checked=settings.UseDesktopResolution, AutoSize=true, Location=new Point(18,166), ForeColor=Color.White };
+        useDesktopResolutionInput = desktopResolutionCheck;
         void UpdateResolutionInputs()
         {
-            widthInput.Enabled = !(useDesktopResolutionInput?.Checked ?? true);
-            heightInput.Enabled = !(useDesktopResolutionInput?.Checked ?? true);
+            screenWidthControl.Enabled = !desktopResolutionCheck.Checked;
+            screenHeightControl.Enabled = !desktopResolutionCheck.Checked;
         }
-        useDesktopResolutionInput.CheckedChanged += (_,_) => UpdateResolutionInputs();
+        desktopResolutionCheck.CheckedChanged += (_,_) => UpdateResolutionInputs();
         UpdateResolutionInputs();
-        game.Controls.AddRange(new Control[]{widthInput,heightInput,useDesktopResolutionInput});
+        game.Controls.AddRange(new Control[]{screenWidthControl,screenHeightControl,desktopResolutionCheck});
 
         var launch=ModernCard(720,225,"ЗАПУСК",Color.FromArgb(25,28,45));launch.Location=new Point(24,345);
         fullScreenInput=new CheckBox{Text="Полный экран",Checked=settings.FullScreen,AutoSize=true,Location=new Point(18,48),ForeColor=Color.White};
