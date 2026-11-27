@@ -12,7 +12,7 @@ internal sealed class Skin3DPreview : Control
     private readonly System.Windows.Forms.Timer animationTimer;
     private Bitmap? skin;
     private float rotation = -0.42f;
-    private float tilt = -0.10f;
+    private float tilt = 0.14f;
     private bool slim;
     private bool dragging;
     private Point lastMouse;
