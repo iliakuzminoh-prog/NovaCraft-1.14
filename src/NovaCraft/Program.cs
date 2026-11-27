@@ -1147,6 +1147,26 @@ internal sealed class MainForm : Form
 
         top.Controls.AddRange(new Control[] { search, searchButton, modLoader, sort });
 
+        void LayoutModToolbar()
+        {
+            var availableWidth = Math.Max(560, top.ClientSize.Width - 8);
+            const int buttonWidth = 88;
+            const int loaderWidth = 112;
+            const int sortWidth = 140;
+            const int gap = 8;
+            var searchWidth = Math.Clamp(
+                availableWidth - buttonWidth - loaderWidth - sortWidth - gap * 3,
+                180,
+                420);
+            search.SetBounds(4, 78, searchWidth, 38);
+            searchButton.SetBounds(search.Right + gap, 78, buttonWidth, 38);
+            modLoader.SetBounds(searchButton.Right + gap, 78, loaderWidth, 38);
+            sort.SetBounds(modLoader.Right + gap, 78, sortWidth, 38);
+        }
+
+        top.Resize += (_, _) => LayoutModToolbar();
+        LayoutModToolbar();
+
         modCards.Dock = DockStyle.Fill;
         modCards.Padding = new Padding(4, 8, 10, 40);
         modCards.BackColor = Color.FromArgb(12,14,23);
@@ -1204,7 +1224,7 @@ internal sealed class MainForm : Form
     TabPage CatalogPage(string title, string projectType)
     {
         var p = new TabPage(title) { BackColor = Color.FromArgb(12,14,23), Padding = new Padding(20) };
-        var toolbar = new Panel { Dock = DockStyle.Top, Height = 112, BackColor = Color.FromArgb(12,14,23) };
+        var toolbar = new Panel { Dock = DockStyle.Top, Height = projectType == "datapack" ? 152 : 116, BackColor = Color.FromArgb(12,14,23) };
 
         var heading = new Label
         {
@@ -1217,7 +1237,9 @@ internal sealed class MainForm : Form
         var description = new Label
         {
             Text = "Живая лента Modrinth · иконки, авторы, описания и новые страницы подгружаются автоматически",
-            AutoSize = true,
+            AutoSize = false,
+            Size = new Size(800, 22),
+            AutoEllipsis = true,
             ForeColor = Color.FromArgb(145,155,178),
             Location = new Point(7, 40)
         };
@@ -1247,9 +1269,9 @@ internal sealed class MainForm : Form
         var worldCaption = (Label?)null;
         if (projectType == "datapack")
         {
-            worldButton = new Button { Text = "Папка мира…", Location = new Point(708,72), Width = 125, Height = 36, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,43,63), ForeColor = Color.White };
+            worldButton = new Button { Text = "Папка мира…", Width = 125, Height = 32, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(38,43,63), ForeColor = Color.White };
             worldButton.FlatAppearance.BorderSize = 0;
-            worldCaption = new Label { Text = "Мир не выбран", AutoSize = true, ForeColor = Color.FromArgb(145,155,178), Location = new Point(842,82) };
+            worldCaption = new Label { Text = "Мир не выбран", AutoSize = false, ForeColor = Color.FromArgb(145,155,178) };
             selectedDatapackWorldLabel = worldCaption;
             worldButton.Click += (_, _) =>
             {
@@ -1279,6 +1301,28 @@ internal sealed class MainForm : Form
         toolbar.Controls.AddRange(new Control[] { heading, description, search, find, sort });
         if (worldButton != null) toolbar.Controls.Add(worldButton);
         if (worldCaption != null) toolbar.Controls.Add(worldCaption);
+
+        void LayoutCatalogToolbar()
+        {
+            var availableWidth = Math.Max(560, toolbar.ClientSize.Width - 8);
+            const int findWidth = 84;
+            const int sortWidth = 145;
+            const int gap = 8;
+            var searchWidth = Math.Clamp(availableWidth - findWidth - sortWidth - gap * 2, 180, 420);
+            description.Size = new Size(Math.Max(220, availableWidth - 8), 22);
+            search.SetBounds(4, 72, searchWidth, 36);
+            find.SetBounds(search.Right + gap, 72, findWidth, 36);
+            sort.SetBounds(find.Right + gap, 72, sortWidth, 36);
+
+            if (worldButton != null && worldCaption != null)
+            {
+                worldButton.SetBounds(4, 114, 125, 32);
+                worldCaption.SetBounds(140, 118, Math.Max(160, availableWidth - 148), 24);
+            }
+        }
+
+        toolbar.Resize += (_, _) => LayoutCatalogToolbar();
+        LayoutCatalogToolbar();
 
         var results = new FlowLayoutPanel
         {
