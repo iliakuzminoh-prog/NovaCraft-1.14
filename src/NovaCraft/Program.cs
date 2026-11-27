@@ -304,9 +304,11 @@ internal sealed class MainForm : Form
 
     DownloadTaskVisual CreateDownloadTaskVisual()
     {
+        var cardWidth = Math.Max(560, downloadTaskList!.ClientSize.Width - 36);
+        var textWidth = Math.Max(200, cardWidth - 244);
         var card = new Panel
         {
-            Width = Math.Max(600, downloadTaskList!.ClientSize.Width - 36),
+            Width = cardWidth,
             Height = 108,
             Margin = new Padding(4,4,8,8),
             Padding = new Padding(14),
@@ -316,29 +318,29 @@ internal sealed class MainForm : Form
         var title = new Label
         {
             Location = new Point(14,10),
-            Size = new Size(520,24),
+            Size = new Size(textWidth,24),
             AutoEllipsis = true,
             ForeColor = Color.White,
             Font = new Font("Segoe UI Semibold",10.5f,FontStyle.Bold)
         };
         var state = new Label
         {
-            Location = new Point(610,12),
-            Size = new Size(180,22),
+            Location = new Point(cardWidth - 214,12),
+            Size = new Size(190,22),
             TextAlign = ContentAlignment.MiddleRight,
             Font = new Font("Segoe UI Semibold",9,FontStyle.Bold)
         };
         var detail = new Label
         {
             Location = new Point(16,39),
-            Size = new Size(770,32),
+            Size = new Size(cardWidth - 32,32),
             ForeColor = Color.FromArgb(157,169,193),
             AutoEllipsis = true
         };
         var bar = new ProgressBar
         {
             Location = new Point(16,78),
-            Size = new Size(770,12),
+            Size = new Size(cardWidth - 32,12),
             Minimum = 0,
             Maximum = 100,
             Style = ProgressBarStyle.Continuous
@@ -349,8 +351,11 @@ internal sealed class MainForm : Form
 
     void UpdateDownloadTaskVisual(LauncherDownloadTask task, DownloadTaskVisual visual)
     {
+        var cardWidth = Math.Max(560, downloadTaskList!.ClientSize.Width - 36);
         visual.Title.Text = task.Title;
+        visual.Title.Size = new Size(Math.Max(200, cardWidth - 244),24);
         visual.State.Text = task.Status;
+        visual.State.Location = new Point(cardWidth - 214,12);
         visual.State.ForeColor = task.Status switch
         {
             "Установлено" or "Уже установлено" => Color.FromArgb(85,220,150),
@@ -359,8 +364,10 @@ internal sealed class MainForm : Form
             _ => Color.FromArgb(110,180,255)
         };
         visual.Detail.Text = $"{task.Source}  ·  {task.BuildName}  ·  {task.FileName}\n{task.Detail}";
+        visual.Detail.Size = new Size(cardWidth - 32,32);
         visual.Progress.Value = Math.Clamp((int)(task.Progress * 100),0,100);
-        visual.Card.Width = Math.Max(600, downloadTaskList!.ClientSize.Width - 36);
+        visual.Progress.Size = new Size(cardWidth - 32,12);
+        visual.Card.Width = cardWidth;
     }
 
     void RefreshDownloadTaskPage()
@@ -2546,7 +2553,7 @@ internal sealed class MainForm : Form
         downloadSummary = new Label
         {
             Text = "Нет активных загрузок",
-            AutoSize = true,
+            AutoSize = false,
             Location = new Point(7,48),
             ForeColor = Color.FromArgb(150,162,186)
         };
@@ -2567,6 +2574,15 @@ internal sealed class MainForm : Form
             RefreshDownloadTaskPage();
         };
         header.Controls.AddRange(new Control[] { downloadSummary, clear });
+        void LayoutDownloadHeader()
+        {
+            var width = Math.Max(560, header.ClientSize.Width);
+            clear.SetBounds(Math.Max(350, width - 202), 42, 190, 34);
+            downloadSummary!.SetBounds(7, 48, Math.Max(200, clear.Left - 18), 24);
+        }
+        header.Resize += (_,_) => LayoutDownloadHeader();
+        LayoutDownloadHeader();
+
         downloadTaskList = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill,
