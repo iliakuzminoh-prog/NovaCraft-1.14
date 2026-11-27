@@ -4,6 +4,8 @@ VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NovaCraft", "src\\NovaCraft\\NovaCraft.csproj", "{C6B3B5C0-4D67-4D88-AF70-7C5E7E8F0E14}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NovaCraft.Tests", "tests\\NovaCraft.Tests\\NovaCraft.Tests.csproj", "{D4A8B5C1-6E2F-4E9A-91C3-7F5E0A2B6D44}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,5 +16,9 @@ Global
 		{C6B3B5C0-4D67-4D88-AF70-7C5E7E8F0E14}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C6B3B5C0-4D67-4D88-AF70-7C5E7E8F0E14}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C6B3B5C0-4D67-4D88-AF70-7C5E7E8F0E14}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D4A8B5C1-6E2F-4E9A-91C3-7F5E0A2B6D44}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D4A8B5C1-6E2F-4E9A-91C3-7F5E0A2B6D44}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D4A8B5C1-6E2F-4E9A-91C3-7F5E0A2B6D44}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D4A8B5C1-6E2F-4E9A-91C3-7F5E0A2B6D44}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal
