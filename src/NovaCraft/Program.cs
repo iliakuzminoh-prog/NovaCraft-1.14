@@ -141,6 +141,9 @@ internal sealed class MainForm : Form
     readonly Button play = new();
     readonly Button install = new();
     readonly ComboBox buildSelector = new();
+    readonly List<LauncherDownloadTask> downloadTasks = new();
+    FlowLayoutPanel? downloadTaskList;
+    Label? downloadSummary;
     ComboBox? quickVersionSelector;
     ComboBox? quickLoaderSelector;
     bool updatingBuildSelector;
@@ -209,6 +212,151 @@ internal sealed class MainForm : Form
             status.Text = "Готов. Проверяю список версий в фоне…";
             _ = RefreshVersionsAsync();
         };
+    }
+
+    LauncherDownloadTask BeginDownloadTask(string title, string fileName, string source)
+    {
+        var task = new LauncherDownloadTask
+        {
+            Title = title,
+            FileName = fileName,
+            Source = source,
+            BuildName = ActiveBuild.Name,
+            Status = "Загружается",
+            Detail = settings.LastVersion + " · " + settings.ModLoader.ToUpperInvariant()
+        };
+        downloadTasks.Insert(0, task);
+        if (downloadTasks.Count > 100)
+            downloadTasks.RemoveAll(t => downloadTasks.IndexOf(t) >= 80 &&
+                t.Status is "Установлено" or "Ошибка" or "Уже установлено");
+        RefreshDownloadTaskPage();
+        return task;
+    }
+
+    void UpdateDownloadTask(LauncherDownloadTask task, string statusText, double? progress = null, string? detail = null)
+    {
+        task.Status = statusText;
+        if (progress.HasValue)
+            task.Progress = Math.Clamp(progress.Value, 0, 1);
+        if (detail != null)
+            task.Detail = detail;
+        RefreshDownloadTaskPage();
+    }
+
+    void CompleteDownloadTask(LauncherDownloadTask task, string detail)
+    {
+        task.Status = "Установлено";
+        task.Progress = 1;
+        task.Detail = detail;
+        RefreshDownloadTaskPage();
+    }
+
+    void FailDownloadTask(LauncherDownloadTask task, Exception exception)
+    {
+        task.Status = "Ошибка";
+        task.Detail = exception.Message;
+        RefreshDownloadTaskPage();
+    }
+
+    void RefreshDownloadTaskPage()
+    {
+        if (downloadTaskList == null || downloadTaskList.IsDisposed)
+            return;
+
+        if (downloadTaskList.InvokeRequired)
+        {
+            try { downloadTaskList.BeginInvoke(new Action(RefreshDownloadTaskPage)); } catch { }
+            return;
+        }
+
+        downloadTaskList.SuspendLayout();
+        downloadTaskList.Controls.Clear();
+        var active = downloadTasks.Count(t => t.Status is "Загружается" or "Устанавливается" or "Проверка");
+        var installed = downloadTasks.Count(t => t.Status is "Установлено" or "Уже установлено");
+        var failed = downloadTasks.Count(t => t.Status == "Ошибка");
+        if (downloadSummary != null)
+            downloadSummary.Text = $"{active} выполняется    ·    {installed} установлено    ·    {failed} ошибок";
+
+        if (downloadTasks.Count == 0)
+        {
+            downloadTaskList.Controls.Add(new Panel
+            {
+                Width = Math.Max(560, downloadTaskList.ClientSize.Width - 40),
+                Height = 150,
+                BackColor = Color.FromArgb(24,27,42),
+                Padding = new Padding(20)
+            });
+            var empty = (Panel)downloadTaskList.Controls[0];
+            empty.Controls.Add(new Label
+            {
+                Text = "Здесь появятся загрузки и установки.\n\nКаждый файл будет привязан к активной сборке и получит отдельный статус.",
+                AutoSize = true,
+                Location = new Point(20,25),
+                ForeColor = Color.FromArgb(170,180,200),
+                Font = new Font("Segoe UI", 10)
+            });
+            downloadTaskList.ResumeLayout();
+            return;
+        }
+
+        foreach (var task in downloadTasks)
+        {
+            var card = new Panel
+            {
+                Width = Math.Max(600, downloadTaskList.ClientSize.Width - 36),
+                Height = 108,
+                Margin = new Padding(4,4,8,8),
+                Padding = new Padding(14),
+                BackColor = Color.FromArgb(24,27,42),
+                BorderStyle = BorderStyle.FixedSingle
+            };
+            var title = new Label
+            {
+                Text = task.Title,
+                Location = new Point(14,10),
+                Size = new Size(520,24),
+                AutoEllipsis = true,
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI Semibold",10.5f,FontStyle.Bold)
+            };
+            var stateColor = task.Status switch
+            {
+                "Установлено" or "Уже установлено" => Color.FromArgb(85,220,150),
+                "Ошибка" => Color.FromArgb(248,118,126),
+                "Проверка" or "Устанавливается" => Color.FromArgb(181,157,255),
+                _ => Color.FromArgb(110,180,255)
+            };
+            var state = new Label
+            {
+                Text = task.Status,
+                Location = new Point(610,12),
+                Size = new Size(180,22),
+                ForeColor = stateColor,
+                TextAlign = ContentAlignment.MiddleRight,
+                Font = new Font("Segoe UI Semibold",9,FontStyle.Bold)
+            };
+            var detail = new Label
+            {
+                Text = $"{task.Source}  ·  {task.BuildName}  ·  {task.FileName}\n{task.Detail}",
+                Location = new Point(16,39),
+                Size = new Size(770,32),
+                ForeColor = Color.FromArgb(157,169,193),
+                AutoEllipsis = true
+            };
+            var bar = new ProgressBar
+            {
+                Location = new Point(16,78),
+                Size = new Size(770,12),
+                Minimum = 0,
+                Maximum = 100,
+                Value = Math.Clamp((int)(task.Progress * 100),0,100),
+                Style = ProgressBarStyle.Continuous
+            };
+            card.Controls.AddRange(new Control[] { title,state,detail,bar });
+            downloadTaskList.Controls.Add(card);
+        }
+
+        downloadTaskList.ResumeLayout();
     }
 
     BuildProfile ActiveBuild
@@ -439,7 +587,8 @@ internal sealed class MainForm : Form
             ("⚡  Производительность", PerformancePage),
             ("◆  Сервера", ServersPage),
             ("⚙  Настройки", SettingsPage),
-            ("✓  Исправление", DiagnosticsPage)
+            ("✓  Исправление", DiagnosticsPage),
+            ("⇩  Загрузки", DownloadsPage)
         };
 
         var sectionLabels = new Dictionary<int, string>
@@ -2183,6 +2332,68 @@ internal sealed class MainForm : Form
         launch.Controls.Add(jvmArgsInput);
 
         var save=ModernButton("✓  Сохранить настройки",210,42);save.Location=new Point(24,595);save.Click+=(_,_)=>{try{SaveSettings();status.Text="Настройки сохранены";}catch(Exception ex){Fail("Не удалось сохранить настройки",ex);}};p.Controls.AddRange(new Control[]{game,launch,save});
+        return p;
+    }
+
+    TabPage DownloadsPage()
+    {
+        var p = new TabPage("Загрузки")
+        {
+            BackColor = Color.FromArgb(13,15,25),
+            Padding = new Padding(20)
+        };
+        var header = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 92,
+            BackColor = Color.FromArgb(13,15,25)
+        };
+        header.Controls.Add(new Label
+        {
+            Text = "Загрузки",
+            AutoSize = true,
+            Location = new Point(4,2),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold",25,FontStyle.Bold)
+        });
+        downloadSummary = new Label
+        {
+            Text = "Нет активных загрузок",
+            AutoSize = true,
+            Location = new Point(7,48),
+            ForeColor = Color.FromArgb(150,162,186)
+        };
+        var clear = new Button
+        {
+            Text = "Очистить завершённые",
+            Location = new Point(650,42),
+            Width = 190,
+            Height = 34,
+            FlatStyle = FlatStyle.Flat,
+            BackColor = Color.FromArgb(38,42,57),
+            ForeColor = Color.White
+        };
+        clear.FlatAppearance.BorderSize = 0;
+        clear.Click += (_,_) =>
+        {
+            downloadTasks.RemoveAll(t => t.Status is "Установлено" or "Уже установлено" or "Ошибка");
+            RefreshDownloadTaskPage();
+        };
+        header.Controls.AddRange(new Control[] { downloadSummary, clear });
+        downloadTaskList = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            FlowDirection = FlowDirection.TopDown,
+            WrapContents = false,
+            Padding = new Padding(4,8,14,24),
+            BackColor = Color.FromArgb(13,15,25)
+        };
+        p.Controls.Add(downloadTaskList);
+        p.Controls.Add(header);
+        p.Disposed += (_,_) => downloadTaskList = null;
+        p.Enter += (_,_) => RefreshDownloadTaskPage();
+        RefreshDownloadTaskPage();
         return p;
     }
 
