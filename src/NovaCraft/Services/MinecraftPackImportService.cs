@@ -214,7 +214,7 @@ public static class MinecraftPackImportService
         return new CurseForgeFileMetadata(fileName, downloadUrl, sha1, length);
     }
 
-    private static async Task DownloadCurseForgeFileAsync(
+    internal static async Task DownloadCurseForgeFileAsync(
         HttpClient http,
         string downloadUrl,
         string apiKey,
