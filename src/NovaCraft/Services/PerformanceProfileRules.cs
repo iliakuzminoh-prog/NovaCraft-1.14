@@ -60,7 +60,10 @@ internal static class PerformanceProfileRules
 
         var budget = Math.Min(totalBudget, availableBudget);
         var rounded = budget / 256UL * 256UL;
-        return (int)Math.Clamp(rounded, 1024UL, 8192UL);
+        if (rounded < 1024UL)
+            return null;
+
+        return (int)Math.Min(rounded, 8192UL);
     }
 
     public static bool IsLowAvailableMemory(SystemMemorySnapshot memory)
@@ -71,11 +74,14 @@ internal static class PerformanceProfileRules
         if (memory.TotalMb == 0 || memory.AvailableMb == 0)
             return "Не удалось получить сведения об ОЗУ Windows. Автоматическая рекомендация недоступна; текущий лимит Java останется без изменений.";
 
-        var recommended = RecommendedHeapMb(memory)!.Value;
+        var recommended = RecommendedHeapMb(memory);
+        if (!recommended.HasValue)
+            return $"ОЗУ: {memory.TotalMb / 1024.0:0.0} ГБ всего, {memory.AvailableMb / 1024.0:0.0} ГБ свободно. Сейчас свободной памяти недостаточно для безопасного автоматического лимита Java. Закрой тяжёлые программы и проверь снова.";
+
         var warning = IsLowAvailableMemory(memory)
             ? " Свободной памяти мало: закрой тяжёлые программы перед запуском. Даже этот лимит не гарантирует запуск тяжёлых сборок."
             : " Лимит оставляет запас для Windows и фоновых программ.";
 
-        return $"ОЗУ: {memory.TotalMb / 1024.0:0.0} ГБ всего, {memory.AvailableMb / 1024.0:0.0} ГБ свободно. Рекомендуемый лимит Java: {recommended} МБ.{warning}"
+        return $"ОЗУ: {memory.TotalMb / 1024.0:0.0} ГБ всего, {memory.AvailableMb / 1024.0:0.0} ГБ свободно. Рекомендуемый лимит Java: {recommended.Value} МБ.{warning}";
     }
 }
