@@ -214,14 +214,14 @@ internal sealed class MainForm : Form
         };
     }
 
-    LauncherDownloadTask BeginDownloadTask(string title, string fileName, string source)
+    LauncherDownloadTask BeginDownloadTask(string title, string fileName, string source, string? targetBuildName = null)
     {
         var task = new LauncherDownloadTask
         {
             Title = title,
             FileName = fileName,
             Source = source,
-            BuildName = ActiveBuild.Name,
+            BuildName = targetBuildName ?? ActiveBuild.Name,
             Status = "Загружается",
             Detail = settings.LastVersion + " · " + settings.ModLoader.ToUpperInvariant()
         };
@@ -803,7 +803,7 @@ internal sealed class MainForm : Form
         top.Controls.Add(search);
         var settingsButton = new Button { Text = "⚙", Width = 42, Height = 36, Location = new Point(610, 7), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
         settingsButton.FlatAppearance.BorderSize = 0;
-        settingsButton.Click += (_, _) => ShowNavigationPage(10);
+        settingsButton.Click += (_, _) => ShowNavigationPage(12);
         top.Controls.Add(settingsButton);
 
         var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(0, 8, 0, 0), AutoScroll = true };
@@ -2945,6 +2945,7 @@ internal sealed class MainForm : Form
 
     async Task DownloadCatalogArchiveAsync(string projectId, string title, string projectType, string? worldDirectory = null)
     {
+        LauncherDownloadTask? downloadTask = null;
         try
         {
             var game = version.SelectedItem?.ToString()
@@ -2995,23 +2996,33 @@ internal sealed class MainForm : Form
                 "\nКаталог: " + folderName + "\nИсточник: Modrinth CDN\nПроверка: SHA-512.\n\nПродолжить загрузку?",
                 "Подтверждение установки", MessageBoxButtons.YesNo, MessageBoxIcon.Warning);
             if (approval != DialogResult.Yes) return;
+            downloadTask = BeginDownloadTask(title, filename, "Modrinth", ActiveBuild.Name);
+            var fileProgress = new Progress<double>(value =>
+                UpdateDownloadTask(downloadTask, "Загружается", value, "SHA-512 · " + folderName));
             await DownloadService.DownloadVerifiedAsync(
                 http, uri, expected, targetDir, filename, new[] { ".zip" },
-                250L * 1024 * 1024, null, CancellationToken.None, _ => true,
+                250L * 1024 * 1024, fileProgress, CancellationToken.None, _ => true,
                 (archivePath, _) =>
                 {
+                    UpdateDownloadTask(downloadTask, "Проверка", 0.98, "Проверяю структуру ZIP-архива");
                     CatalogArchiveValidator.Validate(archivePath, projectType);
                     return Task.CompletedTask;
                 });
+            CompleteDownloadTask(downloadTask, "Файл установлен в " + folderName);
             WriteLog("Установлен архив Modrinth: " + destination);
             status.Text = "Архив установлен: " + filename;
         }
-        catch (Exception ex) { Fail("Не удалось установить проект Modrinth", ex); }
+        catch (Exception ex)
+        {
+            if (downloadTask != null) FailDownloadTask(downloadTask, ex);
+            Fail("Не удалось установить проект Modrinth", ex);
+        }
     }
 
     async Task DownloadSelectedModAsync()
     {
         if (string.IsNullOrWhiteSpace(selectedModProject)) return;
+        LauncherDownloadTask? activeDownloadTask = null;
         try
         {
             if (settings.ModLoader == "vanilla")
@@ -3088,18 +3099,34 @@ internal sealed class MainForm : Form
                     throw new InvalidDataException("У файла отсутствует корректный SHA-512.");
 
                 var destination = Path.Combine(modsDir, name);
-                if (File.Exists(destination)) continue;
+                activeDownloadTask = BeginDownloadTask(entry.Title, name, "Modrinth", ActiveBuild.Name);
+                if (File.Exists(destination))
+                {
+                    activeDownloadTask.Status = "Уже установлено";
+                    activeDownloadTask.Progress = 1;
+                    activeDownloadTask.Detail = "Файл уже находится в активной сборке";
+                    RefreshDownloadTaskPage();
+                    continue;
+                }
 
+                var modProgress = new Progress<double>(value =>
+                    UpdateDownloadTask(activeDownloadTask, "Загружается", value, "SHA-512 · " + game + " · " + loaderName));
                 await DownloadService.DownloadVerifiedAsync(
                     http, downloadUri, expectedSha512, modsDir, name, new[] { ".jar" },
-                    250L * 1024 * 1024, null, CancellationToken.None,
+                    250L * 1024 * 1024, modProgress, CancellationToken.None,
                     _ => true);
+                CompleteDownloadTask(activeDownloadTask, "Проверен SHA-512 и установлен в mods/");
                 WriteLog("Установлен мод/зависимость: " + name);
             }
 
             status.Text = files.Count == 1 ? "Мод установлен" : $"Мод установлен вместе с {files.Count - 1} обязательной зависимостью.";
         }
-        catch (Exception ex) { Fail("Не удалось установить мод и зависимости", ex); }
+        catch (Exception ex)
+        {
+            if (activeDownloadTask != null && activeDownloadTask.Status != "Уже установлено")
+                FailDownloadTask(activeDownloadTask, ex);
+            Fail("Не удалось установить мод и зависимости", ex);
+        }
     }
 
     void SaveSettings()
