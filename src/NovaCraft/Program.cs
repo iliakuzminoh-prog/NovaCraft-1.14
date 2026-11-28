@@ -145,7 +145,9 @@ internal sealed class MainForm : Form
     TextBox? jvmArgsInput;
     readonly Button play = new();
     readonly Button install = new();
+    readonly Button profileChip = new();
     readonly ComboBox buildSelector = new();
+    string pendingModSearch = "";
     readonly List<LauncherDownloadTask> downloadTasks = new();
     FlowLayoutPanel? downloadTaskList;
     Label? downloadSummary;
@@ -239,6 +241,7 @@ internal sealed class MainForm : Form
             localMusicTimer?.Stop();
             localMusicTimer?.Dispose();
             localMusicPlayer?.Dispose();
+            profileChip.Image?.Dispose();
         };
 
         // Лаунчер должен открываться даже при недоступном интернете.
@@ -644,6 +647,7 @@ internal sealed class MainForm : Form
             Padding = new Padding(18)
         };
         RoundCorners(card, 16);
+        AppTheme.StyleCard(card);
 
         var accent = new Panel
         {
@@ -677,7 +681,8 @@ internal sealed class MainForm : Form
             ForeColor = Color.White,
             Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
             Cursor = Cursors.Hand,
-            Padding = new Padding(10, 0, 10, 0)
+            Padding = new Padding(10, 0, 10, 0),
+            Tag = "novacraft-primary"
         };
         b.FlatAppearance.BorderSize = 0;
         b.FlatAppearance.MouseOverBackColor = Color.FromArgb(111, 70, 235);
@@ -699,23 +704,188 @@ internal sealed class MainForm : Form
         return bitmap;
     }
 
+    static Bitmap CreateProfileIcon(string username)
+    {
+        var safeName = string.IsNullOrWhiteSpace(username) ? "N" : username.Trim();
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(safeName));
+        var first = Color.FromArgb(255, 74 + digest[0] % 80, 62 + digest[1] % 68, 150 + digest[2] % 70);
+        var second = Color.FromArgb(255, 34 + digest[3] % 36, 36 + digest[4] % 35, 72 + digest[5] % 52);
+        var bitmap = new Bitmap(34, 34);
+
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        using (var background = new LinearGradientBrush(new Rectangle(0, 0, 34, 34), first, second, 45f))
+            graphics.FillEllipse(background, 1, 1, 32, 32);
+        using (var border = new Pen(Color.FromArgb(100, 220, 220, 255), 1f))
+            graphics.DrawEllipse(border, 1, 1, 32, 32);
+
+        var initial = char.ToUpperInvariant(safeName[0]).ToString();
+        using var font = new Font("Segoe UI Semibold", 14, FontStyle.Bold);
+        using var brush = new SolidBrush(Color.White);
+        using var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
+        graphics.DrawString(initial, font, brush, new RectangleF(1, 1, 32, 32), format);
+
+        return bitmap;
+    }
+
+    void RefreshProfileChip()
+    {
+        var activeProfile = settings.OfflineProfiles?.FirstOrDefault(profile =>
+            string.Equals(profile.Id, settings.ActiveProfileId, StringComparison.OrdinalIgnoreCase));
+        var usernameValue = activeProfile?.Username ?? settings.Username;
+        if (string.IsNullOrWhiteSpace(usernameValue))
+            usernameValue = "NovaPlayer";
+
+        profileChip.Image?.Dispose();
+        profileChip.Image = CreateProfileIcon(usernameValue);
+        profileChip.Text = usernameValue;
+        profileChip.AccessibleName = "Активный профиль: " + usernameValue;
+    }
+
     void BuildUi()
     {
-        var header = new Panel { Dock = DockStyle.Top, Height = 76, BackColor = Color.FromArgb(17, 19, 30), Padding = new Padding(18, 8, 18, 8) };
-        header.Controls.Add(new Label { Text = "◆  NOVACRAFT", Font = new Font("Segoe UI Semibold", 21, FontStyle.Bold), AutoSize = true, Location = new Point(18, 13), ForeColor = Color.White });
-        header.Controls.Add(new Label { Text = "Minecraft Java", AutoSize = true, Location = new Point(250, 26), ForeColor = Color.FromArgb(160, 170, 190) });
+        var header = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 88,
+            BackColor = AppTheme.TopBar,
+            Padding = new Padding(16, 8, 16, 8)
+        };
+        header.Paint += (_, e) =>
+        {
+            using var pen = new Pen(AppTheme.Border, 1f);
+            e.Graphics.DrawLine(pen, 0, header.Height - 1, header.Width, header.Height - 1);
+        };
+
+        var headerLayout = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 5,
+            RowCount = 1,
+            BackColor = Color.Transparent,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 25f));
+        headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 34f));
+        headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 17f));
+        headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 11f));
+        headerLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 13f));
+
+        var brand = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.Transparent,
+            Margin = new Padding(2, 0, 8, 0)
+        };
+        brand.Controls.Add(new Label
+        {
+            Text = "◆",
+            AutoSize = true,
+            Location = new Point(0, 12),
+            ForeColor = AppTheme.Accent,
+            Font = new Font("Segoe UI Symbol", 27, FontStyle.Bold)
+        });
+        brand.Controls.Add(new Label
+        {
+            Text = "NOVACRAFT",
+            AutoSize = true,
+            Location = new Point(38, 12),
+            ForeColor = AppTheme.Text,
+            Font = new Font("Segoe UI Semibold", 18, FontStyle.Bold)
+        });
+        brand.Controls.Add(new Label
+        {
+            Text = "MINECRAFT JAVA  ·  WINDOWS",
+            AutoSize = true,
+            Location = new Point(40, 43),
+            ForeColor = AppTheme.Muted,
+            Font = new Font("Segoe UI Semibold", 7.5f, FontStyle.Bold)
+        });
+
+        var buildPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            BackColor = Color.Transparent,
+            Padding = new Padding(8, 0, 8, 0),
+            Margin = new Padding(2, 0, 2, 0)
+        };
+        buildPanel.Controls.Add(new Label
+        {
+            Text = "АКТИВНАЯ СБОРКА",
+            AutoSize = true,
+            Location = new Point(4, 2),
+            ForeColor = AppTheme.Muted,
+            Font = new Font("Segoe UI Semibold", 7.5f, FontStyle.Bold)
+        });
+
         buildSelector.DropDownStyle = ComboBoxStyle.DropDownList;
-        buildSelector.SetBounds(650, 18, 290, 34);
-        buildSelector.BackColor = Color.FromArgb(28, 31, 47);
-        buildSelector.ForeColor = Color.White;
+        buildSelector.Dock = DockStyle.Bottom;
+        buildSelector.Height = 36;
+        buildSelector.BackColor = AppTheme.Input;
+        buildSelector.ForeColor = AppTheme.Text;
         buildSelector.Font = new Font("Segoe UI Semibold", 9.5f);
         buildSelector.SelectedIndexChanged += (_, _) =>
         {
             if (updatingBuildSelector || buildSelector.SelectedItem is not BuildProfile selectedBuild) return;
             ActivateBuild(selectedBuild);
         };
-        header.Controls.Add(buildSelector);
+        buildPanel.Controls.Add(buildSelector);
+
+        profileChip.Text = "Профиль";
+        profileChip.Dock = DockStyle.Fill;
+        profileChip.Margin = new Padding(5, 6, 5, 6);
+        profileChip.Padding = new Padding(8, 0, 8, 0);
+        profileChip.TextAlign = ContentAlignment.MiddleLeft;
+        profileChip.ImageAlign = ContentAlignment.MiddleLeft;
+        profileChip.TextImageRelation = TextImageRelation.ImageBeforeText;
+        profileChip.FlatStyle = FlatStyle.Flat;
+        profileChip.FlatAppearance.BorderSize = 1;
+        profileChip.FlatAppearance.BorderColor = AppTheme.Border;
+        profileChip.BackColor = AppTheme.SurfaceRaised;
+        profileChip.ForeColor = AppTheme.Text;
+        profileChip.Font = new Font("Segoe UI Semibold", 9f);
+        profileChip.Cursor = Cursors.Hand;
+        profileChip.AccessibleRole = AccessibleRole.PushButton;
+        profileChip.AccessibleDescription = "Открыть управление офлайн-профилями и скинами";
+        profileChip.Click += (_, _) => ShowNavigationPage(10);
+
+        install.Text = "Установить";
+        install.Dock = DockStyle.Fill;
+        install.Margin = new Padding(5, 6, 5, 6);
+        install.FlatStyle = FlatStyle.Flat;
+        install.FlatAppearance.BorderSize = 1;
+        install.FlatAppearance.BorderColor = AppTheme.Border;
+        install.BackColor = AppTheme.SurfaceRaised;
+        install.ForeColor = AppTheme.Text;
+        install.Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold);
+        install.Cursor = Cursors.Hand;
+        install.AccessibleName = "Установить выбранную версию Minecraft";
+        install.Click += async (_, _) => await InstallAsync();
+
+        play.Text = "▶  Играть";
+        play.Dock = DockStyle.Fill;
+        play.Margin = new Padding(5, 6, 5, 6);
+        play.FlatStyle = FlatStyle.Flat;
+        play.FlatAppearance.BorderSize = 0;
+        play.FlatAppearance.MouseOverBackColor = AppTheme.AccentHover;
+        play.BackColor = AppTheme.Accent;
+        play.ForeColor = Color.White;
+        play.Font = new Font("Segoe UI Semibold", 9f, FontStyle.Bold);
+        play.Cursor = Cursors.Hand;
+        play.Tag = "novacraft-primary";
+        play.AccessibleName = "Запустить выбранную сборку Minecraft";
+        play.Click += async (_, _) => await LaunchAsync();
+
+        headerLayout.Controls.Add(brand, 0, 0);
+        headerLayout.Controls.Add(buildPanel, 1, 0);
+        headerLayout.Controls.Add(profileChip, 2, 0);
+        headerLayout.Controls.Add(install, 3, 0);
+        headerLayout.Controls.Add(play, 4, 0);
+        header.Controls.Add(headerLayout);
+
         RefreshBuildSelector();
+        RefreshProfileChip();
 
         var sidebar = new Panel { Dock = DockStyle.Left, Width = 252, BackColor = Color.FromArgb(15, 17, 27), Padding = new Padding(12, 14, 12, 10) };
         var navSearch = new TextBox { PlaceholderText = "⌕  Поиск раздела…", Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(28,31,47), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
@@ -993,6 +1163,7 @@ internal sealed class MainForm : Form
             }
 
             loaded.Dock = DockStyle.Fill;
+            AppTheme.Apply(loaded);
             var oldPage = navigationPages[index];
             var selected = pageHost.SelectedIndex == index;
             pageHost.TabPages.RemoveAt(index);
@@ -1011,49 +1182,7 @@ internal sealed class MainForm : Form
         }
     }
 
-    static void ApplyDarkTheme(Control root)
-    {
-        foreach (Control c in root.Controls)
-        {
-            if (c is TextBox textBox)
-            {
-                textBox.BackColor = Color.FromArgb(31, 35, 44);
-                textBox.ForeColor = Color.White;
-                textBox.BorderStyle = BorderStyle.FixedSingle;
-            }
-            else if (c is ComboBox combo)
-            {
-                combo.BackColor = Color.FromArgb(31, 35, 44);
-                combo.ForeColor = Color.White;
-                combo.FlatStyle = FlatStyle.Flat;
-            }
-            else if (c is NumericUpDown numeric)
-            {
-                numeric.BackColor = Color.FromArgb(31, 35, 44);
-                numeric.ForeColor = Color.White;
-            }
-            else if (c is Button button)
-            {
-                button.FlatStyle = FlatStyle.Flat;
-                button.FlatAppearance.BorderColor = Color.FromArgb(75, 87, 108);
-                if (button.BackColor == SystemColors.Control)
-                    button.BackColor = Color.FromArgb(38, 44, 56);
-                button.ForeColor = Color.White;
-                button.Cursor = Cursors.Hand;
-            }
-            else if (c is ListView list)
-            {
-                list.BackColor = Color.FromArgb(27, 31, 39);
-                list.ForeColor = Color.White;
-            }
-            else if (c is ListBox box)
-            {
-                box.BackColor = Color.FromArgb(27, 31, 39);
-                box.ForeColor = Color.White;
-            }
-            if (c.HasChildren) ApplyDarkTheme(c);
-        }
-    }
+    static void ApplyDarkTheme(Control root) => AppTheme.Apply(root);
 
     TabPage HomePage()
     {
@@ -1062,20 +1191,36 @@ internal sealed class MainForm : Form
         var top = new Panel { Dock = DockStyle.Top, Height = 52, BackColor = Color.FromArgb(13, 15, 25) };
         var search = new TextBox
         {
-            PlaceholderText = "Поиск модов, сборок и версий…",
+            PlaceholderText = "Поиск модов Modrinth… нажми Enter",
             Font = new Font("Segoe UI", 10.5f),
-            ForeColor = Color.White,
-            BackColor = Color.FromArgb(29, 31, 49),
+            ForeColor = AppTheme.Text,
+            BackColor = AppTheme.Input,
             BorderStyle = BorderStyle.FixedSingle,
             Location = new Point(8, 7),
             Width = 590,
-            Height = 36
+            Height = 36,
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
+        };
+        search.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            e.SuppressKeyPress = true;
+            pendingModSearch = search.Text.Trim();
+            ShowNavigationPage(3);
         };
         top.Controls.Add(search);
         var settingsButton = new Button { Text = "⚙", Width = 42, Height = 36, Location = new Point(610, 7), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
         settingsButton.FlatAppearance.BorderSize = 0;
         settingsButton.Click += (_, _) => ShowNavigationPage(13);
         top.Controls.Add(settingsButton);
+
+        void LayoutHomeSearch()
+        {
+            settingsButton.Left = Math.Max(220, top.ClientSize.Width - settingsButton.Width - 8);
+            search.Width = Math.Max(180, settingsButton.Left - search.Left - 10);
+        }
+        top.Resize += (_, _) => LayoutHomeSearch();
+        LayoutHomeSearch();
 
         var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(0, 8, 0, 0), AutoScroll = true };
 
@@ -1145,9 +1290,58 @@ internal sealed class MainForm : Form
         {
             foreach (var build in settings.BuildProfiles.Take(4))
             {
-                var b = new Panel { Width = 175, Height = 100, BackColor = Color.FromArgb(33,37,61), Margin = new Padding(4) };
-                b.Controls.Add(new Label { Text = build.Name, Location = new Point(10,10), Size = new Size(150,38), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold), AutoEllipsis = true });
-                b.Controls.Add(new Label { Text = build.MinecraftVersion + " · " + build.Loader.ToUpperInvariant(), Location = new Point(10,54), AutoSize = true, ForeColor = Color.FromArgb(170,180,205) });
+                var isActive = string.Equals(build.Id, settings.ActiveBuildId, StringComparison.OrdinalIgnoreCase);
+                var b = new Panel
+                {
+                    Width = 175,
+                    Height = 100,
+                    BackColor = Color.FromArgb(33,37,61),
+                    Margin = new Padding(4),
+                    Cursor = Cursors.Hand,
+                    AccessibleRole = AccessibleRole.PushButton,
+                    AccessibleName = "Выбрать сборку " + build.Name
+                };
+                RoundCorners(b, 12);
+                AppTheme.StyleCard(b, isActive);
+                var buildGlyph = new Label
+                {
+                    Text = build.Loader.ToUpperInvariant() switch { "FABRIC" => "F", "FORGE" => "✦", "QUILT" => "Q", _ => "V" },
+                    Location = new Point(12, 12),
+                    Size = new Size(34, 34),
+                    TextAlign = ContentAlignment.MiddleCenter,
+                    BackColor = isActive ? Color.FromArgb(87, 67, 151) : Color.FromArgb(47, 56, 82),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold)
+                };
+                RoundCorners(buildGlyph, 10);
+                var buildName = new Label
+                {
+                    Text = build.Name,
+                    Location = new Point(54, 12),
+                    Size = new Size(108, 36),
+                    ForeColor = Color.White,
+                    Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold),
+                    AutoEllipsis = true
+                };
+                var buildVersion = new Label
+                {
+                    Text = build.MinecraftVersion + " · " + build.Loader.ToUpperInvariant(),
+                    Location = new Point(12, 62),
+                    Size = new Size(150, 20),
+                    ForeColor = Color.FromArgb(170,180,205),
+                    Font = new Font("Segoe UI", 8.25f)
+                };
+                b.Controls.AddRange(new Control[] { buildGlyph, buildName, buildVersion });
+                void SelectBuildFromTile()
+                {
+                    ActivateBuild(build);
+                    status.Text = "Активная сборка: " + build.Name;
+                    ShowNavigationPage(0);
+                }
+                b.Click += (_, _) => SelectBuildFromTile();
+                buildGlyph.Click += (_, _) => SelectBuildFromTile();
+                buildName.Click += (_, _) => SelectBuildFromTile();
+                buildVersion.Click += (_, _) => SelectBuildFromTile();
                 buildFlow.Controls.Add(b);
             }
         }
@@ -1163,6 +1357,7 @@ internal sealed class MainForm : Form
 
         content.Controls.AddRange(new Control[] { latest, quick, buildsCard, modsCard });
         body.Controls.Add(content);
+        body.Controls.Add(hero);
         p.Controls.Add(body);
         p.Controls.Add(top);
         return p;
@@ -1406,6 +1601,17 @@ internal sealed class MainForm : Form
         p.Controls.Add(top);
         p.Enter += async (_, _) =>
         {
+            if (!string.IsNullOrWhiteSpace(pendingModSearch))
+            {
+                search.Text = pendingModSearch;
+                modFeedQuery = pendingModSearch;
+                pendingModSearch = "";
+                modFeedSort = sort.SelectedIndex switch { 1 => "newest", 2 => "updated", _ => "downloads" };
+                modFeedOffset = 0;
+                await LoadModFeedAsync(true);
+                return;
+            }
+
             if (modCards.Controls.Count == 0)
             {
                 modFeedQuery = "";
@@ -2153,8 +2359,10 @@ internal sealed class MainForm : Form
                     Margin = new Padding(5, 5, 12, 10),
                     Padding = new Padding(16),
                     BackColor = selected ? Color.FromArgb(37,34,65) : Color.FromArgb(24,27,42),
-                    BorderStyle = BorderStyle.FixedSingle
+                    BorderStyle = BorderStyle.None
                 };
+                RoundCorners(card, 16);
+                AppTheme.StyleCard(card, selected);
 
                 card.Controls.Add(new Label
                 {
@@ -2901,6 +3109,7 @@ internal sealed class MainForm : Form
             settings.Username = profile.Username;
             username.Text = profile.Username;
             uuidLabel.Text = "Постоянный UUID:\n" + profile.Uuid + "\nСмена ника не создаёт новый профиль автоматически.";
+            RefreshProfileChip();
             SettingsService.Save(settings);
         }
 
@@ -4068,6 +4277,8 @@ internal sealed class MainForm : Form
             BackColor = Color.FromArgb(24, 27, 42),
             Padding = new Padding(14)
         };
+        RoundCorners(card, 16);
+        AppTheme.StyleCatalogCard(card);
 
         icon = new PictureBox
         {
