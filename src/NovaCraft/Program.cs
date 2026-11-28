@@ -1361,11 +1361,46 @@ internal sealed class MainForm : Form
         modsOpen.Click += (_, _) => ShowNavigationPage(3);
         modsCard.Controls.Add(modsOpen);
 
-        content.Controls.AddRange(new Control[] { latest, quick, buildsCard, modsCard });
+        var featuredModsCard = ModernCard(880, 540, "ПОПУЛЯРНЫЕ МОДЫ MODRINTH", AppTheme.Surface);
+        popularFeed.Dock = DockStyle.None;
+        popularFeed.Location = new Point(14, 48);
+        popularFeed.Size = new Size(850, 470);
+        popularFeed.BackColor = Color.Transparent;
+        popularFeed.Padding = new Padding(2, 4, 12, 18);
+        featuredModsCard.Controls.Add(popularFeed);
+
+        var refreshFeatured = ModernButton("↻", 38, 34);
+        refreshFeatured.Location = new Point(820, 11);
+        refreshFeatured.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        refreshFeatured.AccessibleName = "Обновить популярные моды";
+        refreshFeatured.Click += async (_, _) => await LoadPopularModsAsync();
+        featuredModsCard.Controls.Add(refreshFeatured);
+
+        void LayoutFeaturedMods()
+        {
+            featuredModsCard.Width = Math.Max(560, content.ClientSize.Width - 18);
+            popularFeed.SetBounds(
+                14,
+                48,
+                Math.Max(520, featuredModsCard.ClientSize.Width - 28),
+                Math.Max(260, featuredModsCard.ClientSize.Height - 62));
+            refreshFeatured.Left = featuredModsCard.ClientSize.Width - refreshFeatured.Width - 16;
+        }
+        content.Resize += (_, _) => LayoutFeaturedMods();
+        LayoutFeaturedMods();
+
+        content.Controls.AddRange(new Control[] { latest, quick, buildsCard, modsCard, featuredModsCard });
         body.Controls.Add(content);
         body.Controls.Add(hero);
         p.Controls.Add(body);
         p.Controls.Add(top);
+
+        p.Enter += async (_, _) =>
+        {
+            if (popularFeed.Controls.Count == 0)
+                await LoadPopularModsAsync();
+        };
+
         return p;
     }
 
