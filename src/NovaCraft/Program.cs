@@ -752,7 +752,8 @@ internal sealed class MainForm : Form
             ("Журнал и диагностика", "▤", new[] { 14, 15 })
         };
 
-        var pageButtons = new Button[pages.Length];
+        var pageButtons = new Button?[pages.Length];
+        var pageTabs = new TabPage?[pages.Length];
         var pageGroups = new int[pages.Length];
 
         for (var groupIndex = 0; groupIndex < groups.Length; groupIndex++)
@@ -806,10 +807,10 @@ internal sealed class MainForm : Form
                     Padding = new Padding(24)
                 };
 
-                navigationFactories.Add(item.Factory);
-                navigationInitialized.Add(false);
-                navigationPages.Add(page);
-                pageHost.TabPages.Add(page);
+                if (pageTabs[pageIndex] != null)
+                    throw new InvalidOperationException($"Страница {pageIndex} назначена двум группам навигации.");
+
+                pageTabs[pageIndex] = page;
                 pageGroups[pageIndex] = groupIndex;
 
                 var parts = item.Name.Split(new[] { "  " }, StringSplitOptions.None);
@@ -872,11 +873,20 @@ internal sealed class MainForm : Form
             navScroll.Controls.Add(childPanel);
         }
 
-        if (pageButtons.Any(button => button == null))
-            throw new InvalidOperationException("Не все страницы назначены пунктам главной навигации.");
+        for (var pageIndex = 0; pageIndex < pages.Length; pageIndex++)
+        {
+            var page = pageTabs[pageIndex]
+                ?? throw new InvalidOperationException($"Страница {pageIndex} не назначена группе навигации.");
+            var pageButton = pageButtons[pageIndex]
+                ?? throw new InvalidOperationException($"Для страницы {pageIndex} не создана кнопка навигации.");
 
-        navigationButtons.AddRange(pageButtons);
-        navigationPageGroups.AddRange(pageGroups);
+            navigationFactories.Add(pages[pageIndex].Factory);
+            navigationInitialized.Add(false);
+            navigationPages.Add(page);
+            pageHost.TabPages.Add(page);
+            navigationButtons.Add(pageButton);
+            navigationPageGroups.Add(pageGroups[pageIndex]);
+        }
         var sideFooter = new Label
         {
             Text = "NOVACRAFT 1.14\nMinecraft Java",
