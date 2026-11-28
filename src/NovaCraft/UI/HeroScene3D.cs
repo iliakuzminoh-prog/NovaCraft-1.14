@@ -179,6 +179,8 @@ internal sealed class HeroScene3D : Control
             graphics.FillPath(glow, glowPath);
         }
 
+        DrawSunRays(graphics, sunCenter, sunRadius, width, height);
+
         using (var sunBrush = new LinearGradientBrush(
             new RectangleF(sunCenter.X - sunRadius, sunCenter.Y - sunRadius, sunRadius * 2, sunRadius * 2),
             Color.FromArgb(255, 238, 203, 151),
@@ -199,8 +201,41 @@ internal sealed class HeroScene3D : Control
                 x, y, radius * 2, radius * 2);
         }
 
-        DrawCloudBand(graphics, width, height, 0.48f, 0.50f, 0.23f, 0.15f, 0.075f);
-        DrawCloudBand(graphics, width, height, 0.75f, 0.61f, 0.19f, 0.12f, -0.055f);
+        DrawCloudBand(graphics, width, height, 0.07f, 0.16f, 0.28f, 0.16f, 0.035f);
+        DrawCloudBand(graphics, width, height, 0.57f, 0.28f, 0.24f, 0.13f, -0.025f);
+    }
+
+    private void DrawSunRays(Graphics graphics, PointF center, float radius, int width, int height)
+    {
+        const int rayCount = 13;
+        for (var index = 0; index < rayCount; index++)
+        {
+            var angle = 0.32f + index * 0.205f + MathF.Sin(elapsed * 0.16f + index) * 0.018f;
+            var direction = new PointF(MathF.Cos(angle), MathF.Sin(angle));
+            var perpendicular = new PointF(-direction.Y, direction.X);
+            var rayLength = height * (0.25f + UnitHash(index * 9.17f) * 0.18f);
+            var widthAtStart = 2.2f + UnitHash(index * 4.93f) * 2.4f;
+            var widthAtEnd = widthAtStart * (2.1f + UnitHash(index * 2.17f));
+            var alpha = (int)(5 + 6 * (0.5f + 0.5f * MathF.Sin(elapsed * 0.55f + index * 0.8f)));
+
+            var start = new PointF(
+                center.X + direction.X * radius * 0.88f,
+                center.Y + direction.Y * radius * 0.88f);
+            var end = new PointF(
+                start.X + direction.X * rayLength,
+                start.Y + direction.Y * rayLength);
+
+            PointF[] ray =
+            {
+                new(start.X + perpendicular.X * widthAtStart, start.Y + perpendicular.Y * widthAtStart),
+                new(end.X + perpendicular.X * widthAtEnd, end.Y + perpendicular.Y * widthAtEnd),
+                new(end.X - perpendicular.X * widthAtEnd, end.Y - perpendicular.Y * widthAtEnd),
+                new(start.X - perpendicular.X * widthAtStart, start.Y - perpendicular.Y * widthAtStart)
+            };
+
+            using var brush = new SolidBrush(Color.FromArgb(alpha, 255, 202, 151));
+            graphics.FillPolygon(brush, ray);
+        }
     }
 
     private void DrawCloudBand(Graphics graphics, int width, int height, float x, float y,
@@ -217,7 +252,7 @@ internal sealed class HeroScene3D : Control
         cloudPath.AddEllipse(cloudX + w * 0.17f, cloudY + h * 0.04f, w * 0.28f, h * 0.72f);
         cloudPath.AddEllipse(cloudX + w * 0.39f, cloudY - h * 0.08f, w * 0.34f, h * 0.86f);
         cloudPath.AddEllipse(cloudX + w * 0.64f, cloudY + h * 0.14f, w * 0.24f, h * 0.68f);
-        using var cloud = new SolidBrush(Color.FromArgb(13, 194, 179, 220));
+        using var cloud = new SolidBrush(Color.FromArgb(23, 194, 179, 220));
         graphics.FillPath(cloud, cloudPath);
     }
 
@@ -335,6 +370,14 @@ internal sealed class HeroScene3D : Control
             Color.FromArgb(255, 117, 95, 220), 0.47f, 1.2f, 0.10f, 0.62f);
         AddRotatingCube(2.9f, 2.7f, 6.2f, 0.34f,
             Color.FromArgb(255, 70, 177, 174), -0.54f, 4.1f, 0.08f, 0.75f);
+        AddRotatingCube(-0.88f, 1.12f, 6.15f, 0.13f,
+            Color.FromArgb(255, 131, 118, 255), 0.72f, 0.4f, 0.055f, 1.1f);
+        AddRotatingCube(0.35f, 1.48f, 6.22f, 0.105f,
+            Color.FromArgb(255, 96, 207, 220), -0.88f, 1.7f, 0.04f, 0.9f);
+        AddRotatingCube(-0.28f, 0.56f, 6.26f, 0.09f,
+            Color.FromArgb(255, 172, 125, 255), 0.95f, 2.8f, 0.035f, 1.25f);
+        AddRotatingCube(0.02f, 1.78f, 6.35f, 0.08f,
+            Color.FromArgb(255, 89, 190, 219), -0.68f, 3.4f, 0.03f, 1.0f);
     }
 
     private void DrawWorldGeometry(Graphics graphics, int width, int height)
