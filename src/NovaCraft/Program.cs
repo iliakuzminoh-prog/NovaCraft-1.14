@@ -184,6 +184,15 @@ internal sealed class MainForm : Form
     public MainForm()
     {
         settings = SettingsService.Load();
+        version.SelectedIndexChanged += (_, _) =>
+        {
+            if (version.SelectedItem is string selectedVersion &&
+                !string.IsNullOrWhiteSpace(selectedVersion))
+            {
+                settings.LastVersion = selectedVersion;
+                UpdateHomeHeroMetadata();
+            }
+        };
         BuildProfileRules.EnsureProfiles(settings);
         gameLoader.Items.AddRange(new object[] { "Vanilla", "Fabric", "Forge", "Quilt" });
         gameLoader.SelectedItem = settings.ModLoader switch
