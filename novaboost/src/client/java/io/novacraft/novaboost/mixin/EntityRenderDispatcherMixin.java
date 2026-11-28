@@ -37,6 +37,10 @@ public abstract class EntityRenderDispatcherMixin {
             return;
         }
 
+        if (novaboost$reportedCullingFailure) {
+            return;
+        }
+
         try {
             Minecraft client = Minecraft.getInstance();
             if (EntityOcclusionCuller.INSTANCE.shouldCull(client, entity, cameraX, cameraY, cameraZ)) {
