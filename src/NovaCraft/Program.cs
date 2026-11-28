@@ -4859,6 +4859,13 @@ internal sealed class MainForm : Form
         return null;
     }
 
+    internal static bool IsSafeProjectArtworkSize(int width, int height) =>
+        width > 0 &&
+        height > 0 &&
+        width <= 2048 &&
+        height <= 2048 &&
+        (long)width * height <= 4_194_304;
+
     static string ProjectIconCacheDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "NovaCraft", "cache", "project-icons");
@@ -4873,7 +4880,12 @@ internal sealed class MainForm : Form
 
             using var stream = new FileStream(cachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
             using var source = Image.FromStream(stream, useEmbeddedColorManagement: false, validateImageData: true);
-            return new Bitmap(source);
+            if (!IsSafeProjectArtworkSize(source.Width, source.Height))
+                throw new InvalidDataException("Cached project artwork has unsafe dimensions.");
+
+            var bitmap = new Bitmap(source);
+            try { File.SetLastWriteTimeUtc(cachePath, DateTime.UtcNow); } catch { }
+            return bitmap;
         }
         catch
         {
@@ -4987,6 +4999,9 @@ internal sealed class MainForm : Form
 
             using var ms = new MemoryStream(bytes);
             using var source = Image.FromStream(ms, useEmbeddedColorManagement: false, validateImageData: true);
+            if (!IsSafeProjectArtworkSize(source.Width, source.Height))
+                return;
+
             var bitmap = new Bitmap(source);
             if (picture.IsDisposed)
             {

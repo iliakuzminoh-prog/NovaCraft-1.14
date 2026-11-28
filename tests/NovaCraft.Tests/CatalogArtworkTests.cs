@@ -60,6 +60,18 @@ public sealed class CatalogArtworkTests
         Assert.Null(MainForm.SelectProjectArtworkUrl(project));
     }
 
+    [Theory]
+    [InlineData(96, 96, true)]
+    [InlineData(2048, 2048, true)]
+    [InlineData(4096, 256, false)]
+    [InlineData(50000, 50000, false)]
+    [InlineData(0, 128, false)]
+    [InlineData(128, -1, false)]
+    public void LimitsDecodedArtworkDimensions(int width, int height, bool expected)
+    {
+        Assert.Equal(expected, MainForm.IsSafeProjectArtworkSize(width, height));
+    }
+
     [Fact]
     public void FallbackProjectArtworkIsAFullVoxelEmblem()
     {
