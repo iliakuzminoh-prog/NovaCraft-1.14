@@ -7,7 +7,7 @@ internal sealed class PageDepthTransition : Control
     readonly Bitmap outgoing;
     readonly Bitmap incoming;
     readonly bool forward;
-    readonly Timer timer = new() { Interval = 16 };
+    readonly System.Windows.Forms.Timer timer = new() { Interval = 16 };
     readonly DateTime started = DateTime.UtcNow;
     readonly int durationMs;
     float progress;
