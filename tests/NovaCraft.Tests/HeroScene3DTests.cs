@@ -42,6 +42,32 @@ public sealed class HeroScene3DTests
     }
 
     [Fact]
+    public void AnimationStepChangesRenderedFrame()
+    {
+        using var hero = new HeroScene3D { Size = new Size(800, 240) };
+        hero.CreateControl();
+
+        using var before = new Bitmap(800, 240);
+        using var after = new Bitmap(800, 240);
+        hero.DrawToBitmap(before, new Rectangle(0, 0, before.Width, before.Height));
+
+        hero.AdvanceFrame(0.25f);
+        hero.DrawToBitmap(after, new Rectangle(0, 0, after.Width, after.Height));
+
+        var changedSamples = 0;
+        for (var y = 0; y < before.Height; y += 4)
+        {
+            for (var x = 0; x < before.Width; x += 4)
+            {
+                if (before.GetPixel(x, y).ToArgb() != after.GetPixel(x, y).ToArgb())
+                    changedSamples++;
+            }
+        }
+
+        Assert.True(changedSamples > 20, $"Expected a visibly different animated frame, got {changedSamples} changed samples.");
+    }
+
+    [Fact]
     public void HeroExposesKeyboardAccessibleLaunchAction()
     {
         using var hero = new HeroScene3D { Size = new Size(800, 260) };
