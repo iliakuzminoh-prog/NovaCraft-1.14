@@ -12,15 +12,15 @@ internal sealed class BrandCube3D : Control
     private readonly System.Windows.Forms.Timer animationTimer = new() { Interval = 33 };
     private readonly SolidBrush[] faceBrushes =
     {
-        new(Color.FromArgb(255, 155, 132, 255)),
-        new(Color.FromArgb(255, 116, 88, 232)),
-        new(Color.FromArgb(255, 87, 67, 194)),
-        new(Color.FromArgb(255, 76, 62, 150)),
-        new(Color.FromArgb(255, 185, 164, 255)),
-        new(Color.FromArgb(255, 58, 49, 117))
+        new(Color.FromArgb(255, 122, 91, 255)),
+        new(Color.FromArgb(255, 94, 62, 226)),
+        new(Color.FromArgb(255, 77, 48, 205)),
+        new(Color.FromArgb(255, 51, 35, 155)),
+        new(Color.FromArgb(255, 133, 111, 255)),
+        new(Color.FromArgb(255, 31, 25, 99))
     };
-    private readonly Pen edgePen = new(Color.FromArgb(220, 224, 218, 255), 1.15f);
-    private readonly Pen glowPen = new(Color.FromArgb(45, 136, 111, 255), 4f);
+    private readonly Pen edgePen = new(Color.FromArgb(210, 218, 207, 255), 1.15f);
+    private readonly Pen glowPen = new(Color.FromArgb(58, 132, 101, 255), 4f);
     private float rotation;
     private static readonly int[][] CubeFaces =
     {
