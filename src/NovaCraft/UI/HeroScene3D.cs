@@ -276,11 +276,22 @@ internal sealed class HeroScene3D : Control
         var w = cloudWidth * width;
         var h = cloudHeight * height;
         var cloudY = y * height + MathF.Sin(elapsed * 0.32f) * 2.5f;
-        using var cloudPath = new GraphicsPath(FillMode.Winding);
-        cloudPath.AddEllipse(cloudX + w * 0.04f, cloudY + h * 0.28f, w * 0.88f, h * 0.62f);
-        cloudPath.AddEllipse(cloudX + w * 0.17f, cloudY + h * 0.04f, w * 0.28f, h * 0.72f);
-        cloudPath.AddEllipse(cloudX + w * 0.39f, cloudY - h * 0.08f, w * 0.34f, h * 0.86f);
-        cloudPath.AddEllipse(cloudX + w * 0.64f, cloudY + h * 0.14f, w * 0.24f, h * 0.68f);
+        using var cloudPath = new GraphicsPath();
+        cloudPath.AddPolygon(new[]
+        {
+            new PointF(cloudX + w * 0.02f, cloudY + h * 0.72f),
+            new PointF(cloudX + w * 0.02f, cloudY + h * 0.49f),
+            new PointF(cloudX + w * 0.14f, cloudY + h * 0.49f),
+            new PointF(cloudX + w * 0.14f, cloudY + h * 0.25f),
+            new PointF(cloudX + w * 0.32f, cloudY + h * 0.25f),
+            new PointF(cloudX + w * 0.32f, cloudY + h * 0.04f),
+            new PointF(cloudX + w * 0.60f, cloudY + h * 0.04f),
+            new PointF(cloudX + w * 0.60f, cloudY + h * 0.25f),
+            new PointF(cloudX + w * 0.81f, cloudY + h * 0.25f),
+            new PointF(cloudX + w * 0.81f, cloudY + h * 0.47f),
+            new PointF(cloudX + w * 0.98f, cloudY + h * 0.47f),
+            new PointF(cloudX + w * 0.98f, cloudY + h * 0.72f)
+        });
         graphics.FillPath(cloudBrush, cloudPath);
     }
 
