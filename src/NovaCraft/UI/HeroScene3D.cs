@@ -305,6 +305,9 @@ internal sealed class HeroScene3D : Control
         AddTree(-3.05f, 0.2f, 6.1f, 0.62f);
         AddCrystal(1.05f, 0.2f, 1.9f, 0.72f);
         AddPortalRing(-0.25f, 1.05f, 6.6f, 0.72f);
+        AddWorldDisk(-0.25f, 0.12f, 6.58f, 0.92f, 0.42f, Color.FromArgb(16, 106, 91, 231));
+        AddWorldDisk(2.15f, 0.075f, 1.84f, 0.57f, 0.31f, Color.FromArgb(43, 4, 7, 17));
+        AddWorldDisk(2.15f, 0.078f, 1.84f, 0.34f, 0.18f, Color.FromArgb(25, 4, 7, 17));
         AddVoxelExplorer(1.88f, 0.07f, 1.62f);
 
         AddRotatingCube(-2.4f, 2.0f, 3.7f, 0.48f,
@@ -371,6 +374,30 @@ internal sealed class HeroScene3D : Control
         AddTriangle(tip, center, bottomRight, Color.FromArgb(220, 91, 110, 229), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
         AddTriangle(tip, bottomRight, bottomBack, Color.FromArgb(205, 72, 81, 191), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
         AddTriangle(tip, bottomBack, bottomLeft, Color.FromArgb(225, 146, 166, 255), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
+    }
+
+    private void AddWorldDisk(float x, float y, float z, float radiusX, float radiusZ, Color color)
+    {
+        const int segments = 28;
+        var vertices = new Vector3[segments];
+        for (var index = 0; index < segments; index++)
+        {
+            var angle = index * MathF.Tau / segments;
+            vertices[index] = new Vector3(
+                x + MathF.Cos(angle) * radiusX,
+                y,
+                z + MathF.Sin(angle) * radiusZ);
+        }
+
+        AddMeshFace(
+            vertices,
+            color,
+            new Vector3(x, y, z),
+            0f,
+            0f,
+            0f,
+            0f,
+            0f);
     }
 
     private void AddVoxelExplorer(float x, float groundY, float z)
