@@ -208,8 +208,8 @@ internal sealed class HeroScene3D : Control
                 x, y, radius * 2, radius * 2);
         }
 
-        DrawCloudBand(graphics, width, height, 0.07f, 0.16f, 0.28f, 0.16f, 0.035f);
-        DrawCloudBand(graphics, width, height, 0.57f, 0.28f, 0.24f, 0.13f, -0.025f);
+        DrawCloudBand(graphics, width, height, 0.43f, 0.17f, 0.17f, 0.10f, 0.025f);
+        DrawCloudBand(graphics, width, height, 0.78f, 0.25f, 0.14f, 0.09f, -0.018f);
     }
 
     private void DrawSunRays(Graphics graphics, PointF center, float radius, int width, int height)
@@ -336,7 +336,9 @@ internal sealed class HeroScene3D : Control
                 AddCubeMesh(worldX, top - 0.84f, worldZ, 0.9f, 0.9f, 0.9f,
                     grass,
                     Color.FromArgb(255, 100, 72, 58),
-                    Color.FromArgb(255, 67, 48, 48));
+                    Color.FromArgb(255, 67, 48, 48),
+                    drawOutlineTop: false,
+                    drawOutlineSides: false);
 
                 var riverColumn = (int)MathF.Round(MathF.Sin(z * 0.49f) * 1.35f);
                 if (x == riverColumn && z >= 1 && z <= 7)
@@ -347,7 +349,9 @@ internal sealed class HeroScene3D : Control
                         Color.FromArgb(255, 31, 77, 117),
                         bobAmplitude: 0.008f,
                         bobSpeed: 1.05f,
-                        bobPhase: z * 0.72f);
+                        bobPhase: z * 0.72f,
+                        drawOutlineTop: false,
+                        drawOutlineSides: false);
                 }
 
                 if ((x * 7 + z * 3) % 17 == 0)
@@ -763,7 +767,8 @@ internal sealed class HeroScene3D : Control
     private void AddCubeMesh(float x, float y, float z, float sizeX, float sizeY, float sizeZ,
         Color topColor, Color frontColor, Color sideColor,
         float rotationSpeed = 0f, float rotationPhase = 0f,
-        float bobAmplitude = 0f, float bobSpeed = 0f, float bobPhase = 0f)
+        float bobAmplitude = 0f, float bobSpeed = 0f, float bobPhase = 0f,
+        bool drawOutlineTop = true, bool drawOutlineSides = true)
     {
         var x0 = x;
         var x1 = x + sizeX;
@@ -780,11 +785,11 @@ internal sealed class HeroScene3D : Control
 
         var pivot = new Vector3(x + sizeX / 2f, y + sizeY / 2f, z + sizeZ / 2f);
         AddMeshFace(new[] { vertices[3], vertices[2], vertices[6], vertices[7] }, topColor,
-            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase);
+            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase, drawOutlineTop);
         AddMeshFace(new[] { vertices[0], vertices[1], vertices[2], vertices[3] }, frontColor,
-            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase);
+            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase, drawOutlineSides);
         AddMeshFace(new[] { vertices[1], vertices[5], vertices[6], vertices[2] }, sideColor,
-            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase);
+            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase, drawOutlineSides);
     }
 
     private void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Color color,
