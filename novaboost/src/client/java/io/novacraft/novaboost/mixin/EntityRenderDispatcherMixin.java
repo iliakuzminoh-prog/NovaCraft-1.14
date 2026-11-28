@@ -16,7 +16,7 @@ import io.novacraft.novaboost.optimization.EntityOcclusionCuller;
 public abstract class EntityRenderDispatcherMixin {
     @Inject(
         method = "shouldRender(Lnet/minecraft/world/entity/Entity;Lnet/minecraft/client/renderer/culling/Frustum;DDD)Z",
-        at = @At("HEAD"),
+        at = @At("RETURN"),
         cancellable = true
     )
     private void novaboost$skipOccludedEntity(
@@ -27,6 +27,12 @@ public abstract class EntityRenderDispatcherMixin {
         double cameraZ,
         CallbackInfoReturnable<Boolean> callback
     ) {
+        // Let Minecraft complete its own visibility/frustum checks first.
+        // NovaBoost only performs extra raycasts for entities vanilla would render.
+        if (!Boolean.TRUE.equals(callback.getReturnValue())) {
+            return;
+        }
+
         Minecraft client = Minecraft.getInstance();
         if (EntityOcclusionCuller.INSTANCE.shouldCull(client, entity, cameraX, cameraY, cameraZ)) {
             callback.setReturnValue(false);
