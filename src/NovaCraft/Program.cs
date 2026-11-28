@@ -1159,7 +1159,8 @@ internal sealed class MainForm : Form
             IsHandleCreated &&
             pageHost.IsHandleCreated &&
             pageHost.ClientSize.Width > 160 &&
-            pageHost.ClientSize.Height > 160;
+            pageHost.ClientSize.Height > 160 &&
+            (long)pageHost.ClientSize.Width * pageHost.ClientSize.Height <= 6_000_000;
 
         Bitmap? outgoing = null;
 
