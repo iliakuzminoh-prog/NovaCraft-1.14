@@ -130,6 +130,11 @@ internal sealed class MainForm : Form
     readonly List<Button> navigationButtons = new();
     readonly List<Func<TabPage>> navigationFactories = new();
     readonly List<bool> navigationInitialized = new();
+    readonly List<Button> navigationGroupButtons = new();
+    readonly List<FlowLayoutPanel> navigationGroupPanels = new();
+    readonly List<int> navigationPageGroups = new();
+    int activeNavigationGroup;
+    string navigationFilter = "";
     TextBox? customMusicPath;
     NumericUpDown? widthInput;
     NumericUpDown? heightInput;
@@ -738,79 +743,140 @@ internal sealed class MainForm : Form
             ("⇩  Загрузки", DownloadsPage)
         };
 
-        var sectionLabels = new Dictionary<int, string>
+        var groups = new (string Name, string Glyph, int[] PageIndices)[]
         {
-            [0] = "ИГРА",
-            [3] = "КОНТЕНТ",
-            [9] = "ИНСТРУМЕНТЫ",
-            [15] = "АКТИВНОСТЬ"
+            ("Главная", "⌂", new[] { 0, 1, 2 }),
+            ("Каталог", "▦", new[] { 3, 4, 5, 6, 7, 8 }),
+            ("Профили и скины", "♙", new[] { 10 }),
+            ("Настройки", "⚙", new[] { 13, 11, 12, 9 }),
+            ("Журнал и диагностика", "▤", new[] { 14, 15 })
         };
 
-        foreach (var item in pages.Select((value, index) => (value, index)))
+        var pageButtons = new Button[pages.Length];
+        var pageGroups = new int[pages.Length];
+
+        for (var groupIndex = 0; groupIndex < groups.Length; groupIndex++)
         {
-            if (sectionLabels.TryGetValue(item.index, out var sectionTitle))
-            {
-                navScroll.Controls.Add(new Label
-                {
-                    Text = sectionTitle,
-                    Width = 226,
-                    Height = 24,
-                    Margin = new Padding(4, item.index == 0 ? 0 : 12, 0, 2),
-                    ForeColor = Color.FromArgb(104, 114, 137),
-                    Font = new Font("Segoe UI Semibold", 8, FontStyle.Bold),
-                    TextAlign = ContentAlignment.BottomLeft
-                });
-            }
+            var group = groups[groupIndex];
 
-            var page = new TabPage(item.value.Name)
+            var groupButton = new Button
             {
-                BackColor = Color.FromArgb(13, 15, 25),
-                Padding = new Padding(24)
-            };
-            navigationFactories.Add(item.value.Factory);
-            navigationInitialized.Add(false);
-            navigationPages.Add(page);
-            pageHost.TabPages.Add(page);
-
-            var parts = item.value.Name.Split(new[] { "  " }, StringSplitOptions.None);
-            var glyph = parts.Length > 1 ? parts[0] : "◆";
-            var caption = parts.Length > 1 ? parts[1] : item.value.Name;
-            var button = new Button
-            {
-                Text = caption,
+                Text = group.Name,
+                Tag = groupIndex,
                 Width = 226,
-                Height = 46,
-                Margin = new Padding(0, 2, 0, 5),
+                Height = 44,
+                Margin = new Padding(0, 4, 0, 2),
                 TextAlign = ContentAlignment.MiddleLeft,
-                Image = CreateNavIcon(glyph),
+                Image = CreateNavIcon(group.Glyph),
                 ImageAlign = ContentAlignment.MiddleLeft,
                 TextImageRelation = TextImageRelation.ImageBeforeText,
                 Padding = new Padding(12, 0, 8, 0),
                 FlatStyle = FlatStyle.Flat,
-                BackColor = Color.FromArgb(15, 17, 27),
+                BackColor = Color.FromArgb(22, 24, 35),
                 ForeColor = Color.FromArgb(198, 204, 220),
-                Font = new Font("Segoe UI Semibold", 9.5f)
+                Font = new Font("Segoe UI Semibold", 9.5f),
+                AccessibleRole = AccessibleRole.PushButton,
+                AccessibleName = "Раздел " + group.Name
             };
-            button.FlatAppearance.BorderSize = 0;
-            button.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 34, 61);
-            var index = navigationPages.Count - 1;
-            var tooltip = new ToolTip { AutoPopDelay = 5000, InitialDelay = 350, ReshowDelay = 100 };
-            tooltip.SetToolTip(button, caption);
-            button.MouseEnter += (_, _) =>
+            groupButton.FlatAppearance.BorderSize = 0;
+            groupButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 34, 61);
+
+            var childPanel = new FlowLayoutPanel
             {
-                if (pageHost.SelectedIndex != index)
-                    button.BackColor = Color.FromArgb(30, 27, 45);
+                AutoSize = true,
+                AutoSizeMode = AutoSizeMode.GrowAndShrink,
+                FlowDirection = FlowDirection.TopDown,
+                WrapContents = false,
+                Width = 226,
+                Margin = new Padding(0, 0, 0, 5),
+                Padding = new Padding(0, 0, 0, 0),
+                BackColor = Color.Transparent,
+                Visible = groupIndex == 0
             };
-            button.MouseLeave += (_, _) =>
+
+            foreach (var pageIndex in group.PageIndices)
             {
-                if (pageHost.SelectedIndex != index)
-                    button.BackColor = Color.FromArgb(22, 24, 35);
+                if (pageIndex < 0 || pageIndex >= pages.Length)
+                    throw new InvalidOperationException($"Некорректный индекс страницы навигации: {pageIndex}.");
+
+                var item = pages[pageIndex];
+                var page = new TabPage(item.Name)
+                {
+                    BackColor = Color.FromArgb(13, 15, 25),
+                    Padding = new Padding(24)
+                };
+
+                navigationFactories.Add(item.Factory);
+                navigationInitialized.Add(false);
+                navigationPages.Add(page);
+                pageHost.TabPages.Add(page);
+                pageGroups[pageIndex] = groupIndex;
+
+                var parts = item.Name.Split(new[] { "  " }, StringSplitOptions.None);
+                var glyph = parts.Length > 1 ? parts[0] : "◆";
+                var caption = parts.Length > 1 ? parts[1] : item.Name;
+                var pageButton = new Button
+                {
+                    Text = caption,
+                    Tag = pageIndex,
+                    Width = 214,
+                    Height = 40,
+                    Margin = new Padding(8, 2, 0, 3),
+                    TextAlign = ContentAlignment.MiddleLeft,
+                    Image = CreateNavIcon(glyph),
+                    ImageAlign = ContentAlignment.MiddleLeft,
+                    TextImageRelation = TextImageRelation.ImageBeforeText,
+                    Padding = new Padding(12, 0, 8, 0),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(15, 17, 27),
+                    ForeColor = Color.FromArgb(190, 198, 215),
+                    Font = new Font("Segoe UI", 9.25f),
+                    AccessibleRole = AccessibleRole.PushButton,
+                    AccessibleName = caption
+                };
+                pageButton.FlatAppearance.BorderSize = 0;
+                pageButton.FlatAppearance.MouseOverBackColor = Color.FromArgb(39, 34, 61);
+
+                var tooltip = new ToolTip
+                {
+                    AutoPopDelay = 5000,
+                    InitialDelay = 350,
+                    ReshowDelay = 100
+                };
+                tooltip.SetToolTip(pageButton, caption);
+
+                var selectedPageIndex = pageIndex;
+                pageButton.Click += (_, _) => ShowNavigationPage(selectedPageIndex);
+
+                pageButtons[pageIndex] = pageButton;
+                childPanel.Controls.Add(pageButton);
+            }
+
+            var selectedGroupIndex = groupIndex;
+            groupButton.Click += (_, _) =>
+            {
+                activeNavigationGroup = selectedGroupIndex;
+                ApplyNavigationGroups();
+
+                var firstVisiblePage = childPanel.Controls
+                    .OfType<Button>()
+                    .FirstOrDefault(button => button.Visible);
+
+                if (firstVisiblePage?.Tag is int targetPageIndex)
+                    ShowNavigationPage(targetPageIndex);
             };
-            button.Click += (_, _) => ShowNavigationPage(index);
-            navigationButtons.Add(button);
-            navScroll.Controls.Add(button);
+
+            navigationGroupButtons.Add(groupButton);
+            navigationGroupPanels.Add(childPanel);
+            navScroll.Controls.Add(groupButton);
+            navScroll.Controls.Add(childPanel);
         }
 
+        if (pageButtons.Any(button => button == null))
+            throw new InvalidOperationException("Не все страницы назначены пунктам главной навигации.");
+
+        navigationButtons.AddRange(pageButtons);
+        navigationPageGroups.AddRange(pageGroups);
         var sideFooter = new Label
         {
             Text = "NOVACRAFT 1.14\nMinecraft Java",
@@ -835,13 +901,57 @@ internal sealed class MainForm : Form
         Controls.Add(header);
         Controls.Add(status);
         ApplyDarkTheme(this);
-        navSearch.TextChanged += (_, _) => { var q = navSearch.Text.Trim(); foreach (var button in navigationButtons) button.Visible = string.IsNullOrWhiteSpace(q) || button.Text.Contains(q, StringComparison.OrdinalIgnoreCase); };
+        navSearch.TextChanged += (_, _) =>
+        {
+            navigationFilter = navSearch.Text.Trim();
+            ApplyNavigationGroups();
+        };
+        ApplyNavigationGroups();
         ShowNavigationPage(0);
+    }
+
+    void ApplyNavigationGroups()
+    {
+        var searching = !string.IsNullOrWhiteSpace(navigationFilter);
+
+        for (var groupIndex = 0; groupIndex < navigationGroupPanels.Count; groupIndex++)
+        {
+            var groupPanel = navigationGroupPanels[groupIndex];
+            var matchingPages = groupPanel.Controls
+                .OfType<Button>()
+                .Where(button => !searching ||
+                    button.Text.Contains(navigationFilter, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+
+            foreach (var child in groupPanel.Controls.OfType<Button>())
+                child.Visible = !searching ||
+                    child.Text.Contains(navigationFilter, StringComparison.OrdinalIgnoreCase);
+
+            var groupHasMatches = matchingPages.Length > 0;
+            var groupVisible = searching ? groupHasMatches : groupIndex == activeNavigationGroup;
+
+            navigationGroupButtons[groupIndex].Visible = groupVisible;
+            groupPanel.Visible = groupVisible;
+            navigationGroupButtons[groupIndex].BackColor =
+                groupIndex == activeNavigationGroup
+                    ? Color.FromArgb(70, 47, 134)
+                    : Color.FromArgb(22, 24, 35);
+            navigationGroupButtons[groupIndex].ForeColor =
+                groupIndex == activeNavigationGroup
+                    ? Color.White
+                    : Color.FromArgb(198, 204, 220);
+        }
     }
 
     void ShowNavigationPage(int index)
     {
         if (index < 0 || index >= navigationPages.Count) return;
+
+        if (index < navigationPageGroups.Count)
+        {
+            activeNavigationGroup = navigationPageGroups[index];
+            ApplyNavigationGroups();
+        }
 
         if (!navigationInitialized[index])
         {
@@ -951,7 +1061,7 @@ internal sealed class MainForm : Form
         top.Controls.Add(search);
         var settingsButton = new Button { Text = "⚙", Width = 42, Height = 36, Location = new Point(610, 7), FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(29,31,49), ForeColor = Color.White };
         settingsButton.FlatAppearance.BorderSize = 0;
-        settingsButton.Click += (_, _) => ShowNavigationPage(12);
+        settingsButton.Click += (_, _) => ShowNavigationPage(13);
         top.Controls.Add(settingsButton);
 
         var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(0, 8, 0, 0), AutoScroll = true };
