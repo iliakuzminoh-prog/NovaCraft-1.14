@@ -13,6 +13,8 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 - A build selector in the top bar switches the active Minecraft instance.
 - The shared `NovaCraft.UI.AppTheme` applies a consistent dark palette, card outlines, input styling and button states to lazily-created pages.
 - Each build profile stores its own Minecraft directory, version, loader and optional exact loader version.
+- Build profiles can be copied into a new isolated folder. The user chooses whether to copy mods, configs, worlds, game options/server list, resource packs, shader packs and screenshots. The source profile is never overwritten; large Minecraft libraries, assets and version binaries are not duplicated and are installed into the new profile at first launch.
+- World saves can be archived to a timestamped ZIP inside the profile's `backups` folder. Backups never delete or move the original worlds. Copy and backup operations reject reparse points/symbolic links to avoid following redirected paths.
 - Existing Minecraft folder is preserved as the primary profile. Legacy saved build names are migrated into separate instance folders.
 - Removing a profile removes only its profile record. It does not delete the instance directory, worlds, mods or configuration files.
 - Vanilla, Fabric, Forge and Quilt installation paths are present. The exact Forge version from an imported pack is passed to the Forge installer. Fabric and Quilt currently use their installer defaults; exact loader-version pinning for those loaders is not claimed.

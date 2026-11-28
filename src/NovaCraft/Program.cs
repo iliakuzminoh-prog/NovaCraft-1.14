@@ -2543,6 +2543,240 @@ internal sealed class MainForm : Form
         };
         progressPanel.Controls.AddRange(new Control[] { progressLabel, progressBar });
 
+        async Task DuplicateProfileAsync(BuildProfile sourceProfile)
+        {
+            if (isBusy || isImportingPack)
+            {
+                status.Text = "Сначала заверши текущую операцию.";
+                return;
+            }
+
+            using var dialog = new Form
+            {
+                Text = "Копировать сборку",
+                Width = 520,
+                Height = 410,
+                StartPosition = FormStartPosition.CenterParent,
+                FormBorderStyle = FormBorderStyle.FixedDialog,
+                MaximizeBox = false,
+                MinimizeBox = false,
+                BackColor = Color.FromArgb(20,23,35),
+                ForeColor = Color.White
+            };
+
+            var heading = new Label
+            {
+                Text = "Создать независимую копию",
+                Location = new Point(20, 16),
+                Size = new Size(460, 28),
+                ForeColor = Color.White,
+                Font = new Font("Segoe UI Semibold", 15, FontStyle.Bold)
+            };
+            var hint = new Label
+            {
+                Text = "Оригинальная сборка не изменяется. Версии Minecraft, библиотеки и кэш не дублируются — они установятся в новую папку при первом запуске.",
+                Location = new Point(22, 52),
+                Size = new Size(455, 52),
+                ForeColor = Color.FromArgb(160,174,199)
+            };
+            var nameLabel = new Label
+            {
+                Text = "Название копии",
+                Location = new Point(22, 112),
+                AutoSize = true,
+                ForeColor = Color.FromArgb(208,216,231)
+            };
+            var nameInput = new TextBox
+            {
+                Text = sourceProfile.Name + " — копия",
+                Location = new Point(22, 136),
+                Width = 455,
+                Height = 32
+            };
+
+            CheckBox MakeOption(string text, int x, int y, bool selected)
+                => new()
+                {
+                    Text = text,
+                    Location = new Point(x, y),
+                    AutoSize = true,
+                    Checked = selected,
+                    ForeColor = Color.FromArgb(221,226,240),
+                    BackColor = Color.Transparent,
+                    Font = new Font("Segoe UI", 9.5f)
+                };
+
+            var modsOption = MakeOption("Моды (mods)", 24, 184, true);
+            var configOption = MakeOption("Конфигурации (config)", 252, 184, true);
+            var worldsOption = MakeOption("Миры (saves)", 24, 214, false);
+            var gameSettingsOption = MakeOption("Игровые настройки и серверы", 252, 214, true);
+            var resourcePacksOption = MakeOption("Пакеты ресурсов", 24, 244, true);
+            var shaderPacksOption = MakeOption("Шейдеры", 252, 244, true);
+            var screenshotsOption = MakeOption("Скриншоты", 24, 274, false);
+
+            var createCopy = ModernButton("Создать копию", 140, 36);
+            createCopy.Location = new Point(332, 326);
+            var cancelCopy = new Button
+            {
+                Text = "Отмена",
+                Location = new Point(222, 326),
+                Width = 100,
+                Height = 36,
+                DialogResult = DialogResult.Cancel,
+                FlatStyle = FlatStyle.Flat,
+                BackColor = Color.FromArgb(38,42,57),
+                ForeColor = Color.White,
+                Cursor = Cursors.Hand
+            };
+            cancelCopy.FlatAppearance.BorderSize = 0;
+
+            createCopy.Click += (_, _) =>
+            {
+                if (string.IsNullOrWhiteSpace(nameInput.Text))
+                {
+                    MessageBox.Show(dialog, "Укажи название новой сборки.", "NovaCraft", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                if (!modsOption.Checked && !configOption.Checked && !worldsOption.Checked &&
+                    !gameSettingsOption.Checked && !resourcePacksOption.Checked &&
+                    !shaderPacksOption.Checked && !screenshotsOption.Checked)
+                {
+                    MessageBox.Show(dialog, "Выбери хотя бы одну категорию данных.", "NovaCraft", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                    return;
+                }
+                dialog.DialogResult = DialogResult.OK;
+                dialog.Close();
+            };
+
+            dialog.Controls.AddRange(new Control[]
+            {
+                heading, hint, nameLabel, nameInput,
+                modsOption, configOption, worldsOption, gameSettingsOption,
+                resourcePacksOption, shaderPacksOption, screenshotsOption,
+                cancelCopy, createCopy
+            });
+            dialog.AcceptButton = createCopy;
+            dialog.CancelButton = cancelCopy;
+            if (dialog.ShowDialog(this) != DialogResult.OK)
+                return;
+
+            var id = Guid.NewGuid().ToString("N");
+            var newProfile = new BuildProfile
+            {
+                Id = id,
+                Name = nameInput.Text.Trim(),
+                MinecraftVersion = sourceProfile.MinecraftVersion,
+                Loader = BuildProfileRules.NormalizeLoader(sourceProfile.Loader),
+                LoaderVersion = sourceProfile.LoaderVersion,
+                GameDirectory = BuildProfileRules.CreateInstanceDirectory(settings.GameDirectory, id),
+                SourcePlatform = "local",
+                SourceProjectId = "",
+                InstallState = "Данные скопированы"
+            };
+            var options = new BuildCopyOptions
+            {
+                IncludeMods = modsOption.Checked,
+                IncludeConfig = configOption.Checked,
+                IncludeWorlds = worldsOption.Checked,
+                IncludeGameSettings = gameSettingsOption.Checked,
+                IncludeResourcePacks = resourcePacksOption.Checked,
+                IncludeShaderPacks = shaderPacksOption.Checked,
+                IncludeScreenshots = screenshotsOption.Checked
+            };
+
+            try
+            {
+                SetBusy(true, "Копирую выбранные данные в отдельную папку…");
+                progressBar.Value = 0;
+                var progress = new Progress<BuildCopyProgress>(value =>
+                {
+                    progressLabel.Text = "Копирование: " + value.CurrentItem +
+                        "  ·  " + value.CompletedFiles + " / " + value.TotalFiles;
+                    progressBar.Value = value.TotalFiles <= 0
+                        ? 0
+                        : Math.Clamp((int)Math.Round(value.CompletedFiles * 100d / value.TotalFiles), 0, 100);
+                });
+
+                var result = await Task.Run(() => BuildCopyService.CopySelectedContent(
+                    sourceProfile.GameDirectory,
+                    newProfile.GameDirectory,
+                    options,
+                    progress));
+
+                settings.BuildProfiles.Add(newProfile);
+                try
+                {
+                    SettingsService.Save(settings);
+                }
+                catch
+                {
+                    // The copied directory is intentionally preserved if settings cannot be saved.
+                    throw new IOException("Файлы копии сохранены в " + newProfile.GameDirectory +
+                        ", но NovaCraft не смог записать новую сборку в настройки.");
+                }
+
+                RefreshBuildSelector();
+                RenderProfiles();
+                progressBar.Value = 100;
+                progressLabel.Text = "Копия создана: " + result.FilesCopied + " файлов · " +
+                    (result.BytesCopied / 1024d / 1024d).ToString("0.0") + " МБ";
+                status.Text = "Создана независимая копия «" + newProfile.Name +
+                    "». Исходная сборка не менялась; при первом запуске установятся игровые файлы.";
+            }
+            catch (Exception ex)
+            {
+                Fail("Не удалось скопировать сборку", ex);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
+        async Task BackupWorldsAsync(BuildProfile sourceProfile)
+        {
+            if (isBusy || isImportingPack)
+            {
+                status.Text = "Сначала заверши текущую операцию.";
+                return;
+            }
+
+            try
+            {
+                SetBusy(true, "Создаю резервную копию миров…");
+                progressBar.Value = 0;
+                var progress = new Progress<BuildCopyProgress>(value =>
+                {
+                    progressLabel.Text = "Архивация мира: " + value.CurrentItem +
+                        "  ·  " + value.CompletedFiles + " / " + value.TotalFiles;
+                    progressBar.Value = value.TotalFiles <= 0
+                        ? 0
+                        : Math.Clamp((int)Math.Round(value.CompletedFiles * 100d / value.TotalFiles), 0, 100);
+                });
+
+                var backup = await Task.Run(() => BuildCopyService.CreateWorldBackup(sourceProfile.GameDirectory, progress));
+                progressBar.Value = 100;
+                progressLabel.Text = "Резервная копия готова: " + Path.GetFileName(backup.ArchivePath);
+                status.Text = "Миры сохранены в " + backup.ArchivePath +
+                    "  ·  " + backup.FilesCopied + " файлов";
+                MessageBox.Show(
+                    this,
+                    "Резервная копия миров создана.\n\n" + backup.ArchivePath +
+                    "\n\nИсходные миры остались на месте.",
+                    "NovaCraft — резервная копия",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+            catch (Exception ex)
+            {
+                Fail("Не удалось создать резервную копию миров", ex);
+            }
+            finally
+            {
+                SetBusy(false);
+            }
+        }
+
         void RenderProfiles()
         {
             list.SuspendLayout();
@@ -2568,7 +2802,7 @@ internal sealed class MainForm : Form
                 var card = new Panel
                 {
                     Width = 390,
-                    Height = 166,
+                    Height = 204,
                     Margin = new Padding(5, 5, 12, 10),
                     Padding = new Padding(16),
                     BackColor = selected ? Color.FromArgb(37,34,65) : Color.FromArgb(24,27,42),
@@ -2717,7 +2951,25 @@ internal sealed class MainForm : Form
                     RenderProfiles();
                 };
 
-                card.Controls.AddRange(new Control[] { select, launch, folder, remove });
+                var duplicate = ModernButton("Копировать", 145, 32);
+                duplicate.Location = new Point(14, 158);
+                duplicate.Click += async (_, _) => await DuplicateProfileAsync(profile);
+
+                var backup = new Button
+                {
+                    Text = "Резервная копия миров",
+                    Width = 188,
+                    Height = 32,
+                    Location = new Point(168, 158),
+                    FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(38,42,57),
+                    ForeColor = Color.White,
+                    Cursor = Cursors.Hand
+                };
+                backup.FlatAppearance.BorderSize = 0;
+                backup.Click += async (_, _) => await BackupWorldsAsync(profile);
+
+                card.Controls.AddRange(new Control[] { select, launch, folder, remove, duplicate, backup });
                 list.Controls.Add(card);
             }
 
