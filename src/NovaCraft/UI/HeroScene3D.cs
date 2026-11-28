@@ -25,6 +25,7 @@ internal sealed class HeroScene3D : Control
     private bool pointerInsideButton;
     private bool pointerPressed;
     private RectangleF playBounds;
+    private RectangleF playHitBounds;
     private const float FocalLength = 470f;
 
     public event EventHandler? PlayRequested;
@@ -531,6 +532,7 @@ internal sealed class HeroScene3D : Control
         var buttonHeight = Math.Clamp(height * 0.17f, 40f, 48f);
         var left = Math.Max(25f, width * 0.045f);
         var top = height * 0.64f - buttonHeight / 2f;
+        playHitBounds = new RectangleF(left, top, buttonWidth, buttonHeight);
         var scale = 1f + buttonHover * 0.035f - (pointerPressed ? 0.018f : 0f);
         var scaledWidth = buttonWidth * scale;
         var scaledHeight = buttonHeight * scale;
@@ -584,7 +586,7 @@ internal sealed class HeroScene3D : Control
         targetCameraX = Math.Clamp((e.X / (float)width - 0.5f) * 2f, -1f, 1f);
         targetCameraY = Math.Clamp((e.Y / (float)height - 0.5f) * 2f, -1f, 1f);
 
-        var inside = playBounds.Contains(e.Location);
+        var inside = playHitBounds.Contains(e.Location);
         if (inside != pointerInsideButton)
         {
             pointerInsideButton = inside;
@@ -604,7 +606,7 @@ internal sealed class HeroScene3D : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (e.Button == MouseButtons.Left && playBounds.Contains(e.Location))
+        if (e.Button == MouseButtons.Left && playHitBounds.Contains(e.Location))
         {
             pointerPressed = true;
             Capture = true;
@@ -615,7 +617,7 @@ internal sealed class HeroScene3D : Control
     protected override void OnMouseUp(MouseEventArgs e)
     {
         base.OnMouseUp(e);
-        var shouldLaunch = pointerPressed && e.Button == MouseButtons.Left && playBounds.Contains(e.Location);
+        var shouldLaunch = pointerPressed && e.Button == MouseButtons.Left && playHitBounds.Contains(e.Location);
         pointerPressed = false;
         Capture = false;
         if (shouldLaunch)
