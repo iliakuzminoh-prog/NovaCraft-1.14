@@ -70,7 +70,10 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 ### Diagnostics and performance
 
 - Basic diagnostics for write access, Java presence, RAM settings and selected Minecraft/loader files.
-- The performance page reads physical/available RAM from Windows and calculates a conservative Java heap recommendation, leaving headroom for Windows. It changes only the Minecraft Java heap setting. No custom FPS mod is bundled or claimed; it links to Modrinth's optimization category and does not promise a frame-rate increase.
+- The performance page reads physical/available RAM from Windows and calculates a conservative Java heap recommendation, leaving headroom for Windows. It changes only the Minecraft Java heap setting.
+- NovaBoost installs a client-side Fabric 1.21.11 baseline: Lithium, FerriteCore, ImmediatelyFast and Entity Culling. It resolves required Modrinth dependencies, checks exact Minecraft/loader metadata, HTTPS CDN origin, SHA-512 and each main mod's Fabric mod ID. Downloads are staged before installation; existing JARs are never overwritten, and a conflicting active version stops the installation.
+- Sodium is deliberately excluded from the default profile. Its official AMD support starts at Radeon HD 7000 / GCN 1 and OpenGL 4.5; Radeon HD 6900 is older than that support baseline. This is a conservative compatibility decision, not a claim that Sodium can never start on any HD 6900 setup.
+- NovaBoost does not modify remote servers. No client-only set can improve a remote server's TPS or guarantee compatibility with every modpack; a performance gain depends on the bottleneck and must be measured on the target machine.
 - NovaCraft does not change Windows registry settings, disable security software, add itself to startup or run hidden background services.
 - Driver repair is not implemented. Diagnostics must not silently download or install drivers.
 
@@ -85,7 +88,6 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 - GPU-accelerated 3D rendering is not used: the Home scene is software-rendered with GDI+ to keep it self-contained. Its exact frame rate depends on the Windows machine.
 - Pixel-perfect parity with the eight-screen UI reference shown in the project conversation on 2026-11-27 has not been verified. CI includes rendering smoke tests but does not compare screenshots against those reference screens.
 - A complete 100/125/150% DPI and small-window layout audit of every page; the current UI pass improves shared styling and selected responsive layouts but does not claim that every legacy fixed-coordinate screen is fully responsive.
-- An original Java optimization mod tested on Radeon HD 6900 hardware or low-memory systems.
 - Automatic graphics-driver repair or installation.
 - Pause/resume/cancel and persistent download queue.
 - Runtime launch testing for every Minecraft version, mod loader and imported pack. A successful import means the files passed importer checks; it does not guarantee that the pack launches.
