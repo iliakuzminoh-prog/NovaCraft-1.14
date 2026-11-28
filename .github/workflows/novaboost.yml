@@ -1,0 +1,92 @@
+name: Build NovaBoost
+
+on:
+  push:
+    branches: ["nova/**"]
+    paths:
+      - "novaboost/**"
+      - ".github/workflows/novaboost.yml"
+      - ".github/workflows/build.yml"
+  pull_request:
+    paths:
+      - "novaboost/**"
+      - ".github/workflows/novaboost.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Build and test the Fabric mod
+        working-directory: novaboost
+        run: ./gradlew --no-daemon clean test build
+
+      - name: Prepare release files
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          test -s novaboost/build/libs/novaboost-0.1.0.jar
+          cp novaboost/build/libs/novaboost-0.1.0.jar release/NovaBoost.jar
+          sha256sum release/NovaBoost.jar > release/NovaBoost.jar.sha256
+          unzip -t release/NovaBoost.jar
+          unzip -p release/NovaBoost.jar fabric.mod.json | grep -q '"id"[[:space:]]*:[[:space:]]*"novaboost"'
+          ls -lh release/
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: NovaBoost-Fabric-1.21.11
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+
+  publish-nightly:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/nova/')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download verified build files
+        uses: actions/download-artifact@v4
+        with:
+          name: NovaBoost-Fabric-1.21.11
+          path: release
+
+      - name: Move the nightly tag to this commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if gh api "repos/${GITHUB_REPOSITORY}/git/ref/tags/novaboost-latest" >/dev/null 2>&1; then
+            gh api --method PATCH "repos/${GITHUB_REPOSITORY}/git/refs/tags/novaboost-latest" -f sha="${GITHUB_SHA}" -F force=true
+          else
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/git/refs" -f ref="refs/tags/novaboost-latest" -f sha="${GITHUB_SHA}"
+          fi
+
+      - name: Publish latest NovaBoost build
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: novaboost-latest
+          name: NovaBoost latest development build
+          prerelease: true
+          make_latest: false
+          overwrite_files: true
+          fail_on_unmatched_files: true
+          files: |
+            release/NovaBoost.jar
+            release/NovaBoost.jar.sha256

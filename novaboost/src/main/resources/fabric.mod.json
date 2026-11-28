@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "id": "novaboost",
+  "version": "${version}",
+  "name": "NovaBoost",
+  "description": "Client-side visibility optimizations with bounded occlusion queries for Fabric 1.21.11.",
+  "authors": ["NovaCraft"],
+  "contact": {
+    "sources": "https://github.com/iliakuzminoh-prog/NovaCraft-1.14"
+  },
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": ["io.novacraft.novaboost.NovaBoostClient"]
+  },
+  "mixins": [
+    {
+      "config": "novaboost.client.mixins.json",
+      "environment": "client"
+    }
+  ],
+  "depends": {
+    "fabricloader": ">=0.20.1",
+    "minecraft": "~1.21.11",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}
