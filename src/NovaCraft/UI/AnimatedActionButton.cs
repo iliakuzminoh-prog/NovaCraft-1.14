@@ -208,7 +208,18 @@ internal sealed class AnimatedActionButton : Button
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        var graphics = e.Graphics;
+        DrawSurface(e.Graphics);
+        base.OnPaint(e);
+    }
+
+    internal void RenderPreview(Graphics graphics)
+    {
+        ArgumentNullException.ThrowIfNull(graphics);
+        DrawSurface(graphics);
+    }
+
+    private void DrawSurface(Graphics graphics)
+    {
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.InterpolationMode = InterpolationMode.HighQualityBicubic;
         graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
@@ -286,7 +297,6 @@ internal sealed class AnimatedActionButton : Button
         }
 
         graphics.Restore(state);
-        base.OnPaint(e);
     }
 
     private void DrawButtonContent(Graphics graphics, RectangleF bounds)
