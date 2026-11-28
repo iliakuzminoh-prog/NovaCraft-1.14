@@ -71,15 +71,22 @@ internal sealed class HeroScene3D : Control
 
         BuildWorldMesh();
 
-        animationTimer.Tick += (_, _) =>
-        {
-            elapsed += animationTimer.Interval / 1000f;
-            cameraX += (targetCameraX - cameraX) * 0.075f;
-            cameraY += (targetCameraY - cameraY) * 0.075f;
-            var targetHover = pointerInsideButton ? 1f : 0f;
-            buttonHover += (targetHover - buttonHover) * 0.19f;
-            Invalidate();
-        };
+        animationTimer.Tick += (_, _) => AdvanceFrame(animationTimer.Interval / 1000f);
+    }
+
+    internal void AdvanceFrame(float deltaSeconds)
+    {
+        if (!float.IsFinite(deltaSeconds))
+            return;
+
+        var delta = Math.Clamp(deltaSeconds, 0f, 0.25f);
+        elapsed += delta;
+        cameraX += (targetCameraX - cameraX) * 0.075f;
+        cameraY += (targetCameraY - cameraY) * 0.075f;
+
+        var targetHover = pointerInsideButton ? 1f : 0f;
+        buttonHover += (targetHover - buttonHover) * 0.19f;
+        Invalidate();
     }
 
     protected override void OnHandleCreated(EventArgs e)
