@@ -100,6 +100,30 @@ internal sealed class AnimatedActionButton : Button
         }
     }
 
+    protected override void OnVisibleChanged(EventArgs e)
+    {
+        base.OnVisibleChanged(e);
+        if (!Visible)
+        {
+            pointerInside = false;
+            pointerPressed = false;
+            animationTimer.Stop();
+            hoverProgress = 0f;
+            pressProgress = 0f;
+        }
+        else if (pointerInside || pointerPressed)
+        {
+            StartAnimation();
+        }
+        Invalidate();
+    }
+
+    protected override void OnHandleDestroyed(EventArgs e)
+    {
+        animationTimer.Stop();
+        base.OnHandleDestroyed(e);
+    }
+
     protected override void OnGotFocus(EventArgs e)
     {
         base.OnGotFocus(e);
@@ -235,6 +259,7 @@ internal sealed class AnimatedActionButton : Button
         }
 
         graphics.Restore(state);
+        base.OnPaint(e);
     }
 
     private void DrawButtonContent(Graphics graphics, RectangleF bounds)
