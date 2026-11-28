@@ -42,6 +42,13 @@ public sealed class HeroScene3DTests
     }
 
     [Fact]
+    public void LoadsEmbeddedVoxelArtworkWithoutExternalFilesOrNetwork()
+    {
+        using var hero = new HeroScene3D { Size = new Size(960, 270) };
+        Assert.True(hero.HasHeroBackdrop, "The launcher should package its home artwork inside the application.");
+    }
+
+    [Fact]
     public void AnimationStepChangesRenderedFrame()
     {
         using var hero = new HeroScene3D { Size = new Size(800, 240) };

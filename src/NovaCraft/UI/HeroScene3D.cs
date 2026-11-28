@@ -10,6 +10,7 @@ namespace NovaCraft.UI;
 internal sealed class HeroScene3D : Control
 {
     private readonly System.Windows.Forms.Timer animationTimer = new() { Interval = 33 };
+    private readonly Bitmap? heroBackdrop;
     private readonly List<RenderFace> faces = new();
     private readonly List<Particle> particles = new();
     private readonly Dictionary<int, SolidBrush> materialBrushes = new();
@@ -54,6 +55,7 @@ internal sealed class HeroScene3D : Control
 
     public string GameVersion { get; set; } = "1.21.1";
     public string ProfileName { get; set; } = "OFFLINE PROFILE";
+    internal bool HasHeroBackdrop => heroBackdrop is not null;
 
     public HeroScene3D()
     {
@@ -92,7 +94,9 @@ internal sealed class HeroScene3D : Control
             sunRayBrushes[index] = new SolidBrush(Color.FromArgb(5 + index, 255, 202, 151));
         }
 
-        BuildWorldMesh();
+        heroBackdrop = LoadHeroBackdrop();
+        if (heroBackdrop is null)
+            BuildWorldMesh();
 
         animationTimer.Tick += (_, _) => AdvanceFrame(animationTimer.Interval / 1000f);
     }
@@ -172,12 +176,220 @@ internal sealed class HeroScene3D : Control
         graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
         graphics.CompositingQuality = CompositingQuality.HighQuality;
 
-        DrawSky(graphics, width, height);
-        DrawDistantLandscape(graphics, width, height);
-        DrawWorldGeometry(graphics, width, height);
+        if (heroBackdrop is not null)
+        {
+            DrawHeroBackdrop(graphics, width, height);
+            DrawHeroAccentGeometry(graphics, width, height);
+        }
+        else
+        {
+            DrawSky(graphics, width, height);
+            DrawDistantLandscape(graphics, width, height);
+            DrawWorldGeometry(graphics, width, height);
+        }
         DrawAtmosphere(graphics, width, height);
         DrawTypography(graphics, width, height);
         DrawPlayButton(graphics, width, height);
+    }
+
+
+    private static Bitmap? LoadHeroBackdrop()
+    {
+        try
+        {
+            var encoded = HeroWorldImageData.Base64;
+            var bytes = Convert.FromBase64String(encoded);
+            using var stream = new MemoryStream(bytes, writable: false);
+            using var decoded = Image.FromStream(stream, useEmbeddedColorManagement: false, validateImageData: true);
+            return new Bitmap(decoded);
+        }
+        catch (Exception exception) when (
+            exception is FormatException or ArgumentException or
+            System.Runtime.InteropServices.ExternalException or OutOfMemoryException)
+        {
+            // The procedural 3D scene remains available as a safe fallback.
+            return null;
+        }
+    }
+
+    private void DrawHeroBackdrop(Graphics graphics, int width, int height)
+    {
+        if (heroBackdrop is null)
+            return;
+
+        var state = graphics.Save();
+        var scale = Math.Max(width / (float)heroBackdrop.Width, height / (float)heroBackdrop.Height) * 1.035f;
+        var drawWidth = heroBackdrop.Width * scale;
+        var drawHeight = heroBackdrop.Height * scale;
+        var x = (width - drawWidth) * 0.5f - cameraX * 8f;
+        var y = (height - drawHeight) * 0.5f - cameraY * 5f;
+
+        graphics.InterpolationMode = InterpolationMode.NearestNeighbor;
+        graphics.PixelOffsetMode = PixelOffsetMode.Half;
+        graphics.DrawImage(heroBackdrop, new RectangleF(x, y, drawWidth, drawHeight));
+        graphics.Restore(state);
+
+        using (var leftShade = new LinearGradientBrush(
+            new Rectangle(0, 0, width, height),
+            Color.FromArgb(218, 7, 10, 25),
+            Color.FromArgb(0, 7, 10, 25),
+            LinearGradientMode.Horizontal))
+        {
+            graphics.FillRectangle(leftShade, 0, 0, width, height);
+        }
+
+        using (var topShade = new LinearGradientBrush(
+            new Rectangle(0, 0, width, Math.Max(1, height / 3)),
+            Color.FromArgb(38, 6, 8, 20),
+            Color.FromArgb(0, 6, 8, 20),
+            LinearGradientMode.Vertical))
+        {
+            graphics.FillRectangle(topShade, 0, 0, width, Math.Max(1, height / 3));
+        }
+    }
+
+    private void DrawHeroAccentGeometry(Graphics graphics, int width, int height)
+    {
+        var portalCenter = new PointF(
+            width * 0.895f + cameraX * 2.5f,
+            height * 0.535f + cameraY * 1.5f);
+        var pulse = 0.5f + 0.5f * MathF.Sin(elapsed * 1.65f);
+        var radiusX = Math.Clamp(width * 0.036f, 18f, 38f);
+        var radiusY = Math.Clamp(height * 0.235f, 34f, 66f);
+
+        using (var aura = new Pen(Color.FromArgb((int)(18 + pulse * 24), 155, 99, 255), 9f))
+            graphics.DrawEllipse(aura, portalCenter.X - radiusX, portalCenter.Y - radiusY,
+                radiusX * 2f, radiusY * 2f);
+
+        var ringState = graphics.Save();
+        graphics.TranslateTransform(portalCenter.X, portalCenter.Y);
+        graphics.RotateTransform(elapsed * 13f);
+        using (var outerRing = new Pen(Color.FromArgb((int)(90 + pulse * 55), 187, 142, 255), 1.8f))
+        {
+            outerRing.DashStyle = DashStyle.Dash;
+            outerRing.DashPattern = new[] { 4f, 3f, 1.2f, 3f };
+            graphics.DrawEllipse(outerRing, -radiusX * 1.18f, -radiusY * 1.08f,
+                radiusX * 2.36f, radiusY * 2.16f);
+        }
+        using (var innerArc = new Pen(Color.FromArgb((int)(105 + pulse * 70), 100, 224, 246), 1.4f))
+        {
+            graphics.DrawArc(innerArc, -radiusX * 0.88f, -radiusY * 0.91f,
+                radiusX * 1.76f, radiusY * 1.82f, 22f, 105f);
+            graphics.DrawArc(innerArc, -radiusX * 0.88f, -radiusY * 0.91f,
+                radiusX * 1.76f, radiusY * 1.82f, 203f, 105f);
+        }
+        graphics.Restore(ringState);
+
+        for (var index = 0; index < 8; index++)
+        {
+            var angle = elapsed * (0.72f + index % 3 * 0.08f) + index * (MathF.Tau / 8f);
+            var orbitX = radiusX * 1.46f;
+            var orbitY = radiusY * 1.18f;
+            var x = portalCenter.X + MathF.Cos(angle) * orbitX;
+            var y = portalCenter.Y + MathF.Sin(angle) * orbitY;
+            var alpha = Math.Clamp((int)(70 + pulse * 120), 0, 255);
+            var pointSize = 1.4f + (index % 3) * 0.65f;
+            using var spark = new SolidBrush(Color.FromArgb(alpha, 190, 161, 255));
+            graphics.FillEllipse(spark, x - pointSize, y - pointSize, pointSize * 2f, pointSize * 2f);
+        }
+
+        var bob = MathF.Sin(elapsed * 1.15f) * height * 0.018f;
+        DrawFloatingCube(graphics, width * 0.555f + cameraX * 3f, height * 0.235f + bob,
+            18f, elapsed * 0.72f, Color.FromArgb(103, 205, 255), 186);
+        DrawFloatingCube(graphics, width * 0.755f + cameraX * 2f, height * 0.205f - bob * 0.6f,
+            13f, -elapsed * 0.91f, Color.FromArgb(174, 130, 255), 178);
+        DrawFloatingCube(graphics, width * 0.975f, height * 0.715f + bob * 0.7f,
+            16f, elapsed * 0.58f + 0.8f, Color.FromArgb(98, 226, 196), 170);
+        DrawFloatingCube(graphics, width * 0.625f, height * 0.765f - bob * 0.5f,
+            9f, elapsed * 1.12f, Color.FromArgb(255, 188, 126), 150);
+    }
+
+    private static readonly int[][] AccentCubeFaces =
+    {
+        new[] { 4, 5, 6, 7 },
+        new[] { 0, 3, 2, 1 },
+        new[] { 0, 4, 7, 3 },
+        new[] { 1, 2, 6, 5 },
+        new[] { 3, 7, 6, 2 },
+        new[] { 0, 1, 5, 4 }
+    };
+
+    private static readonly float[] AccentCubeLighting = { 1.05f, 0.48f, 0.66f, 0.88f, 1.2f, 0.43f };
+
+    private static void DrawFloatingCube(
+        Graphics graphics,
+        float centerX,
+        float centerY,
+        float size,
+        float rotation,
+        Color tint,
+        int opacity)
+    {
+        var half = size * 0.5f;
+        Vector3[] vertices =
+        {
+            new(-half, -half, -half),
+            new( half, -half, -half),
+            new( half,  half, -half),
+            new(-half,  half, -half),
+            new(-half, -half,  half),
+            new( half, -half,  half),
+            new( half,  half,  half),
+            new(-half,  half,  half)
+        };
+
+        var transform =
+            Matrix4x4.CreateRotationY(rotation) *
+            Matrix4x4.CreateRotationX(rotation * 0.73f) *
+            Matrix4x4.CreateRotationZ(rotation * 0.29f);
+        var projected = new PointF[8];
+        var depths = new float[8];
+
+        for (var index = 0; index < vertices.Length; index++)
+        {
+            var point = Vector3.Transform(vertices[index], transform);
+            var perspective = 220f / Math.Max(150f, 220f - point.Z);
+            projected[index] = new PointF(
+                centerX + point.X * perspective,
+                centerY - point.Y * perspective);
+            depths[index] = point.Z;
+        }
+
+        var faceDepths = new float[AccentCubeFaces.Length];
+        var order = new[] { 0, 1, 2, 3, 4, 5 };
+        for (var faceIndex = 0; faceIndex < AccentCubeFaces.Length; faceIndex++)
+        {
+            var face = AccentCubeFaces[faceIndex];
+            faceDepths[faceIndex] = (depths[face[0]] + depths[face[1]] +
+                depths[face[2]] + depths[face[3]]) * 0.25f;
+        }
+        Array.Sort(order, (left, right) => faceDepths[left].CompareTo(faceDepths[right]));
+
+        foreach (var faceIndex in order)
+        {
+            var face = AccentCubeFaces[faceIndex];
+            var points = new[]
+            {
+                projected[face[0]],
+                projected[face[1]],
+                projected[face[2]],
+                projected[face[3]]
+            };
+            var light = AccentCubeLighting[faceIndex];
+            var alpha = Math.Clamp(
+                (int)(opacity * (0.84f + faceDepths[faceIndex] / Math.Max(1f, size) * 0.16f)),
+                0, 255);
+            var color = Color.FromArgb(
+                alpha,
+                Math.Clamp((int)(tint.R * light), 0, 255),
+                Math.Clamp((int)(tint.G * light), 0, 255),
+                Math.Clamp((int)(tint.B * light), 0, 255));
+
+            using var fill = new SolidBrush(color);
+            using var edge = new Pen(Color.FromArgb((int)(alpha * 0.76f), 232, 240, 255), 0.9f);
+            graphics.FillPolygon(fill, points);
+            graphics.DrawPolygon(edge, points);
+        }
     }
 
     private void DrawSky(Graphics graphics, int width, int height)
@@ -1200,6 +1412,7 @@ internal sealed class HeroScene3D : Control
                 ownerForm.Resize -= OwnerForm_Resize;
                 ownerForm = null;
             }
+            heroBackdrop?.Dispose();
             faceEdgePen.Dispose();
             foreach (var brush in materialBrushes.Values)
                 brush.Dispose();

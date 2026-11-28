@@ -33,7 +33,7 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 ### Mods, packs and downloads
 
 - Modrinth mod feed and search.
-- The Home dashboard uses a procedural software-rendered 3D scene: perspective-projected voxel terrain with brown block sides, scattered grass/stone/flowers, a wider curved river with animated light-catching ripple strips, voxel trees, a blocky idle-animated explorer, a floating crystal and a segmented portal with an animated energy membrane. Stepped clouds, sun shafts, stars and particles animate in the sky. Camera parallax follows the pointer; the Play control has a separate hover/press animation and keyboard activation. Scene geometry, fonts and GDI brushes are cached and reused; the 30 FPS animation timer runs only while the control is visible and pauses when the launcher is minimized. The profile/version chip updates when the active offline profile or Minecraft version changes; soft world shadows and portal spill are depth-sorted with the voxel geometry.
+- The Home dashboard uses an original bundled voxel-landscape illustration as its background; the compressed pixel-art image is embedded into the assembly, so it loads locally and needs no network connection or loose asset file. Software-rendered 3D accents animate over it: perspective-projected rotating cubes, a pulsing portal aura, dashed energy rings, orbiting sparks and camera parallax. If the artwork resource cannot be decoded, the earlier procedural voxel terrain, river, trees, idle-animated explorer, crystal and portal scene remains as a fallback. The Play control has a separate hover/press animation and keyboard activation. The 30 FPS animation timer runs only while the control is visible and pauses when the launcher is minimized. The profile/version chip updates when the active offline profile or Minecraft version changes.
 - The Home dashboard also includes clickable build tiles and a real popular-Modrinth feed with project artwork, authors, descriptions, download counts and install actions.
 - Pressing Enter in the Home search opens the Modrinth mod catalogue with the typed query.
 - Every Modrinth and CurseForge catalog card has an icon tile. Official artwork replaces a deterministic generated monogram when the source image is available; absent or failed artwork does not leave an empty square.
@@ -46,7 +46,7 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 
 ### Display and settings
 
-- The Home hero is drawn locally by the 3D scene control; it does not fetch remote art or depend on a system image codec. The header uses a rotating software-rendered 3D cube mark. Primary action buttons animate their depth on hover/press and retain keyboard activation; sidebar page buttons animate their selected indicator. Navigation between pages uses a short depth/slide transition; shared cards gain a restrained hover-depth and border-glow state.
+- The Home hero background is bundled inside the assembly and never fetched from a remote server. The header uses a rotating software-rendered 3D cube mark. Primary action buttons animate their depth on hover/press and retain keyboard activation; sidebar page buttons animate their selected indicator. Navigation between pages uses a short depth/slide transition; shared cards gain a restrained hover-depth and border-glow state.
 
 - Launch resolution defaults to the current primary Windows monitor bounds when the game launch options are created.
 - Manual width/height mode remains available in Settings.

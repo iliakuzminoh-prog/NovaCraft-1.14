@@ -1403,6 +1403,13 @@ internal sealed class MainForm : Form
             BackColor = Color.FromArgb(12, 16, 31),
             Padding = Padding.Empty
         };
+        void LayoutHomeHero()
+        {
+            var availableWidth = Math.Max(1, body.ClientSize.Width);
+            hero.Height = Math.Clamp((int)Math.Round(availableWidth * 0.28125f), 150, 300);
+        }
+        body.Resize += (_, _) => LayoutHomeHero();
+        LayoutHomeHero();
         var artworkButton = new HeroScene3D
         {
             Dock = DockStyle.Fill,
