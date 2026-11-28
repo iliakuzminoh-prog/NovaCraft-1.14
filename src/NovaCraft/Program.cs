@@ -593,20 +593,17 @@ internal sealed class MainForm : Form
 
     static Bitmap LoadHeroArt()
     {
-        var bitmap = new Bitmap(1100, 235);
-        using var graphics = Graphics.FromImage(bitmap);
-        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        using var background = new System.Drawing.Drawing2D.LinearGradientBrush(
-            new Rectangle(0, 0, bitmap.Width, bitmap.Height),
-            Color.FromArgb(48, 30, 92),
-            Color.FromArgb(20, 24, 54),
-            15f);
-        graphics.FillRectangle(background, 0, 0, bitmap.Width, bitmap.Height);
-        using var glow = new SolidBrush(Color.FromArgb(45, 128, 91, 235));
-        graphics.FillEllipse(glow, bitmap.Width - 330, -120, 420, 420);
-        using var glow2 = new SolidBrush(Color.FromArgb(35, 64, 180, 255));
-        graphics.FillEllipse(glow2, bitmap.Width - 160, 100, 260, 260);
-        return bitmap;
+        var assembly = typeof(MainForm).Assembly;
+        var resourceName = assembly.GetManifestResourceNames()
+            .FirstOrDefault(name => name.EndsWith("novacraft-hero.webp", StringComparison.OrdinalIgnoreCase));
+
+        if (resourceName == null)
+            throw new InvalidOperationException("Встроенный баннер NovaCraft не найден в ресурсах приложения.");
+
+        using var stream = assembly.GetManifestResourceStream(resourceName)
+            ?? throw new InvalidOperationException("Не удалось открыть встроенный баннер NovaCraft.");
+        using var image = Image.FromStream(stream, false, true);
+        return new Bitmap(image);
     }
 
     static void RoundCorners(Control control, int radius = 14)
@@ -955,17 +952,32 @@ internal sealed class MainForm : Form
 
         var body = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(13, 15, 25), Padding = new Padding(0, 8, 0, 0), AutoScroll = true };
 
-        var hero = new Panel { Dock = DockStyle.Top, Height = 235, BackColor = Color.FromArgb(39, 29, 76), Padding = new Padding(28) };
-        var artwork = new PictureBox { Dock = DockStyle.Fill, SizeMode = PictureBoxSizeMode.StretchImage, BackColor = Color.FromArgb(39,29,76), Image = LoadHeroArt() };
-        hero.Controls.Add(artwork);
-        var heroShade = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(105, 12, 15, 28) };
-        hero.Controls.Add(heroShade);
-        var welcome = new Label { Text = "Добро пожаловать в\nNovaCraft!", AutoSize = true, Location = new Point(28, 24), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold) };
-        var subtitle = new Label { Text = "Современный лаунчер Minecraft Java", AutoSize = true, Location = new Point(31, 92), ForeColor = Color.FromArgb(224, 225, 240), Font = new Font("Segoe UI", 11) };
-        var playHero = new Button { Text = "▶  Играть", Location = new Point(28, 145), Width = 170, Height = 48, FlatStyle = FlatStyle.Flat, BackColor = Color.FromArgb(91, 39, 235), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 11, FontStyle.Bold) };
-        playHero.FlatAppearance.BorderSize = 0;
-        playHero.Click += async (_, _) => await LaunchAsync();
-        hero.Controls.AddRange(new Control[] { welcome, subtitle, playHero });
+        var hero = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 250,
+            BackColor = Color.FromArgb(25, 28, 45),
+            Padding = Padding.Empty
+        };
+        var artworkButton = new Button
+        {
+            Dock = DockStyle.Fill,
+            FlatStyle = FlatStyle.Flat,
+            BackgroundImage = LoadHeroArt(),
+            BackgroundImageLayout = ImageLayout.Stretch,
+            BackColor = Color.FromArgb(25, 28, 45),
+            Text = "",
+            Cursor = Cursors.Hand,
+            TabStop = true,
+            AccessibleRole = AccessibleRole.PushButton,
+            AccessibleName = "Запустить Minecraft",
+            AccessibleDescription = "Запускает выбранную сборку Minecraft. На баннере показана кнопка «Играть»."
+        };
+        artworkButton.FlatAppearance.BorderSize = 0;
+        artworkButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(25, 28, 45);
+        artworkButton.Click += async (_, _) => await LaunchAsync();
+        hero.Controls.Add(artworkButton);
+        RoundCorners(hero, 16);
 
         var content = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 14, 0, 30), BackColor = Color.FromArgb(13,15,25) };
 
@@ -1460,7 +1472,9 @@ internal sealed class MainForm : Form
                         Location = new Point(18, 50),
                         Size = new Size(62, 62),
                         BackColor = Color.FromArgb(31, 35, 50),
-                        SizeMode = PictureBoxSizeMode.Zoom
+                        SizeMode = PictureBoxSizeMode.Zoom,
+                        Image = CreateProjectFallbackIcon(project.Name, "mod"),
+                        AccessibleName = "Иконка проекта CurseForge: " + project.Name
                     };
                     var summary = new Label
                     {
@@ -3933,7 +3947,9 @@ internal sealed class MainForm : Form
             Location = new Point(14, 14),
             Size = new Size(70, 70),
             SizeMode = PictureBoxSizeMode.Zoom,
-            BackColor = Color.FromArgb(35, 39, 58)
+            BackColor = Color.FromArgb(35, 39, 58),
+            Image = CreateProjectFallbackIcon(title, projectType),
+            AccessibleName = "Иконка проекта: " + title
         };
 
         var source = new Label
@@ -4009,6 +4025,52 @@ internal sealed class MainForm : Form
         return card;
     }
 
+
+    static Bitmap CreateProjectFallbackIcon(string title, string projectType, int size = 96)
+    {
+        var safeTitle = string.IsNullOrWhiteSpace(title) ? "Minecraft" : title.Trim();
+        var digest = SHA256.HashData(Encoding.UTF8.GetBytes(safeTitle + "|" + projectType));
+        var first = Color.FromArgb(255, 66 + digest[0] % 58, 48 + digest[1] % 58, 116 + digest[2] % 72);
+        var second = Color.FromArgb(255, 18 + digest[3] % 22, 23 + digest[4] % 25, 42 + digest[5] % 30);
+
+        var bitmap = new Bitmap(size, size);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.Clear(second);
+
+        using (var background = new System.Drawing.Drawing2D.LinearGradientBrush(
+            new Rectangle(0, 0, size, size), first, second, 35f))
+        {
+            graphics.FillRectangle(background, 0, 0, size, size);
+        }
+
+        using (var glow = new SolidBrush(Color.FromArgb(30, 255, 255, 255)))
+            graphics.FillEllipse(glow, (int)(size * 0.42), -(int)(size * 0.18), (int)(size * 0.82), (int)(size * 0.82));
+
+        var words = safeTitle.Split(new[] { ' ', '-', '_', '.', ':' }, StringSplitOptions.RemoveEmptyEntries);
+        string initials;
+        if (words.Length >= 2)
+            initials = string.Concat(words.Take(2).Select(word => char.ToUpperInvariant(word[0])));
+        else
+            initials = safeTitle.Length >= 2
+                ? safeTitle[..2].ToUpperInvariant()
+                : safeTitle.ToUpperInvariant();
+
+        if (string.IsNullOrWhiteSpace(initials))
+            initials = "MC";
+
+        using (var font = new Font("Segoe UI Semibold", Math.Max(16f, size * 0.34f), FontStyle.Bold, GraphicsUnit.Pixel))
+        using (var brush = new SolidBrush(Color.FromArgb(245, 255, 255, 255)))
+        using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+        {
+            graphics.DrawString(initials, font, brush, new RectangleF(4, 4, size - 8, size - 8), format);
+        }
+
+        using (var border = new Pen(Color.FromArgb(70, 255, 255, 255), Math.Max(1f, size / 64f)))
+            graphics.DrawRectangle(border, 1, 1, size - 3, size - 3);
+
+        return bitmap;
+    }
 
     static async Task<byte[]> ReadBoundedContentAsync(HttpContent content, int maxBytes)
     {
@@ -4090,7 +4152,17 @@ internal sealed class MainForm : Form
         {
             using var response = await http.GetAsync(uri, HttpCompletionOption.ResponseHeadersRead);
             response.EnsureSuccessStatusCode();
+
+            var finalUri = response.RequestMessage?.RequestUri;
+            if (finalUri == null ||
+                finalUri.Scheme != Uri.UriSchemeHttps ||
+                (finalUri.Host != "cdn.modrinth.com" && finalUri.Host != "images.modrinth.com"))
+                return;
+
+            if (response.Content.Headers.ContentType?.MediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) != true)
+                return;
             if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024)) return;
+
             var bytes = await ReadBoundedContentAsync(response.Content, 5 * 1024 * 1024);
             if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024) return;
             using var ms = new MemoryStream(bytes);
