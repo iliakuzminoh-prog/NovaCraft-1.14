@@ -938,10 +938,13 @@ internal sealed class MainForm : Form
                     child.Text.Contains(navigationFilter, StringComparison.OrdinalIgnoreCase);
 
             var groupHasMatches = matchingPages.Length > 0;
-            var groupVisible = searching ? groupHasMatches : groupIndex == activeNavigationGroup;
+            var groupHeaderVisible = !searching || groupHasMatches;
+            var groupPanelVisible = searching
+                ? groupHasMatches
+                : groupIndex == activeNavigationGroup;
 
-            navigationGroupButtons[groupIndex].Visible = groupVisible;
-            groupPanel.Visible = groupVisible;
+            navigationGroupButtons[groupIndex].Visible = groupHeaderVisible;
+            groupPanel.Visible = groupPanelVisible;
             navigationGroupButtons[groupIndex].BackColor =
                 groupIndex == activeNavigationGroup
                     ? Color.FromArgb(70, 47, 134)
