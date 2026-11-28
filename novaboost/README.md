@@ -24,6 +24,10 @@ Settings are written to `config/novaboost.properties` on first launch:
 
 The culler is deliberately conservative. If the query budget is exhausted, a result is unknown, or any of the sampled points is visible, the entity is rendered normally.
 
+## Project design
+
+See [the NovaBoost technical architecture](docs/PROJECT-DESIGN.md) and [the NovaCraft integration design](../docs/NOVACRAFT-NOVABOOST-INTEGRATION.md) for the modular roadmap, safety rules, benchmark plan and release criteria.
+
 ## Build
 
 Build requirement: JDK 25 for the current Fabric Loom plugin. The produced mod bytecode is Java 21 (`options.release = 21`) and targets Minecraft's Java 21 runtime.
