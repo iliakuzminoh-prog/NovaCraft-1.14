@@ -163,6 +163,8 @@ internal sealed class MainForm : Form
     bool isImportingPack;
     bool pageTransitionRunning;
     int lastNavigationIndex = -1;
+    HeroScene3D? homeHeroScene;
+    Label? homeVersionValue;
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly FlowLayoutPanel modCards = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly ComboBox modLoader = new();
@@ -496,6 +498,8 @@ internal sealed class MainForm : Form
             buildSelector.EndUpdate();
             updatingBuildSelector = false;
         }
+
+        UpdateHomeHeroMetadata();
     }
 
     void ActivateBuild(BuildProfile profile, bool persist = true)
@@ -727,6 +731,27 @@ internal sealed class MainForm : Form
         profileChip.Image = CreateProfileIcon(usernameValue);
         profileChip.Text = usernameValue;
         profileChip.AccessibleName = "Активный профиль: " + usernameValue;
+        UpdateHomeHeroMetadata();
+    }
+
+    void UpdateHomeHeroMetadata()
+    {
+        if (homeHeroScene != null && !homeHeroScene.IsDisposed)
+        {
+            var activeProfile = settings.OfflineProfiles?.FirstOrDefault(profile =>
+                string.Equals(profile.Id, settings.ActiveProfileId, StringComparison.OrdinalIgnoreCase));
+            var usernameValue = activeProfile?.Username ?? settings.Username;
+            homeHeroScene.GameVersion = string.IsNullOrWhiteSpace(settings.LastVersion)
+                ? "—"
+                : settings.LastVersion;
+            homeHeroScene.ProfileName = string.IsNullOrWhiteSpace(usernameValue)
+                ? "OFFLINE PROFILE"
+                : usernameValue.Trim().ToUpperInvariant();
+            homeHeroScene.Invalidate();
+        }
+
+        if (homeVersionValue != null && !homeVersionValue.IsDisposed)
+            homeVersionValue.Text = "⬛  " + settings.LastVersion;
     }
 
     void BuildUi()
@@ -1362,12 +1387,10 @@ internal sealed class MainForm : Form
         var artworkButton = new HeroScene3D
         {
             Dock = DockStyle.Fill,
-            GameVersion = settings.LastVersion,
-            ProfileName = string.IsNullOrWhiteSpace(settings.Username)
-                ? "OFFLINE PROFILE"
-                : settings.Username.Trim().ToUpperInvariant(),
             BackColor = Color.FromArgb(12, 16, 31)
         };
+        homeHeroScene = artworkButton;
+        UpdateHomeHeroMetadata();
         artworkButton.PlayRequested += async (_, _) => await LaunchAsync();
         hero.Controls.Add(artworkButton);
         RoundCorners(hero, 16);
@@ -1375,7 +1398,15 @@ internal sealed class MainForm : Form
         var content = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(0, 14, 0, 30), BackColor = Color.FromArgb(13,15,25) };
 
         var latest = ModernCard(440, 185, "ПОСЛЕДНЯЯ ВЕРСИЯ", Color.FromArgb(25,28,45));
-        latest.Controls.Add(new Label { Text = "⬛  " + settings.LastVersion, AutoSize = true, Location = new Point(18, 45), ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold) });
+        homeVersionValue = new Label
+        {
+            Text = "⬛  " + settings.LastVersion,
+            AutoSize = true,
+            Location = new Point(18, 45),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 22, FontStyle.Bold)
+        };
+        latest.Controls.Add(homeVersionValue);
         latest.Controls.Add(new Label { Text = "●  Установлена", AutoSize = true, Location = new Point(20, 86), ForeColor = Color.FromArgb(50, 225, 140), Font = new Font("Segoe UI Semibold", 9.5f, FontStyle.Bold) });
         var check = ModernButton("↻  Проверить обновления", 230, 38);
         check.Location = new Point(18, 124);
