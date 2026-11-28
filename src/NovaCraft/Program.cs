@@ -5,6 +5,8 @@ using System.Security.Cryptography;
 using System.Text;
 using System.IO.Compression;
 using System.Diagnostics;
+using System.Drawing.Drawing2D;
+using NovaCraft.UI;
 using CmlLib.Core;
 using NovaCraft.Services;
 using CmlLib.Core.Auth;
