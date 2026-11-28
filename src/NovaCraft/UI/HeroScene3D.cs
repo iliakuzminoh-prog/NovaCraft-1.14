@@ -186,7 +186,7 @@ internal sealed class HeroScene3D : Control
         if (speed < 0)
             cloudX = x * width - offset;
 
-        using var cloud = new SolidBrush(Color.FromArgb(18, 194, 179, 220));
+        using var cloud = new SolidBrush(Color.FromArgb(10, 194, 179, 220));
         var w = cloudWidth * width;
         var h = cloudHeight * height;
         for (var part = 0; part < 4; part++)
@@ -272,6 +272,18 @@ internal sealed class HeroScene3D : Control
                     Color.FromArgb(255, 66, 75, 91),
                     Color.FromArgb(255, 42, 52, 73));
 
+                var riverColumn = (int)MathF.Round(MathF.Sin(z * 0.49f) * 1.35f);
+                if (x == riverColumn && z >= 1 && z <= 7)
+                {
+                    AddCubeMesh(worldX + 0.04f, top + 0.065f, worldZ + 0.04f, 0.82f, 0.055f, 0.82f,
+                        Color.FromArgb(255, 69, 164, 196),
+                        Color.FromArgb(255, 42, 105, 145),
+                        Color.FromArgb(255, 31, 77, 117),
+                        bobAmplitude: 0.008f,
+                        bobSpeed: 1.05f,
+                        bobPhase: z * 0.72f);
+                }
+
                 if ((x * 7 + z * 3) % 17 == 0)
                 {
                     AddCubeMesh(worldX, top + 0.06f, worldZ, 0.34f, 0.34f, 0.34f,
@@ -284,7 +296,9 @@ internal sealed class HeroScene3D : Control
 
         AddTree(-2.6f, 0.22f, 2.4f, 1f);
         AddTree(2.4f, 0.25f, 4.7f, 0.78f);
+        AddTree(-3.05f, 0.2f, 6.1f, 0.62f);
         AddCrystal(1.05f, 0.2f, 1.9f, 0.72f);
+        AddPortalRing(-0.25f, 1.05f, 6.6f, 0.72f);
 
         AddRotatingCube(-2.4f, 2.0f, 3.7f, 0.48f,
             Color.FromArgb(255, 117, 95, 220), 0.47f, 1.2f, 0.10f, 0.62f);
@@ -296,6 +310,8 @@ internal sealed class HeroScene3D : Control
     {
         var yaw = cameraX * 0.035f + MathF.Sin(elapsed * 0.23f) * 0.012f;
         var pitch = -0.145f + cameraY * 0.018f;
+
+        DrawPortalGlow(graphics, width, height, yaw, pitch);
 
         foreach (var face in faces)
             ProjectFace(face, yaw, pitch, width, height);
@@ -348,6 +364,60 @@ internal sealed class HeroScene3D : Control
         AddTriangle(tip, center, bottomRight, Color.FromArgb(220, 91, 110, 229), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
         AddTriangle(tip, bottomRight, bottomBack, Color.FromArgb(205, 72, 81, 191), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
         AddTriangle(tip, bottomBack, bottomLeft, Color.FromArgb(225, 146, 166, 255), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
+    }
+
+    private void AddPortalRing(float x, float y, float z, float radius)
+    {
+        const int segments = 28;
+        var innerRadius = radius * 0.72f;
+        const float thickness = 0.13f;
+        var pivot = new Vector3(x, y, z + thickness / 2f);
+        var violet = Color.FromArgb(255, 123, 94, 255);
+        var cyan = Color.FromArgb(255, 75, 202, 220);
+
+        for (var index = 0; index < segments; index++)
+        {
+            var a0 = index * MathF.Tau / segments;
+            var a1 = (index + 1) * MathF.Tau / segments;
+            var outer0 = new Vector3(x + MathF.Cos(a0) * radius, y + MathF.Sin(a0) * radius, z);
+            var outer1 = new Vector3(x + MathF.Cos(a1) * radius, y + MathF.Sin(a1) * radius, z);
+            var inner0 = new Vector3(x + MathF.Cos(a0) * innerRadius, y + MathF.Sin(a0) * innerRadius, z);
+            var inner1 = new Vector3(x + MathF.Cos(a1) * innerRadius, y + MathF.Sin(a1) * innerRadius, z);
+            var outerBack0 = new Vector3(outer0.X, outer0.Y, z + thickness);
+            var outerBack1 = new Vector3(outer1.X, outer1.Y, z + thickness);
+            var innerBack0 = new Vector3(inner0.X, inner0.Y, z + thickness);
+            var innerBack1 = new Vector3(inner1.X, inner1.Y, z + thickness);
+
+            var shade = Lerp(violet, cyan, index / (float)(segments - 1));
+            var darkShade = Color.FromArgb(255,
+                Math.Max(0, shade.R - 45),
+                Math.Max(0, shade.G - 44),
+                Math.Max(0, shade.B - 30));
+
+            AddMeshFace(new[] { outer0, outer1, inner1, inner0 }, shade,
+                pivot, 0.045f, 0.2f, 0.018f, 0.8f, 0f);
+            AddMeshFace(new[] { outer0, outerBack0, outerBack1, outer1 }, darkShade,
+                pivot, 0.045f, 0.2f, 0.018f, 0.8f, 0f);
+            AddMeshFace(new[] { inner1, innerBack1, innerBack0, inner0 }, darkShade,
+                pivot, 0.045f, 0.2f, 0.018f, 0.8f, 0f);
+        }
+    }
+
+    private void DrawPortalGlow(Graphics graphics, int width, int height, float yaw, float pitch)
+    {
+        var center = Project(new Vector3(-0.25f, 1.05f, 6.665f), yaw, pitch, width, height, out var depth);
+        var radius = FocalLength / depth * 1.15f;
+        var bounds = new RectangleF(center.X - radius, center.Y - radius, radius * 2f, radius * 2f);
+
+        using var path = new GraphicsPath();
+        path.AddEllipse(bounds);
+        using var glow = new PathGradientBrush(path)
+        {
+            CenterPoint = center,
+            CenterColor = Color.FromArgb(48, 109, 95, 255),
+            SurroundColors = new[] { Color.FromArgb(0, 77, 170, 220) }
+        };
+        graphics.FillPath(glow, path);
     }
 
     private void AddRotatingCube(float x, float y, float z, float size,
