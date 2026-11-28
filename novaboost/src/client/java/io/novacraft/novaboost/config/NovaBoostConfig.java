@@ -27,7 +27,7 @@ public final class NovaBoostConfig {
         Properties properties = new Properties();
         properties.setProperty("entity-occlusion", "true");
         properties.setProperty("raycasts-per-tick", "24");
-        properties.setProperty("cache-ticks", "4");
+        properties.setProperty("cache-ticks", "2");
         properties.setProperty("minimum-distance", "8");
         properties.setProperty("maximum-distance", "80");
 
@@ -51,7 +51,7 @@ public final class NovaBoostConfig {
 
             entityOcclusionEnabled = Boolean.parseBoolean(properties.getProperty("entity-occlusion", "true"));
             raycastsPerTick = clamp(parseInt(properties, "raycasts-per-tick", 24), 6, 96);
-            cacheTicks = clamp(parseInt(properties, "cache-ticks", 4), 1, 10);
+            cacheTicks = clamp(parseInt(properties, "cache-ticks", 2), 1, 3);
             minimumDistance = clamp(parseInt(properties, "minimum-distance", 8), 4, 32);
             maximumDistance = clamp(parseInt(properties, "maximum-distance", 80), 16, 192);
 
