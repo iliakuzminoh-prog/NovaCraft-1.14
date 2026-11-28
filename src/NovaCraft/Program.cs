@@ -604,25 +604,6 @@ internal sealed class MainForm : Form
         return new Size(1280, 720);
     }
 
-    static Bitmap LoadHeroArt()
-    {
-        var assembly = typeof(MainForm).Assembly;
-        var resourceName = assembly.GetManifestResourceNames()
-            .FirstOrDefault(name => name.EndsWith("novacraft-hero.webp", StringComparison.OrdinalIgnoreCase));
-
-        if (resourceName == null)
-            throw new InvalidOperationException("Встроенный баннер NovaCraft не найден в ресурсах приложения.");
-
-        using var stream = assembly.GetManifestResourceStream(resourceName)
-            ?? throw new InvalidOperationException("Не удалось открыть встроенный баннер NovaCraft.");
-        using var memory = new MemoryStream();
-        stream.CopyTo(memory);
-        var webpBytes = memory.ToArray();
-
-        var decoder = new Imazen.WebP.SimpleDecoder();
-        return decoder.DecodeFromBytes(webpBytes, webpBytes.LongLength);
-    }
-
     static void RoundCorners(Control control, int radius = 14)
     {
         void Apply()
