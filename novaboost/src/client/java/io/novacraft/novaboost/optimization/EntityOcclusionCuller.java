@@ -1,7 +1,7 @@
 package io.novacraft.novaboost.optimization;
 
-import java.util.HashMap;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
@@ -24,7 +24,7 @@ public final class EntityOcclusionCuller {
     private static final int SAMPLE_COUNT = 3;
     private static final int CACHE_CAPACITY = 4096;
 
-    private final Map<Integer, CachedVisibility> visibilityCache = new HashMap<>();
+    private final Map<Integer, CachedVisibility> visibilityCache = new LinkedHashMap<>(128, 0.75F, true);
     private final RaycastBudget raycastBudget = new RaycastBudget(24);
 
     private Object currentLevel;
@@ -98,8 +98,28 @@ public final class EntityOcclusionCuller {
         }
 
         CachedVisibility cached = visibilityCache.get(entity.getId());
-        if (cached != null && cached.expiresAt() >= clientTick) {
-            return cached.occluded();
+        if (cached != null) {
+            if (VisibilityCachePolicy.canReuse(
+                cached.entityUuid(),
+                entity.getUUID(),
+                cached.expiresAt(),
+                clientTick,
+                cached.cameraX(),
+                cached.cameraY(),
+                cached.cameraZ(),
+                cameraX,
+                cameraY,
+                cameraZ,
+                cached.targetX(),
+                cached.targetY(),
+                cached.targetZ(),
+                centerX,
+                centerY,
+                centerZ
+            )) {
+                return cached.occluded();
+            }
+            visibilityCache.remove(entity.getId());
         }
 
         if (raycastBudget.remaining() < SAMPLE_COUNT) {
@@ -120,11 +140,25 @@ public final class EntityOcclusionCuller {
 
         visibilityCache.put(
             entity.getId(),
-            new CachedVisibility(occluded, clientTick + NovaBoostConfig.cacheTicks())
+            new CachedVisibility(
+                entity.getUUID(),
+                occluded,
+                clientTick + NovaBoostConfig.cacheTicks(),
+                cameraX,
+                cameraY,
+                cameraZ,
+                centerX,
+                centerY,
+                centerZ
+            )
         );
 
         if (visibilityCache.size() > CACHE_CAPACITY) {
-            visibilityCache.clear();
+            Iterator<Integer> eldest = visibilityCache.keySet().iterator();
+            if (eldest.hasNext()) {
+                eldest.next();
+                eldest.remove();
+            }
         }
 
         return occluded;
@@ -158,6 +192,16 @@ public final class EntityOcclusionCuller {
         return hitDistanceSquared + 0.04D < targetDistanceSquared;
     }
 
-    private record CachedVisibility(boolean occluded, long expiresAt) {
+    private record CachedVisibility(
+        java.util.UUID entityUuid,
+        boolean occluded,
+        long expiresAt,
+        double cameraX,
+        double cameraY,
+        double cameraZ,
+        double targetX,
+        double targetY,
+        double targetZ
+    ) {
     }
 }

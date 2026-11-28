@@ -41,8 +41,8 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p release
-          test -s novaboost/build/libs/novaboost-0.1.0.jar
-          cp novaboost/build/libs/novaboost-0.1.0.jar release/NovaBoost.jar
+          test -s novaboost/build/libs/novaboost-0.1.1.jar
+          cp novaboost/build/libs/novaboost-0.1.1.jar release/NovaBoost.jar
           sha256sum release/NovaBoost.jar > release/NovaBoost.jar.sha256
           unzip -t release/NovaBoost.jar
           unzip -p release/NovaBoost.jar fabric.mod.json | grep -q '"id"[[:space:]]*:[[:space:]]*"novaboost"'

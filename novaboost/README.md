@@ -2,12 +2,13 @@
 
 NovaBoost is an original client-side Fabric optimization project for **Minecraft 1.21.11**.
 
-## Current implementation (0.1.0)
+## Current implementation (0.1.1)
 
 The first feature is conservative entity occlusion culling:
 
 - asks the renderer to skip selected non-player entities only when three sample rays are blocked by occluding blocks;
-- caches the result for a short configurable number of client ticks;
+- caches the result for a short configurable number of client ticks, validating entity UUID and camera/target movement before reusing it;
+- evicts the least-recently-used entry when the bounded cache is full instead of flushing every cached result;
 - limits raycasts per tick so the optimization cannot generate an unbounded amount of extra work;
 - leaves players/avatars, glowing entities, named entities, vehicles, passengers and nearby entities alone;
 - runs only on the client and does not change remote server files, packets, world state or server TPS.
@@ -42,6 +43,6 @@ The remapped Fabric mod is produced in `build/libs/`.
 
 ## Scope and limitations
 
-NovaBoost 0.1.0 is **not a Sodium replacement** and does not yet replace Minecraft's chunk renderer. It introduces one independently implemented client optimization with bounded work and tests for the query budget. Actual FPS gains depend on the scene; no fixed multiplier is promised. Client-side code cannot increase the TPS of a remote server.
+NovaBoost 0.1.1 is **not a Sodium replacement** and does not yet replace Minecraft's chunk renderer. It introduces one independently implemented client optimization with bounded work and tests for the query budget. Actual FPS gains depend on the scene; no fixed multiplier is promised. Client-side code cannot increase the TPS of a remote server.
 
 The project targets Fabric 1.21.11 only. Other Minecraft versions and loaders are rejected by the launcher.

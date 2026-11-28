@@ -2,13 +2,13 @@
 
 Windows launcher for Minecraft Java Edition. C# WinForms, .NET 8, self-contained Windows x64.
 
-This README describes the source on the `nova/ui-polish-2026-11-28` branch. A green CI build proves compilation, tests and packaging; it does not prove that every modpack launches correctly on every PC.
+This README describes the integrated launcher and NovaBoost work on the `nova/novaboost-mod-0.1.0` development branch. A green CI build proves compilation, tests and packaging; it does not prove that every modpack launches correctly on every PC.
 
 ## Implemented
 
 ### Launcher and profiles
 
-- Dark Russian-language WinForms UI with 16 feature pages grouped under five expandable left-navigation sections: Главная, Каталог, Профили и скины, Настройки, Журнал и диагностика. The existing page factories and original page indices are preserved.
+- Dark Russian-language WinForms UI with 16 feature pages grouped under seven expandable left-navigation sections: Главная, Каталог, Профили и скины, Настройки, Журнал и диагностика. The existing page factories and original page indices are preserved.
 - The global app bar shows the active build, current page, offline profile chip and direct Install / Play actions; the profile chip opens profile and skin management.
 - A build selector in the top bar switches the active Minecraft instance.
 - The shared `NovaCraft.UI.AppTheme` applies a consistent dark palette, card outlines, input styling and button states to lazily-created pages.
@@ -71,9 +71,9 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 
 - Basic diagnostics for write access, Java presence, RAM settings and selected Minecraft/loader files.
 - The performance page reads physical/available RAM from Windows and calculates a conservative Java heap recommendation, leaving headroom for Windows. It changes only the Minecraft Java heap setting.
-- NovaBoost installs a client-side Fabric 1.21.11 baseline: Lithium, FerriteCore, ImmediatelyFast and Entity Culling. It resolves required Modrinth dependencies, checks exact Minecraft/loader metadata, HTTPS CDN origin, SHA-512 and each main mod's Fabric mod ID. Downloads are staged before installation; existing JARs are never overwritten, and a conflicting active version stops the installation.
-- Sodium is deliberately excluded from the default profile. Its official AMD support starts at Radeon HD 7000 / GCN 1 and OpenGL 4.5; Radeon HD 6900 is older than that support baseline. This is a conservative compatibility decision, not a claim that Sodium can never start on any HD 6900 setup.
-- NovaBoost does not modify remote servers. No client-only set can improve a remote server's TPS or guarantee compatibility with every modpack; a performance gain depends on the bottleneck and must be measured on the target machine.
+- NovaBoost 0.1.1 is an original client-only Fabric mod for Minecraft 1.21.11. The launcher downloads its own JAR from the project's preview release, verifies the published SHA-256 sidecar and Fabric manifest, stages the file, and installs it only into the active profile's mods directory. It does not silently replace another mod JAR.
+- Sodium is not included in the automatic NovaBoost installer. Radeon HD 6900 predates Sodium's stated AMD HD 7000 / GCN support baseline, so automatic installation would be an unsafe default for that GPU family. This does not prove Sodium can never launch on any specific HD 6900 driver setup.
+- NovaBoost does not modify remote servers and cannot improve a remote server's TPS. Its culling feature can reduce some client rendering work when many entities are hidden behind blocks; scenes without such entities may show no gain or even a small CPU cost. No fixed FPS multiplier is promised.
 - NovaCraft does not change Windows registry settings, disable security software, add itself to startup or run hidden background services.
 - Driver repair is not implemented. Diagnostics must not silently download or install drivers.
 

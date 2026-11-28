@@ -911,7 +911,7 @@ internal sealed class MainForm : Form
         RefreshBuildSelector();
         RefreshProfileChip();
 
-        var sidebar = new Panel { Dock = DockStyle.Left, Width = 252, BackColor = Color.FromArgb(15, 17, 27), Padding = new Padding(12, 14, 12, 10) };
+        var sidebar = new Panel { Dock = DockStyle.Left, Width = 220, BackColor = Color.FromArgb(15, 17, 27), Padding = new Padding(12, 14, 12, 10) };
         var navSearch = new TextBox { PlaceholderText = "⌕  Поиск раздела…", Dock = DockStyle.Top, Height = 36, BackColor = Color.FromArgb(28,31,47), ForeColor = Color.White, BorderStyle = BorderStyle.FixedSingle };
         sidebar.Controls.Add(navSearch);
         var navScroll = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true, BackColor = Color.Transparent };
@@ -939,11 +939,13 @@ internal sealed class MainForm : Form
 
         var groups = new (string Name, string Glyph, int[] PageIndices)[]
         {
-            ("Главная", "⌂", new[] { 0, 1, 2 }),
-            ("Каталог", "▦", new[] { 3, 4, 5, 6, 7, 8 }),
-            ("Профили и скины", "♙", new[] { 10 }),
-            ("Настройки", "⚙", new[] { 13, 11, 12, 9 }),
-            ("Журнал и диагностика", "▤", new[] { 14, 15 })
+            ("Главная", "⌂", new[] { 0 }),
+            ("Сборки", "▣", new[] { 1, 2 }),
+            ("Моды", "✦", new[] { 3, 4 }),
+            ("Контент", "▦", new[] { 5, 6, 7, 8 }),
+            ("Профиль", "♙", new[] { 10 }),
+            ("Производительность", "⚡", new[] { 11 }),
+            ("Инструменты", "⚙", new[] { 9, 12, 13, 14, 15 })
         };
 
         var pageButtons = new Button?[pages.Length];
@@ -958,8 +960,8 @@ internal sealed class MainForm : Form
             {
                 Text = group.Name,
                 Tag = groupIndex,
-                Width = 226,
-                Height = 44,
+                Width = 194,
+                Height = 40,
                 Margin = new Padding(0, 4, 0, 2),
                 TextAlign = ContentAlignment.MiddleLeft,
                 Image = CreateNavIcon(group.Glyph),
@@ -982,7 +984,7 @@ internal sealed class MainForm : Form
                 AutoSizeMode = AutoSizeMode.GrowAndShrink,
                 FlowDirection = FlowDirection.TopDown,
                 WrapContents = false,
-                Width = 226,
+                Width = 194,
                 Margin = new Padding(0, 0, 0, 5),
                 Padding = new Padding(0, 0, 0, 0),
                 BackColor = Color.Transparent,
@@ -1014,9 +1016,9 @@ internal sealed class MainForm : Form
                 {
                     Text = caption,
                     Tag = pageIndex,
-                    Width = 214,
-                    Height = 40,
-                    Margin = new Padding(8, 2, 0, 3),
+                    Width = 186,
+                    Height = 36,
+                    Margin = new Padding(4, 2, 0, 3),
                     TextAlign = ContentAlignment.MiddleLeft,
                     Image = CreateNavIcon(glyph),
                     ImageAlign = ContentAlignment.MiddleLeft,
@@ -1155,7 +1157,10 @@ internal sealed class MainForm : Form
         if (index < 0 || index >= navigationPages.Count) return;
 
         var oldIndex = pageHost.SelectedIndex;
-        var shouldAnimate = oldIndex >= 0 &&
+        var availableMemoryMb = SystemMemoryStatus.Read().AvailableMb;
+        var memoryAllowsTransition = availableMemoryMb >= 2048UL;
+        var shouldAnimate = memoryAllowsTransition &&
+            oldIndex >= 0 &&
             oldIndex != index &&
             !pageTransitionRunning &&
             IsHandleCreated &&
@@ -1532,10 +1537,15 @@ internal sealed class MainForm : Form
         var modsCard = ModernCard(440, 185, "НОВЫЕ МОДЫ", Color.FromArgb(25,28,45));
         var modInfo = new Label { Text = "Каталог Modrinth\nИконки, авторы, описания и загрузки\nзагружаются из реального каталога.", AutoSize = true, Location = new Point(18, 46), ForeColor = Color.FromArgb(195,200,220), Font = new Font("Segoe UI", 10) };
         modsCard.Controls.Add(modInfo);
-        var modsOpen = ModernButton("Открыть каталог →", 180, 38);
+        var modsOpen = ModernButton("Каталог модов →", 170, 38);
         modsOpen.Location = new Point(18, 122);
         modsOpen.Click += (_, _) => ShowNavigationPage(3);
-        modsCard.Controls.Add(modsOpen);
+        var boostOpen = ModernButton("⚡ FPS / NovaBoost", 210, 38);
+        boostOpen.Location = new Point(198, 122);
+        boostOpen.BackColor = Color.FromArgb(37, 91, 94);
+        boostOpen.FlatAppearance.MouseOverBackColor = Color.FromArgb(46, 112, 113);
+        boostOpen.Click += (_, _) => ShowNavigationPage(11);
+        modsCard.Controls.AddRange(new Control[] { modsOpen, boostOpen });
 
         var featuredModsCard = ModernCard(880, 540, "ПОПУЛЯРНЫЕ МОДЫ MODRINTH", AppTheme.Surface);
         popularFeed.Dock = DockStyle.None;
@@ -4239,99 +4249,120 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Производительность")
         {
-            BackColor = Color.FromArgb(13, 15, 25),
-            Padding = new Padding(24),
-            AutoScroll = true
+            BackColor = AppTheme.Canvas,
+            Padding = new Padding(18)
         };
-        p.Controls.Add(new Label
+
+        var root = new TableLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            ColumnCount = 1,
+            RowCount = 2,
+            BackColor = Color.Transparent,
+            Margin = Padding.Empty,
+            Padding = Padding.Empty
+        };
+        root.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 100));
+        root.RowStyles.Add(new RowStyle(SizeType.Absolute, 48));
+        root.RowStyles.Add(new RowStyle(SizeType.Percent, 100));
+
+        var heading = new Label
         {
             Text = "ПРОИЗВОДИТЕЛЬНОСТЬ",
-            AutoSize = true,
-            ForeColor = Color.White,
-            Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold),
-            Location = new Point(24, 18)
-        });
-
-        var memory = SystemMemoryStatus.Read();
-        var recommendedHeap = PerformanceProfileRules.RecommendedHeapMb(memory);
-        var recommended = recommendedHeap ?? settings.MaximumRamMb;
-        var memoryInfo = new Label
-        {
-            Text = PerformanceProfileRules.Describe(memory),
-            AutoSize = false,
-            Size = new Size(810, 64),
-            ForeColor = Color.FromArgb(190, 200, 218),
-            Location = new Point(27, 68)
+            Dock = DockStyle.Fill,
+            ForeColor = AppTheme.Text,
+            Font = new Font("Segoe UI Semibold", 23, FontStyle.Bold),
+            TextAlign = ContentAlignment.MiddleLeft
         };
-        p.Controls.Add(memoryInfo);
 
-        var autoCard = ModernCard(820, 190, "БЕЗОПАСНЫЙ ЛИМИТ ОЗУ JAVA", Color.FromArgb(23, 27, 42));
-        autoCard.Location = new Point(24, 145);
-        autoCard.Controls.Add(new Label
+        var stack = new FlowLayoutPanel
         {
-            Text = recommendedHeap.HasValue
-                ? $"Текущий лимит: {settings.MaximumRamMb} МБ\nРекомендация для текущей свободной памяти: {recommendedHeap.Value} МБ\nЛимит пересчитывается по фактической памяти Windows, а не по выдуманному FPS-профилю."
-                : PerformanceProfileRules.IsLowAvailableMemory(memory)
-                    ? $"Текущий лимит: {settings.MaximumRamMb} МБ\nСвободной памяти недостаточно для безопасного автоподбора. Закрой тяжёлые программы."
-                    : $"Текущий лимит: {settings.MaximumRamMb} МБ\nWindows не предоставила сведения об ОЗУ. Автоподбор выключен.",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(190, 198, 215),
-            Location = new Point(18, 50)
-        });
-        var apply = ModernButton("Применить рекомендацию", 220, 38);
-        apply.Location = new Point(18, 132);
-        apply.Enabled = recommendedHeap.HasValue;
-        apply.Click += (_, _) =>
-        {
-            if (!recommendedHeap.HasValue)
-                return;
-            settings.MaximumRamMb = recommended;
-            settings.FpsBoost = false;
-            if (ram.Minimum <= recommended && ram.Maximum >= recommended)
-                ram.Value = recommended;
-            SettingsService.Save(settings);
-            status.Text = $"Лимит Java установлен: {recommended} МБ";
-            MessageBox.Show(
-                "Изменён только лимит памяти Java. Это не FPS-мод и не гарантия прироста кадров. Для тяжёлых сборок может потребоваться больше памяти.",
-                "Параметры запуска обновлены",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            WrapContents = false,
+            FlowDirection = FlowDirection.TopDown,
+            BackColor = Color.Transparent,
+            Padding = new Padding(4, 6, 16, 24),
+            Margin = Padding.Empty
         };
-        autoCard.Controls.Add(apply);
 
-        var modsCard = ModernCard(820, 190, "ОПТИМИЗАЦИЯ ГРАФИКИ И МОДОВ", Color.FromArgb(22, 25, 39));
-        modsCard.Location = new Point(24, 625);
-        modsCard.Controls.Add(new Label
+        var memoryCard = ModernCard(700, 166, "СОСТОЯНИЕ ОПЕРАТИВНОЙ ПАМЯТИ", AppTheme.Surface);
+        var memoryText = new Label
         {
-            Text = "NovaBoost — собственный клиентский Fabric-мод. Первая версия использует кешируемое отсечение скрытых сущностей с ограниченным числом трассировок за тик.\nМод не заменяет рендерер как Sodium и не меняет удалённый сервер. Прирост FPS зависит от сцены; гарантированного множителя нет.",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(181, 190, 207),
-            Location = new Point(18, 50)
-        });
-        var novaBoostCard = ModernCard(820, 205, "NOVABOOST · FABRIC 1.21.11", Color.FromArgb(25, 28, 46));
-        novaBoostCard.Location = new Point(24, 355);
-        novaBoostCard.Controls.Add(new Label
-        {
-            Text = "Собственный мод NovaBoost 0.1.0 для Fabric 1.21.11: три проверки видимости, короткий кеш и жёсткий лимит raycast-запросов за игровой тик.\nИгроки, именованные и светящиеся сущности не скрываются. Если видимость нельзя уверенно определить, сущность остаётся на экране.",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(190, 198, 215),
-            Location = new Point(18, 48)
-        });
-        var novaBoostInstall = ModernButton("Установить NovaBoost", 190, 38);
-        novaBoostInstall.Location = new Point(18, 151);
-        var novaBoostStatus = new Label
-        {
-            Text = "Только Fabric 1.21.11 · существующие JAR не перезаписываются.",
-            AutoSize = true,
-            ForeColor = Color.FromArgb(130, 218, 172),
-            Location = new Point(222, 160)
+            Location = new Point(18, 47),
+            Size = new Size(640, 34),
+            ForeColor = AppTheme.Text,
+            Font = new Font("Segoe UI", 9.5f),
+            AutoEllipsis = true
         };
-        novaBoostInstall.Click += async (_, _) => await InstallNovaBoost12111Async(novaBoostStatus);
-        novaBoostCard.Controls.AddRange(new Control[] { novaBoostInstall, novaBoostStatus });
-        p.Controls.Add(novaBoostCard);
+        var memoryBar = new ProgressBar
+        {
+            Location = new Point(18, 91),
+            Size = new Size(640, 16),
+            Minimum = 0,
+            Maximum = 100,
+            Style = ProgressBarStyle.Continuous
+        };
+        var memoryFootnote = new Label
+        {
+            Text = "Показания Windows обновляются при повторном открытии этой страницы.",
+            Location = new Point(18, 119),
+            Size = new Size(640, 24),
+            ForeColor = AppTheme.Muted,
+            Font = new Font("Segoe UI", 8.5f)
+        };
+        memoryCard.Controls.AddRange(new Control[] { memoryText, memoryBar, memoryFootnote });
 
-        var openModrinth = ModernButton("Открыть оптимизационные моды на Modrinth", 330, 38);
-        openModrinth.Location = new Point(18, 132);
+        var heapCard = ModernCard(700, 174, "ЛИМИТ ПАМЯТИ JAVA", AppTheme.Surface);
+        var heapText = new Label
+        {
+            Location = new Point(18, 47),
+            Size = new Size(640, 54),
+            ForeColor = AppTheme.Text,
+            Font = new Font("Segoe UI", 9.5f)
+        };
+        var applyHeap = ModernButton("Применить рекомендацию", 230, 38);
+        applyHeap.Location = new Point(18, 119);
+        heapCard.Controls.AddRange(new Control[] { heapText, applyHeap });
+
+        var boostCard = ModernCard(700, 208, "NOVABOOST · СОБСТВЕННЫЙ FPS-МОД", AppTheme.Surface);
+        var boostDescription = new Label
+        {
+            Text = "NovaBoost 0.1.1 — собственный клиентский Fabric-мод для Minecraft 1.21.11. Он пропускает отрисовку отдельных сущностей, полностью закрытых блоками; результат кешируется, а число трассировок ограничено. Игроки, именные и светящиеся сущности не скрываются.",
+            Location = new Point(18, 47),
+            Size = new Size(650, 66),
+            ForeColor = AppTheme.Text,
+            Font = new Font("Segoe UI", 9.25f)
+        };
+        var installBoost = ModernButton("Установить NovaBoost", 190, 38);
+        installBoost.Location = new Point(18, 126);
+        var openBuildFolder = ModernButton("Папка сборки", 150, 38);
+        openBuildFolder.Location = new Point(220, 126);
+        openBuildFolder.BackColor = Color.FromArgb(38, 48, 69);
+        openBuildFolder.FlatAppearance.MouseOverBackColor = Color.FromArgb(51, 64, 89);
+        var boostStatus = new Label
+        {
+            Text = "Проверяю совместимость…",
+            Location = new Point(382, 129),
+            Size = new Size(270, 34),
+            ForeColor = AppTheme.Muted,
+            Font = new Font("Segoe UI", 8.5f),
+            AutoEllipsis = true
+        };
+        boostCard.Controls.AddRange(new Control[] { boostDescription, installBoost, openBuildFolder, boostStatus });
+
+        var extraCard = ModernCard(700, 142, "ДРУГИЕ ОПТИМИЗАЦИИ", AppTheme.Surface);
+        var extraDescription = new Label
+        {
+            Text = "Сторонние оптимизационные моды подбираются отдельно под версию Minecraft, загрузчик и видеокарту. NovaBoost не подменяет Sodium и не повышает TPS удалённого сервера.",
+            Location = new Point(18, 47),
+            Size = new Size(650, 42),
+            ForeColor = AppTheme.Text,
+            Font = new Font("Segoe UI", 9.25f)
+        };
+        extraCard.Controls.Add(extraDescription);
+        var openModrinth = ModernButton("Каталог оптимизационных модов", 260, 36);
+        openModrinth.Location = new Point(18, 94);
         openModrinth.Click += (_, _) =>
         {
             try
@@ -4343,17 +4374,176 @@ internal sealed class MainForm : Form
             }
             catch (Exception ex) { MessageBox.Show("Не удалось открыть Modrinth: " + ex.Message); }
         };
-        modsCard.Controls.Add(openModrinth);
+        extraCard.Controls.Add(openModrinth);
 
-        var safety = new Label
+        var safetyCard = ModernCard(700, 102, "ЧТО МЕНЯЕТСЯ", AppTheme.Surface);
+        var safetyDescription = new Label
         {
-            Text = "NovaCraft не меняет реестр, драйверы и настройки Windows, не отключает защиту и не добавляет себя в автозагрузку. Дополнительные JVM-аргументы задаются вручную в настройках.",
-            AutoSize = false,
-            Size = new Size(810, 48),
-            ForeColor = Color.FromArgb(151, 161, 183),
-            Location = new Point(27, 565)
+            Text = "Автоподбор меняет только лимит heap Java. Установка NovaBoost затрагивает только папку mods выбранной сборки. Лаунчер не меняет реестр, драйверы, автозагрузку и защиту Windows.",
+            Location = new Point(18, 47),
+            Size = new Size(650, 40),
+            ForeColor = AppTheme.Muted,
+            Font = new Font("Segoe UI", 8.75f)
         };
-        p.Controls.AddRange(new Control[] { autoCard, modsCard, safety });
+        safetyCard.Controls.Add(safetyDescription);
+
+        stack.Controls.AddRange(new Control[] { memoryCard, heapCard, boostCard, extraCard, safetyCard });
+        root.Controls.Add(heading, 0, 0);
+        root.Controls.Add(stack, 0, 1);
+        p.Controls.Add(root);
+
+        int? recommendedHeap = null;
+
+        void ResizeCards()
+        {
+            var width = Math.Max(590, stack.ClientSize.Width - stack.Padding.Horizontal - 8);
+            foreach (Control card in stack.Controls)
+                card.Width = width;
+
+            var innerWidth = width - 36;
+            memoryText.Width = innerWidth;
+            memoryBar.Width = innerWidth;
+            memoryFootnote.Width = innerWidth;
+            heapText.Width = innerWidth;
+            boostDescription.Width = innerWidth;
+            boostStatus.Width = Math.Max(160, width - 400);
+            extraDescription.Width = innerWidth;
+            safetyDescription.Width = innerWidth;
+        }
+        stack.Resize += (_, _) => ResizeCards();
+        ResizeCards();
+
+        void RefreshMemoryStatus()
+        {
+            var memory = SystemMemoryStatus.Read();
+            recommendedHeap = PerformanceProfileRules.RecommendedHeapMb(memory);
+
+            if (memory.TotalMb == 0 || memory.AvailableMb == 0)
+            {
+                memoryText.Text = "Windows не предоставила сведения об оперативной памяти.";
+                memoryBar.Value = 0;
+            }
+            else
+            {
+                var usedMb = memory.TotalMb > memory.AvailableMb
+                    ? memory.TotalMb - memory.AvailableMb
+                    : 0UL;
+                var usedPercent = (int)Math.Clamp(
+                    Math.Round(usedMb * 100d / memory.TotalMb),
+                    0d,
+                    100d);
+                memoryText.Text = $"Занято: {usedMb / 1024d:0.0} ГБ из {memory.TotalMb / 1024d:0.0} ГБ · свободно {memory.AvailableMb / 1024d:0.0} ГБ · {usedPercent}%";
+                memoryBar.Value = usedPercent;
+            }
+
+            heapText.Text = recommendedHeap.HasValue
+                ? $"Текущий лимит: {settings.MaximumRamMb} МБ. Рекомендация Windows по доступной памяти: {recommendedHeap.Value} МБ. Оставляется запас для самой Windows и других процессов."
+                : $"Текущий лимит: {settings.MaximumRamMb} МБ. Автоматически подобрать безопасное значение сейчас нельзя: доступной памяти недостаточно или сведения Windows недоступны.";
+            applyHeap.Enabled = recommendedHeap.HasValue;
+        }
+
+        string? FindInstalledNovaBoost()
+        {
+            try
+            {
+                var modsDirectory = Path.Combine(ActiveBuild.GameDirectory, "mods");
+                if (!Directory.Exists(modsDirectory))
+                    return null;
+
+                foreach (var jar in Directory.EnumerateFiles(modsDirectory, "*.jar", SearchOption.TopDirectoryOnly))
+                {
+                    if ((File.GetAttributes(jar) & FileAttributes.ReparsePoint) != 0)
+                        continue;
+                    if (string.Equals(ReadFabricModId(jar), "novaboost", StringComparison.OrdinalIgnoreCase))
+                        return jar;
+                }
+            }
+            catch (Exception ex)
+            {
+                AppDiagnostics.Report(ex, "NovaBoost.DetectInstalled");
+            }
+
+            return null;
+        }
+
+        void RefreshNovaBoostStatus()
+        {
+            var selectedVersion = version.SelectedItem?.ToString() ?? settings.LastVersion;
+            var selectedLoader = gameLoader.SelectedItem?.ToString() ?? settings.ModLoader;
+            var supported = OptimizationPackRules.IsTarget(
+                selectedVersion,
+                selectedLoader) &&
+                OptimizationPackRules.IsTarget(
+                    ActiveBuild.MinecraftVersion,
+                    ActiveBuild.Loader);
+
+            var installedPath = FindInstalledNovaBoost();
+            if (installedPath != null)
+            {
+                installBoost.Text = "NovaBoost уже установлен";
+                installBoost.Enabled = false;
+                boostStatus.Text = "Найден: " + Path.GetFileName(installedPath);
+                boostStatus.ForeColor = AppTheme.Success;
+            }
+            else if (!supported)
+            {
+                installBoost.Text = "Требуется Fabric 1.21.11";
+                installBoost.Enabled = false;
+                boostStatus.Text = "Активная сборка или выбранная версия несовместима.";
+                boostStatus.ForeColor = AppTheme.Muted;
+            }
+            else
+            {
+                installBoost.Text = "Установить NovaBoost";
+                installBoost.Enabled = !isBusy;
+                boostStatus.Text = "Подходит для активной сборки · JAR ещё не установлен.";
+                boostStatus.ForeColor = AppTheme.Muted;
+            }
+        }
+
+        applyHeap.Click += (_, _) =>
+        {
+            if (!recommendedHeap.HasValue)
+                return;
+
+            settings.MaximumRamMb = recommendedHeap.Value;
+            settings.FpsBoost = false;
+            if (ram.Minimum <= recommendedHeap.Value && ram.Maximum >= recommendedHeap.Value)
+                ram.Value = recommendedHeap.Value;
+            SettingsService.Save(settings);
+            RefreshMemoryStatus();
+            status.Text = $"Лимит Java установлен: {settings.MaximumRamMb} МБ";
+        };
+
+        installBoost.Click += async (_, _) =>
+        {
+            await InstallNovaBoost12111Async(boostStatus);
+            RefreshNovaBoostStatus();
+        };
+
+        openBuildFolder.Click += (_, _) =>
+        {
+            try
+            {
+                var directory = ActiveBuild.GameDirectory;
+                if (!Directory.Exists(directory))
+                    throw new DirectoryNotFoundException("Папка активной сборки не найдена.");
+                Process.Start(new ProcessStartInfo("explorer.exe", directory) { UseShellExecute = true });
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Не удалось открыть папку сборки: " + ex.Message, "NovaCraft", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            }
+        };
+
+        p.Enter += (_, _) =>
+        {
+            RefreshMemoryStatus();
+            RefreshNovaBoostStatus();
+        };
+
+        RefreshMemoryStatus();
+        RefreshNovaBoostStatus();
         return p;
     }
 
@@ -5766,7 +5956,9 @@ internal sealed class MainForm : Form
 
         var targetBuild = ActiveBuild;
         var game = version.SelectedItem?.ToString() ?? targetBuild.MinecraftVersion;
-        if (!OptimizationPackRules.IsTarget(game, targetBuild.Loader))
+        var selectedLoader = gameLoader.SelectedItem?.ToString() ?? targetBuild.Loader;
+        if (!OptimizationPackRules.IsTarget(game, selectedLoader) ||
+            !OptimizationPackRules.IsTarget(targetBuild.MinecraftVersion, targetBuild.Loader))
         {
             result.Text = "Требуется Fabric 1.21.11.";
             MessageBox.Show(
