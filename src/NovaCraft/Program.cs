@@ -799,13 +799,11 @@ internal sealed class MainForm : Form
             BackColor = Color.Transparent,
             Margin = new Padding(2, 0, 8, 0)
         };
-        brand.Controls.Add(new Label
+        brand.Controls.Add(new BrandCube3D
         {
-            Text = "◆",
-            AutoSize = true,
-            Location = new Point(0, 12),
-            ForeColor = AppTheme.Accent,
-            Font = new Font("Segoe UI Symbol", 27, FontStyle.Bold)
+            Size = new Size(34, 34),
+            Location = new Point(0, 7),
+            BackColor = Color.Transparent
         });
         brand.Controls.Add(new Label
         {
