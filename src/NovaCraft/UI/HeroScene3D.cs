@@ -27,7 +27,6 @@ internal sealed class HeroScene3D : Control
     private bool pointerPressed;
     private RectangleF playBounds;
     private RectangleF playHitBounds;
-    private const float FocalLength = 470f;
 
     public event EventHandler? PlayRequested;
 
@@ -733,7 +732,7 @@ internal sealed class HeroScene3D : Control
     private void DrawPortalGlow(Graphics graphics, int width, int height, float yaw, float pitch)
     {
         var center = Project(new Vector3(-0.25f, 1.05f, 6.665f), yaw, pitch, width, height, out var depth);
-        var radius = FocalLength / depth * 1.15f;
+        var radius = GetFocalLength(width, height) / depth * 1.15f;
         var bounds = new RectangleF(center.X - radius, center.Y - radius, radius * 2f, radius * 2f);
 
         using var path = new GraphicsPath();
@@ -841,6 +840,9 @@ internal sealed class HeroScene3D : Control
         face.Depth = depthTotal / face.Vertices.Length;
     }
 
+    private static float GetFocalLength(int width, int height) =>
+        Math.Min(width * 0.49f, height * 1.74f);
+
     private PointF Project(Vector3 point, float yaw, float pitch, int width, int height, out float depth)
     {
         const float cameraY = 2.65f;
@@ -861,7 +863,7 @@ internal sealed class HeroScene3D : Control
         depth = dy * sinPitch + rotatedZ * cosPitch;
 
         depth = Math.Max(2.2f, depth);
-        var perspective = FocalLength / depth;
+        var perspective = GetFocalLength(width, height) / depth;
         var anchorX = width * 0.705f;
         var anchorY = height * 0.72f;
 
