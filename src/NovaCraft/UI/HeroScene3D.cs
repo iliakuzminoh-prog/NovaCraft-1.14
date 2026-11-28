@@ -1,5 +1,4 @@
 using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using System.Numerics;
 
 namespace NovaCraft.UI;
@@ -138,7 +137,7 @@ internal sealed class HeroScene3D : Control
                 CenterColor = Color.FromArgb(108, 255, 164, 112),
                 SurroundColors = new[] { Color.FromArgb(0, 255, 128, 120) }
             };
-            graphics.FillEllipse(glowPath);
+            graphics.FillPath(glow, glowPath);
         }
 
         using (var sunBrush = new LinearGradientBrush(
@@ -489,7 +488,7 @@ internal sealed class HeroScene3D : Control
         var buttonHeight = Math.Clamp(height * 0.17f, 40f, 48f);
         var left = Math.Max(25f, width * 0.045f);
         var top = height * 0.64f - buttonHeight / 2f;
-        var scale = 1f + buttonHover * 0.035f;
+        var scale = 1f + buttonHover * 0.035f - (pointerPressed ? 0.018f : 0f);
         var scaledWidth = buttonWidth * scale;
         var scaledHeight = buttonHeight * scale;
         var centerX = left + buttonWidth / 2f;
