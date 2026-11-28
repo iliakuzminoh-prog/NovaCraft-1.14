@@ -12,7 +12,7 @@ public final class NovaBoostClient implements ClientModInitializer {
         EntityOcclusionCuller.INSTANCE.initialize();
 
         NovaBoost.LOGGER.info(
-            "NovaBoost 0.1.0 loaded (entity occlusion: {}, ray budget: {}/tick)",
+            "NovaBoost 0.1.2 loaded (entity occlusion: {}, ray budget: {}/tick)",
             NovaBoostConfig.entityOcclusionEnabled(),
             NovaBoostConfig.raycastsPerTick()
         );
