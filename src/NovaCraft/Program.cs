@@ -177,6 +177,8 @@ internal sealed class MainForm : Form
     int modFeedOffset;
     bool modFeedLoading;
     bool modFeedReloadPending;
+    bool showInstalledMods;
+    Action? refreshInstalledModsView;
     readonly HttpClient http = new(new HttpClientHandler { AutomaticDecompression = System.Net.DecompressionMethods.All }) { Timeout = TimeSpan.FromMinutes(3) };
     LocalMusicPlayer? localMusicPlayer;
     System.Windows.Forms.Timer? localMusicTimer;
@@ -584,7 +586,9 @@ internal sealed class MainForm : Form
             modFeedSort = "downloads";
             if (pageHost.SelectedIndex == 3)
             {
-                if (modFeedLoading)
+                if (showInstalledMods)
+                    refreshInstalledModsView?.Invoke();
+                else if (modFeedLoading)
                     modFeedReloadPending = true;
                 else
                     _ = LoadModFeedAsync(true);
@@ -1741,7 +1745,56 @@ internal sealed class MainForm : Form
         sort.Items.AddRange(new object[] { "Популярные", "Новые", "Обновлённые" });
         sort.SelectedIndex = 0;
 
-        top.Controls.AddRange(new Control[] { search, searchButton, modLoader, sort });
+        top.Controls.AddRange(new Control[] { search, searchButton, modLoader, sort, installedViewButton });
+
+        var installedViewButton = ModernButton("Установленные", 152, 34);
+        installedViewButton.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        installedViewButton.Location = new Point(780, 6);
+
+        var installedPanel = new Panel
+        {
+            Dock = DockStyle.Fill,
+            Visible = false,
+            BackColor = Color.FromArgb(12, 14, 23)
+        };
+        var installedToolbar = new Panel
+        {
+            Dock = DockStyle.Top,
+            Height = 58,
+            BackColor = Color.FromArgb(12, 14, 23)
+        };
+        var installedTitle = new Label
+        {
+            Text = "Установленные моды",
+            AutoSize = true,
+            Location = new Point(5, 4),
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 14, FontStyle.Bold)
+        };
+        var installedSummary = new Label
+        {
+            Text = "Включение и отключение без удаления JAR-файлов.",
+            AutoSize = true,
+            Location = new Point(7, 32),
+            ForeColor = Color.FromArgb(153, 163, 184),
+            Font = new Font("Segoe UI", 9f)
+        };
+        var refreshInstalled = ModernButton("↻ Обновить", 122, 32);
+        refreshInstalled.Location = new Point(780, 12);
+        refreshInstalled.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+        installedToolbar.Controls.AddRange(new Control[] { installedTitle, installedSummary, refreshInstalled });
+
+        var installedList = new FlowLayoutPanel
+        {
+            Dock = DockStyle.Fill,
+            AutoScroll = true,
+            WrapContents = false,
+            FlowDirection = FlowDirection.TopDown,
+            Padding = new Padding(5, 8, 14, 24),
+            BackColor = Color.FromArgb(12, 14, 23)
+        };
+        installedPanel.Controls.Add(installedList);
+        installedPanel.Controls.Add(installedToolbar);
 
         void LayoutModToolbar()
         {
@@ -1758,6 +1811,7 @@ internal sealed class MainForm : Form
             searchButton.SetBounds(search.Right + gap, 78, buttonWidth, 38);
             modLoader.SetBounds(searchButton.Right + gap, 78, loaderWidth, 38);
             sort.SetBounds(modLoader.Right + gap, 78, sortWidth, 38);
+            installedViewButton.Left = Math.Max(4, top.ClientSize.Width - installedViewButton.Width - 4);
         }
 
         top.Resize += (_, _) => LayoutModToolbar();
@@ -1767,6 +1821,165 @@ internal sealed class MainForm : Form
         modCards.Padding = new Padding(4, 8, 10, 40);
         modCards.BackColor = Color.FromArgb(12,14,23);
         modCards.WrapContents = true;
+
+        void RenderInstalledMods()
+        {
+            installedList.SuspendLayout();
+            installedList.Controls.Clear();
+            try
+            {
+                var entries = InstalledModService.GetInstalledMods(ActiveBuild.GameDirectory);
+                var enabledCount = entries.Count(entry => entry.Enabled);
+                var disabledCount = entries.Count - enabledCount;
+                installedSummary.Text = $"{entries.Count} файлов · {enabledCount} включено · {disabledCount} отключено";
+
+                if (entries.Count == 0)
+                {
+                    installedList.Controls.Add(new Label
+                    {
+                        Text = "Установленных JAR-файлов пока нет.\nЗагруженные моды появятся здесь после установки.",
+                        AutoSize = true,
+                        ForeColor = Color.FromArgb(165, 176, 198),
+                        Padding = new Padding(18)
+                    });
+                    return;
+                }
+
+                foreach (var entry in entries)
+                {
+                    var cardWidth = Math.Max(560, installedList.ClientSize.Width - 34);
+                    var card = new Panel
+                    {
+                        Width = cardWidth,
+                        Height = 82,
+                        Margin = new Padding(3, 4, 6, 5),
+                        BackColor = Color.FromArgb(24, 27, 42),
+                        Padding = new Padding(12)
+                    };
+                    RoundCorners(card, 12);
+                    AppTheme.StyleCatalogCard(card);
+
+                    var glyph = new Label
+                    {
+                        Text = "JAR",
+                        Location = new Point(12, 17),
+                        Size = new Size(46, 46),
+                        TextAlign = ContentAlignment.MiddleCenter,
+                        BackColor = Color.FromArgb(50, 56, 82),
+                        ForeColor = Color.FromArgb(206, 211, 255),
+                        Font = new Font("Segoe UI Semibold", 10, FontStyle.Bold)
+                    };
+                    RoundCorners(glyph, 9);
+
+                    var fileName = new Label
+                    {
+                        Text = entry.FileName,
+                        Location = new Point(72, 13),
+                        Size = new Size(Math.Max(180, cardWidth - 250), 25),
+                        ForeColor = Color.White,
+                        Font = new Font("Segoe UI Semibold", 10.5f, FontStyle.Bold),
+                        AutoEllipsis = true
+                    };
+                    var state = new Label
+                    {
+                        Text = (entry.Enabled ? "Включён" : "Отключён") + "  ·  " +
+                            (entry.SizeBytes / 1024d / 1024d).ToString("0.00") + " МБ",
+                        Location = new Point(73, 42),
+                        AutoSize = true,
+                        ForeColor = entry.Enabled ? Color.FromArgb(91, 218, 157) : Color.FromArgb(172, 180, 199)
+                    };
+                    var toggle = ModernButton(entry.Enabled ? "Отключить" : "Включить", 126, 34);
+                    toggle.Location = new Point(cardWidth - 146, 23);
+                    toggle.Click += (_, _) =>
+                    {
+                        if (isBusy)
+                        {
+                            status.Text = "Дождись завершения текущей операции.";
+                            return;
+                        }
+
+                        try
+                        {
+                            var changed = InstalledModService.SetEnabled(
+                                ActiveBuild.GameDirectory,
+                                entry.FileName,
+                                !entry.Enabled);
+                            status.Text = changed.Enabled
+                                ? "Мод включён: " + changed.FileName
+                                : "Мод отключён без удаления: " + changed.FileName;
+                            RenderInstalledMods();
+                        }
+                        catch (Exception ex)
+                        {
+                            Fail("Не удалось изменить состояние мода", ex);
+                        }
+                    };
+
+                    card.Controls.AddRange(new Control[] { glyph, fileName, state, toggle });
+                    installedList.Controls.Add(card);
+                }
+            }
+            catch (Exception ex)
+            {
+                installedSummary.Text = "Не удалось прочитать папку mods.";
+                installedList.Controls.Add(new Label
+                {
+                    Text = ex.Message,
+                    AutoSize = true,
+                    ForeColor = Color.FromArgb(245, 132, 142),
+                    Padding = new Padding(18)
+                });
+            }
+            finally
+            {
+                installedList.ResumeLayout();
+            }
+        }
+
+        void ShowInstalledMods()
+        {
+            showInstalledMods = true;
+            refreshInstalledModsView = RenderInstalledMods;
+            installedViewButton.Text = "← Каталог";
+            search.Visible = false;
+            searchButton.Visible = false;
+            modLoader.Visible = false;
+            sort.Visible = false;
+            modCards.Visible = false;
+            installedPanel.Visible = true;
+            RenderInstalledMods();
+            installedPanel.BringToFront();
+            top.BringToFront();
+        }
+
+        void ShowModCatalog()
+        {
+            showInstalledMods = false;
+            refreshInstalledModsView = null;
+            installedViewButton.Text = "Установленные";
+            installedPanel.Visible = false;
+            modCards.Visible = true;
+            search.Visible = true;
+            searchButton.Visible = true;
+            modLoader.Visible = true;
+            sort.Visible = true;
+            modCards.BringToFront();
+            top.BringToFront();
+        }
+
+        installedViewButton.Click += (_, _) =>
+        {
+            if (showInstalledMods)
+                ShowModCatalog();
+            else
+                ShowInstalledMods();
+        };
+        refreshInstalled.Click += (_, _) =>
+        {
+            if (isBusy)
+                return;
+            RenderInstalledMods();
+        };
 
         async Task Reload()
         {
@@ -1811,9 +2024,20 @@ internal sealed class MainForm : Form
         };
 
         p.Controls.Add(modCards);
+        p.Controls.Add(installedPanel);
         p.Controls.Add(top);
+        if (showInstalledMods)
+            ShowInstalledMods();
+        else
+            ShowModCatalog();
         p.Enter += async (_, _) =>
         {
+            if (showInstalledMods)
+            {
+                RenderInstalledMods();
+                return;
+            }
+
             if (!string.IsNullOrWhiteSpace(pendingModSearch))
             {
                 search.Text = pendingModSearch;
