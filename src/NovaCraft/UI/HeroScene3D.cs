@@ -183,8 +183,6 @@ internal sealed class HeroScene3D : Control
     {
         var offset = (elapsed * speed * width) % (width + cloudWidth * width);
         var cloudX = x * width + offset;
-        if (speed < 0)
-            cloudX = x * width - offset;
 
         var w = cloudWidth * width;
         var h = cloudHeight * height;
