@@ -5943,11 +5943,12 @@ internal sealed class MainForm : Form
                     if (!destination.StartsWith(modsRoot, StringComparison.OrdinalIgnoreCase))
                         throw new SecurityException("Путь JAR вышел за пределы активной папки mods.");
 
-                    activeTask = BeginDownloadTask(
+                    var currentTask = BeginDownloadTask(
                         "NovaBoost · " + entry.Title,
                         filename,
                         "Modrinth",
                         targetBuild.Name);
+                    activeTask = currentTask;
 
                     if (File.Exists(destination))
                     {
@@ -5966,7 +5967,7 @@ internal sealed class MainForm : Form
                         if (!installedModIds.Add(installedId))
                             throw new InvalidDataException("В активной сборке обнаружены повторяющиеся Fabric mod ID.");
 
-                        CompleteDownloadTask(activeTask, "Уже установлен · SHA-512 и Fabric ID совпадают");
+                        CompleteDownloadTask(currentTask, "Уже установлен · SHA-512 и Fabric ID совпадают");
                         activeTask = null;
                         continue;
                     }
@@ -5980,7 +5981,7 @@ internal sealed class MainForm : Form
                         new[] { ".jar" },
                         50L * 1024 * 1024,
                         new Progress<double>(value =>
-                            UpdateDownloadTask(activeTask, "Загружается", value, "NovaBoost · SHA-512")),
+                            UpdateDownloadTask(currentTask, "Загружается", value, "NovaBoost · SHA-512")),
                         CancellationToken.None,
                         _ => true);
 
@@ -6028,7 +6029,7 @@ internal sealed class MainForm : Form
                     }
 
                     stagedFiles.Add((stagedPath, destination, filename));
-                    CompleteDownloadTask(activeTask, "SHA-512 и Fabric ID проверены · подготовлен");
+                    CompleteDownloadTask(currentTask, "SHA-512 и Fabric ID проверены · подготовлен");
                     activeTask = null;
                 }
             }
