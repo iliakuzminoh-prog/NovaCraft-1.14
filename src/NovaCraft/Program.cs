@@ -4328,7 +4328,7 @@ internal sealed class MainForm : Form
         var boostCard = ModernCard(700, 208, "NOVABOOST · СОБСТВЕННЫЙ FPS-МОД", AppTheme.Surface);
         var boostDescription = new Label
         {
-            Text = "NovaBoost 0.1.1 — собственный клиентский Fabric-мод для Minecraft 1.21.11. Он пропускает отрисовку отдельных сущностей, полностью закрытых блоками; результат кешируется, а число трассировок ограничено. Игроки, именные и светящиеся сущности не скрываются.",
+            Text = "NovaBoost 0.1.2 — клиентский Fabric-мод для Minecraft 1.21.11. Сначала выполняется штатная проверка frustum; culling применяется только к обычным vanilla-сущностям. Крупные и модовые сущности пропускаются; при ошибке оптимизатор отключает culling. Прирост FPS зависит от сцены.",
             Location = new Point(18, 47),
             Size = new Size(650, 66),
             ForeColor = AppTheme.Text,
