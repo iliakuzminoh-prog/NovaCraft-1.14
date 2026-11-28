@@ -341,17 +341,42 @@ internal sealed class HeroScene3D : Control
                     drawOutlineSides: false);
 
                 var riverColumn = (int)MathF.Round(MathF.Sin(z * 0.49f) * 1.35f);
-                if (x == riverColumn && z >= 1 && z <= 7)
+                var isRiverTile = x == riverColumn || x == riverColumn + 1;
+                if (isRiverTile && z >= 1 && z <= 7)
                 {
-                    AddCubeMesh(worldX + 0.04f, top + 0.065f, worldZ + 0.04f, 0.82f, 0.055f, 0.82f,
-                        Color.FromArgb(255, 69, 164, 196),
-                        Color.FromArgb(255, 42, 105, 145),
-                        Color.FromArgb(255, 31, 77, 117),
-                        bobAmplitude: 0.008f,
+                    var waterLight = Color.FromArgb(
+                        255,
+                        47 + z % 3 * 5,
+                        174 + z % 2 * 8,
+                        225 + z % 2 * 8);
+                    AddCubeMesh(worldX + 0.025f, top + 0.07f, worldZ + 0.025f, 0.85f, 0.065f, 0.85f,
+                        waterLight,
+                        Color.FromArgb(255, 27, 105, 166),
+                        Color.FromArgb(255, 18, 68, 128),
+                        bobAmplitude: 0.009f,
                         bobSpeed: 1.05f,
                         bobPhase: z * 0.72f,
                         drawOutlineTop: false,
                         drawOutlineSides: false);
+
+                    if ((z + x) % 2 == 0)
+                    {
+                        AddCubeMesh(
+                            worldX + 0.18f + (z % 3) * 0.08f,
+                            top + 0.142f,
+                            worldZ + 0.22f,
+                            0.24f,
+                            0.012f,
+                            0.055f,
+                            Color.FromArgb(180, 184, 245, 255),
+                            Color.FromArgb(130, 77, 178, 221),
+                            Color.FromArgb(110, 53, 121, 186),
+                            bobAmplitude: 0.006f,
+                            bobSpeed: 1.25f,
+                            bobPhase: z * 0.53f,
+                            drawOutlineTop: false,
+                            drawOutlineSides: false);
+                    }
                 }
 
                 if ((x * 7 + z * 3) % 17 == 0)
@@ -605,7 +630,8 @@ internal sealed class HeroScene3D : Control
             for (var x = -4; x <= 4; x++)
             {
                 var riverColumn = (int)MathF.Round(MathF.Sin(z * 0.49f) * 1.35f);
-                if (x == riverColumn && z >= 1 && z <= 7)
+                var isRiverTile = x == riverColumn || x == riverColumn + 1;
+                if (isRiverTile && z >= 1 && z <= 7)
                     continue;
 
                 var seed = Math.Abs(x * 37 + z * 19 + 211);
