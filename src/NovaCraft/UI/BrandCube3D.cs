@@ -169,11 +169,8 @@ internal sealed class BrandCube3D : Control
 
             // The camera is on the negative Z axis; rotate the face normal by the
             // same matrix and draw only faces turned toward the camera.
-            var nx = normal.X * cosY - normal.Z * sinY;
-            var nz = normal.X * sinY + normal.Z * cosY;
-            var ny = normal.Y * cosX - nz * sinX;
-            nz = normal.Y * sinX + nz * cosX;
-            var normalZ = nz;
+            var zAfterYaw = normal.X * sinY + normal.Z * cosY;
+            var normalZ = normal.Y * sinX + zAfterYaw * cosX;
             if (normalZ <= 0.02f)
                 continue;
 
