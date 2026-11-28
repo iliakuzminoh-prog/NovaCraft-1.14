@@ -161,6 +161,8 @@ internal sealed class MainForm : Form
     bool updatingBuildSelector;
     bool isBusy;
     bool isImportingPack;
+    bool pageTransitionRunning;
+    int lastNavigationIndex = -1;
     readonly FlowLayoutPanel popularFeed = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly FlowLayoutPanel modCards = new() { Dock = DockStyle.Fill, AutoScroll = true, WrapContents = true, FlowDirection = FlowDirection.LeftToRight, Padding = new Padding(8), BackColor = Color.FromArgb(18, 19, 23) };
     readonly ComboBox modLoader = new();
@@ -1135,6 +1137,59 @@ internal sealed class MainForm : Form
     {
         if (index < 0 || index >= navigationPages.Count) return;
 
+        var oldIndex = pageHost.SelectedIndex;
+        var shouldAnimate = oldIndex >= 0 &&
+            oldIndex != index &&
+            !pageTransitionRunning &&
+            IsHandleCreated &&
+            pageHost.IsHandleCreated &&
+            pageHost.ClientSize.Width > 160 &&
+            pageHost.ClientSize.Height > 160;
+
+        Bitmap? outgoing = null;
+
+        if (shouldAnimate)
+        {
+            try
+            {
+                outgoing = CapturePageSurface();
+            }
+            catch (Exception ex)
+            {
+                AppDiagnostics.Report(ex, "UI.Transition.CaptureOutgoing");
+                outgoing = null;
+                shouldAnimate = false;
+            }
+        }
+
+        ShowNavigationPageCore(index);
+
+        if (!shouldAnimate || outgoing == null)
+        {
+            lastNavigationIndex = index;
+            return;
+        }
+
+        Bitmap? incoming = null;
+        try
+        {
+            incoming = CapturePageSurface();
+            StartPageDepthTransition(outgoing, incoming, index > oldIndex);
+            lastNavigationIndex = index;
+        }
+        catch (Exception ex)
+        {
+            AppDiagnostics.Report(ex, "UI.Transition.CaptureIncoming");
+            outgoing.Dispose();
+            incoming?.Dispose();
+            lastNavigationIndex = index;
+        }
+    }
+
+    void ShowNavigationPageCore(int index)
+    {
+        if (index < 0 || index >= navigationPages.Count) return;
+
         if (index < navigationPageGroups.Count)
         {
             activeNavigationGroup = navigationPageGroups[index];
@@ -1183,11 +1238,67 @@ internal sealed class MainForm : Form
         var pageTitleParts = navigationPages[index].Text.Split(new[] { "  " }, StringSplitOptions.None);
         var pageTitle = pageTitleParts.Length > 1 ? pageTitleParts[^1] : navigationPages[index].Text;
         currentPageCaption.Text = pageTitle.ToUpperInvariant();
+
         for (var i = 0; i < navigationPages.Count; i++)
         {
             navigationButtons[i].BackColor = i == index ? Color.FromArgb(101, 61, 235) : Color.FromArgb(22, 24, 35);
             navigationButtons[i].ForeColor = i == index ? Color.White : Color.FromArgb(190, 198, 215);
         }
+    }
+
+    Bitmap CapturePageSurface()
+    {
+        var width = Math.Max(1, pageHost.ClientSize.Width);
+        var height = Math.Max(1, pageHost.ClientSize.Height);
+        var bitmap = new Bitmap(width, height, System.Drawing.Imaging.PixelFormat.Format32bppPArgb);
+        pageHost.DrawToBitmap(bitmap, new Rectangle(0, 0, width, height));
+        return bitmap;
+    }
+
+    void StartPageDepthTransition(Bitmap outgoing, Bitmap incoming, bool forward)
+    {
+        if (pageTransitionRunning)
+        {
+            outgoing.Dispose();
+            incoming.Dispose();
+            return;
+        }
+
+        if (pageHost.Parent is not Control host)
+        {
+            outgoing.Dispose();
+            incoming.Dispose();
+            return;
+        }
+
+        pageTransitionRunning = true;
+        pageHost.Visible = false;
+
+        var overlay = new PageDepthTransition(outgoing, incoming, forward, 320)
+        {
+            Bounds = pageHost.Bounds,
+            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+        };
+
+        EventHandler? completed = null;
+        completed = (_, _) =>
+        {
+            if (overlay.IsDisposed)
+                return;
+
+            overlay.Completed -= completed;
+            if (host.Controls.Contains(overlay))
+                host.Controls.Remove(overlay);
+
+            overlay.Dispose();
+            pageHost.Visible = true;
+            pageHost.BringToFront();
+            pageTransitionRunning = false;
+        };
+
+        overlay.Completed += completed;
+        host.Controls.Add(overlay);
+        overlay.BringToFront();
     }
 
     static void ApplyDarkTheme(Control root) => AppTheme.Apply(root);
