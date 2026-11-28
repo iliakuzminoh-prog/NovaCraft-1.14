@@ -12,6 +12,10 @@ internal sealed class HeroScene3D : Control
     private readonly System.Windows.Forms.Timer animationTimer = new() { Interval = 33 };
     private readonly List<RenderFace> faces = new();
     private readonly List<Particle> particles = new();
+    private readonly Dictionary<int, SolidBrush> materialBrushes = new();
+    private readonly SolidBrush[] particleBrushes = new SolidBrush[16];
+    private readonly SolidBrush[] starBrushes = new SolidBrush[16];
+    private readonly Pen faceEdgePen = new(Color.FromArgb(36, 218, 228, 244), 0.7f);
     private float elapsed;
     private float cameraX;
     private float cameraY;
@@ -56,6 +60,15 @@ internal sealed class HeroScene3D : Control
                 0.4f + UnitHash(seed + 9.9f) * 1.6f,
                 UnitHash(seed + 12.5f) * MathF.Tau));
         }
+
+        for (var index = 0; index < 16; index++)
+        {
+            var alpha = index * 16;
+            starBrushes[index] = new SolidBrush(Color.FromArgb(alpha, 214, 224, 255));
+            particleBrushes[index] = new SolidBrush(Color.FromArgb(alpha, 150, 203, 255));
+        }
+
+        BuildWorldMesh();
 
         animationTimer.Tick += (_, _) =>
         {
@@ -156,8 +169,8 @@ internal sealed class HeroScene3D : Control
             var wave = 0.48f + 0.52f * MathF.Sin(elapsed * (0.7f + index % 4 * 0.13f) + index);
             var alpha = (int)(28 + wave * 112);
             var radius = 0.55f + UnitHash(index * 2.33f) * 1.25f;
-            using var star = new SolidBrush(Color.FromArgb(alpha, 214, 224, 255));
-            graphics.FillEllipse(star, x, y, radius * 2, radius * 2);
+            graphics.FillEllipse(starBrushes[Math.Clamp(alpha / 16, 0, starBrushes.Length - 1)],
+                x, y, radius * 2, radius * 2);
         }
 
         DrawCloudBand(graphics, width, height, 0.19f, 0.54f, 0.18f, 0.10f, 0.24f);
@@ -236,12 +249,8 @@ internal sealed class HeroScene3D : Control
         graphics.FillRectangle(haze, 0, height * 0.56f, width, height * 0.30f);
     }
 
-    private void DrawWorldGeometry(Graphics graphics, int width, int height)
+    private void BuildWorldMesh()
     {
-        faces.Clear();
-        var yaw = cameraX * 0.035f + MathF.Sin(elapsed * 0.23f) * 0.012f;
-        var pitch = -0.145f + cameraY * 0.018f;
-
         for (var z = 0; z < 9; z++)
         {
             for (var x = -4; x <= 4; x++)
@@ -257,89 +266,107 @@ internal sealed class HeroScene3D : Control
                     117 + (z % 3) * 9,
                     93 + (x + z + 13) % 4 * 5);
 
-                AddCube(worldX, top - 0.84f, worldZ, 0.9f, 0.9f, 0.9f,
+                AddCubeMesh(worldX, top - 0.84f, worldZ, 0.9f, 0.9f, 0.9f,
                     grass,
                     Color.FromArgb(255, 66, 75, 91),
-                    Color.FromArgb(255, 42, 52, 73),
-                    yaw, pitch, width, height);
+                    Color.FromArgb(255, 42, 52, 73));
 
                 if ((x * 7 + z * 3) % 17 == 0)
                 {
-                    AddCube(worldX, top + 0.06f, worldZ, 0.34f, 0.34f, 0.34f,
+                    AddCubeMesh(worldX, top + 0.06f, worldZ, 0.34f, 0.34f, 0.34f,
                         Color.FromArgb(255, 86, 155, 125),
                         Color.FromArgb(255, 51, 105, 96),
-                        Color.FromArgb(255, 36, 75, 83),
-                        yaw, pitch, width, height);
+                        Color.FromArgb(255, 36, 75, 83));
                 }
             }
         }
 
-        AddTree(-2.6f, 0.22f, 2.4f, 1f, yaw, pitch, width, height);
-        AddTree(2.4f, 0.25f, 4.7f, 0.78f, yaw, pitch, width, height);
-        AddCrystal(1.05f, 0.2f, 1.9f, 0.72f, yaw, pitch, width, height);
+        AddTree(-2.6f, 0.22f, 2.4f, 1f);
+        AddTree(2.4f, 0.25f, 4.7f, 0.78f);
+        AddCrystal(1.05f, 0.2f, 1.9f, 0.72f);
 
-        var spin = elapsed * 0.34f;
-        AddRotatingCube(-2.4f + MathF.Sin(elapsed * 0.31f) * 0.18f,
-            2.0f + MathF.Sin(elapsed * 0.83f) * 0.10f, 3.7f, 0.48f, spin,
-            Color.FromArgb(255, 117, 95, 220), yaw, pitch, width, height);
-        AddRotatingCube(2.9f, 2.7f + MathF.Cos(elapsed * 0.7f) * 0.12f,
-            6.2f, 0.34f, -spin * 1.15f, Color.FromArgb(255, 70, 177, 174),
-            yaw, pitch, width, height);
-
-        faces.Sort((left, right) => right.Depth.CompareTo(left.Depth));
-        foreach (var face in faces)
-            DrawFace(graphics, face);
+        AddRotatingCube(-2.4f, 2.0f, 3.7f, 0.48f,
+            Color.FromArgb(255, 117, 95, 220), 0.47f, 1.2f, 0.10f, 0.62f);
+        AddRotatingCube(2.9f, 2.7f, 6.2f, 0.34f,
+            Color.FromArgb(255, 70, 177, 174), -0.54f, 4.1f, 0.08f, 0.75f);
     }
 
-    private void AddTree(float x, float y, float z, float scale, float yaw, float pitch, int width, int height)
+    private void DrawWorldGeometry(Graphics graphics, int width, int height)
+    {
+        var yaw = cameraX * 0.035f + MathF.Sin(elapsed * 0.23f) * 0.012f;
+        var pitch = -0.145f + cameraY * 0.018f;
+
+        foreach (var face in faces)
+            ProjectFace(face, yaw, pitch, width, height);
+
+        faces.Sort(static (left, right) => right.Depth.CompareTo(left.Depth));
+
+        foreach (var face in faces)
+        {
+            graphics.FillPolygon(face.Brush, face.Points);
+            graphics.DrawPolygon(faceEdgePen, face.Points);
+        }
+    }
+
+    private void AddTree(float x, float y, float z, float scale)
     {
         var trunk = 0.25f * scale;
-        AddCube(x, y, z, trunk, 1.05f * scale, trunk,
+        AddCubeMesh(x, y, z, trunk, 1.05f * scale, trunk,
             Color.FromArgb(255, 133, 87, 63),
             Color.FromArgb(255, 91, 61, 62),
-            Color.FromArgb(255, 68, 49, 61),
-            yaw, pitch, width, height);
+            Color.FromArgb(255, 68, 49, 61));
 
-        AddCube(x - 0.42f * scale, y + 0.7f * scale, z, 0.92f * scale, 0.72f * scale, 0.88f * scale,
+        AddCubeMesh(x - 0.42f * scale, y + 0.7f * scale, z, 0.92f * scale, 0.72f * scale, 0.88f * scale,
             Color.FromArgb(255, 73, 155, 119),
             Color.FromArgb(255, 41, 106, 92),
             Color.FromArgb(255, 31, 78, 82),
-            yaw, pitch, width, height);
-        AddCube(x - 0.27f * scale, y + 1.12f * scale, z + 0.02f, 0.62f * scale, 0.58f * scale, 0.65f * scale,
+            bobAmplitude: 0.018f,
+            bobSpeed: 0.9f,
+            bobPhase: x);
+
+        AddCubeMesh(x - 0.27f * scale, y + 1.12f * scale, z + 0.02f, 0.62f * scale, 0.58f * scale, 0.65f * scale,
             Color.FromArgb(255, 94, 181, 139),
             Color.FromArgb(255, 51, 126, 104),
             Color.FromArgb(255, 33, 91, 90),
-            yaw, pitch, width, height);
+            bobAmplitude: 0.025f,
+            bobSpeed: 0.9f,
+            bobPhase: x + 0.7f);
     }
 
-    private void AddCrystal(float x, float y, float z, float scale, float yaw, float pitch, int width, int height)
+    private void AddCrystal(float x, float y, float z, float scale)
     {
-        var baseY = y + MathF.Sin(elapsed * 1.2f) * 0.045f;
+        var baseY = y;
         var bottomLeft = new Vector3(x - 0.28f * scale, baseY, z);
         var bottomRight = new Vector3(x + 0.28f * scale, baseY, z);
         var bottomBack = new Vector3(x, baseY, z + 0.36f * scale);
-        var tip = new Vector3(x + MathF.Sin(elapsed * 0.62f) * 0.05f, baseY + 1.2f * scale, z + 0.12f * scale);
+        var tip = new Vector3(x, baseY + 1.2f * scale, z + 0.12f * scale);
         var center = new Vector3(x, baseY + 0.26f * scale, z + 0.12f * scale);
+        var rotationCenter = new Vector3(x, baseY + 0.55f * scale, z + 0.12f * scale);
 
-        AddTriangle(tip, bottomLeft, center, Color.FromArgb(210, 115, 145, 255), yaw, pitch, width, height);
-        AddTriangle(tip, center, bottomRight, Color.FromArgb(220, 91, 110, 229), yaw, pitch, width, height);
-        AddTriangle(tip, bottomRight, bottomBack, Color.FromArgb(205, 72, 81, 191), yaw, pitch, width, height);
-        AddTriangle(tip, bottomBack, bottomLeft, Color.FromArgb(225, 146, 166, 255), yaw, pitch, width, height);
+        AddTriangle(tip, bottomLeft, center, Color.FromArgb(210, 115, 145, 255), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
+        AddTriangle(tip, center, bottomRight, Color.FromArgb(220, 91, 110, 229), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
+        AddTriangle(tip, bottomRight, bottomBack, Color.FromArgb(205, 72, 81, 191), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
+        AddTriangle(tip, bottomBack, bottomLeft, Color.FromArgb(225, 146, 166, 255), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
     }
 
-    private void AddRotatingCube(float x, float y, float z, float size, float angle,
-        Color topColor, float yaw, float pitch, int width, int height)
+    private void AddRotatingCube(float x, float y, float z, float size,
+        Color topColor, float rotationSpeed, float rotationPhase, float bobAmplitude, float bobSpeed)
     {
-        AddCube(x, y, z, size, size, size,
+        AddCubeMesh(x, y, z, size, size, size,
             topColor,
             Color.FromArgb(255, Math.Max(0, topColor.R - 35), Math.Max(0, topColor.G - 35), Math.Max(0, topColor.B - 25)),
             Color.FromArgb(255, Math.Max(0, topColor.R - 62), Math.Max(0, topColor.G - 48), Math.Max(0, topColor.B - 28)),
-            yaw, pitch, width, height, angle);
+            rotationSpeed: rotationSpeed,
+            rotationPhase: rotationPhase,
+            bobAmplitude: bobAmplitude,
+            bobSpeed: bobSpeed,
+            bobPhase: rotationPhase * 0.6f);
     }
 
-    private void AddCube(float x, float y, float z, float sizeX, float sizeY, float sizeZ,
+    private void AddCubeMesh(float x, float y, float z, float sizeX, float sizeY, float sizeZ,
         Color topColor, Color frontColor, Color sideColor,
-        float yaw, float pitch, int width, int height, float rotation = 0f)
+        float rotationSpeed = 0f, float rotationPhase = 0f,
+        float bobAmplitude = 0f, float bobSpeed = 0f, float bobPhase = 0f)
     {
         var x0 = x;
         var x1 = x + sizeX;
@@ -348,42 +375,70 @@ internal sealed class HeroScene3D : Control
         var z0 = z;
         var z1 = z + sizeZ;
 
-        Vector3[] vertices =
+        var vertices = new[]
         {
-            new(x0, y0, z0), new(x1, y0, z0), new(x1, y1, z0), new(x0, y1, z0),
-            new(x0, y0, z1), new(x1, y0, z1), new(x1, y1, z1), new(x0, y1, z1)
+            new Vector3(x0, y0, z0), new Vector3(x1, y0, z0), new Vector3(x1, y1, z0), new Vector3(x0, y1, z0),
+            new Vector3(x0, y0, z1), new Vector3(x1, y0, z1), new Vector3(x1, y1, z1), new Vector3(x0, y1, z1)
         };
 
-        if (Math.Abs(rotation) > 0.0001f)
-        {
-            var center = new Vector3(x + sizeX / 2f, y + sizeY / 2f, z + sizeZ / 2f);
-            for (var index = 0; index < vertices.Length; index++)
-                vertices[index] = RotateY(vertices[index], center, rotation);
-        }
-
-        AddFace(new[] { vertices[3], vertices[2], vertices[6], vertices[7] }, topColor, yaw, pitch, width, height);
-        AddFace(new[] { vertices[0], vertices[1], vertices[2], vertices[3] }, frontColor, yaw, pitch, width, height);
-        AddFace(new[] { vertices[1], vertices[5], vertices[6], vertices[2] }, sideColor, yaw, pitch, width, height);
+        var pivot = new Vector3(x + sizeX / 2f, y + sizeY / 2f, z + sizeZ / 2f);
+        AddMeshFace(new[] { vertices[3], vertices[2], vertices[6], vertices[7] }, topColor,
+            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase);
+        AddMeshFace(new[] { vertices[0], vertices[1], vertices[2], vertices[3] }, frontColor,
+            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase);
+        AddMeshFace(new[] { vertices[1], vertices[5], vertices[6], vertices[2] }, sideColor,
+            pivot, rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, bobPhase);
     }
 
     private void AddTriangle(Vector3 a, Vector3 b, Vector3 c, Color color,
-        float yaw, float pitch, int width, int height)
+        Vector3 rotationCenter, float rotationSpeed, float rotationPhase,
+        float bobAmplitude, float bobSpeed)
     {
-        AddFace(new[] { a, b, c }, color, yaw, pitch, width, height);
+        AddMeshFace(new[] { a, b, c }, color, rotationCenter,
+            rotationSpeed, rotationPhase, bobAmplitude, bobSpeed, rotationPhase);
     }
 
-    private void AddFace(Vector3[] vertices, Color color, float yaw, float pitch, int width, int height)
+    private void AddMeshFace(Vector3[] vertices, Color color, Vector3 rotationCenter,
+        float rotationSpeed, float rotationPhase, float bobAmplitude, float bobSpeed, float bobPhase)
     {
-        var projected = new PointF[vertices.Length];
-        var depthTotal = 0f;
-
-        for (var index = 0; index < vertices.Length; index++)
+        var brushKey = color.ToArgb();
+        if (!materialBrushes.TryGetValue(brushKey, out var brush))
         {
-            projected[index] = Project(vertices[index], yaw, pitch, width, height, out var depth);
+            brush = new SolidBrush(color);
+            materialBrushes.Add(brushKey, brush);
+        }
+
+        faces.Add(new RenderFace(
+            vertices,
+            new PointF[vertices.Length],
+            brush,
+            rotationCenter,
+            rotationSpeed,
+            rotationPhase,
+            bobAmplitude,
+            bobSpeed,
+            bobPhase));
+    }
+
+    private void ProjectFace(RenderFace face, float yaw, float pitch, int width, int height)
+    {
+        var depthTotal = 0f;
+        var rotation = face.RotationSpeed == 0f ? 0f : elapsed * face.RotationSpeed + face.RotationPhase;
+        var bob = face.BobAmplitude == 0f ? 0f : MathF.Sin(elapsed * face.BobSpeed + face.BobPhase) * face.BobAmplitude;
+
+        for (var index = 0; index < face.Vertices.Length; index++)
+        {
+            var vertex = face.Vertices[index];
+            if (rotation != 0f)
+                vertex = RotateY(vertex, face.RotationCenter, rotation);
+            if (bob != 0f)
+                vertex.Y += bob;
+
+            face.Points[index] = Project(vertex, yaw, pitch, width, height, out var depth);
             depthTotal += depth;
         }
 
-        faces.Add(new RenderFace(projected, depthTotal / vertices.Length, color));
+        face.Depth = depthTotal / face.Vertices.Length;
     }
 
     private PointF Project(Vector3 point, float yaw, float pitch, int width, int height, out float depth)
@@ -437,8 +492,8 @@ internal sealed class HeroScene3D : Control
             var radius = particle.Radius * (0.55f + 0.45f * MathF.Sin(elapsed * 1.3f + particle.Phase));
             var alpha = (int)(35 + 75 * (0.5f + 0.5f * MathF.Sin(elapsed * 1.7f + particle.Phase)));
 
-            using var particleBrush = new SolidBrush(Color.FromArgb(alpha, 150, 203, 255));
-            graphics.FillEllipse(particleBrush, x, y, radius * 2.2f, radius * 2.2f);
+            graphics.FillEllipse(particleBrushes[Math.Clamp(alpha / 16, 0, particleBrushes.Length - 1)],
+                x, y, radius * 2.2f, radius * 2.2f);
         }
 
         using var vignettePath = new GraphicsPath();
@@ -648,10 +703,45 @@ internal sealed class HeroScene3D : Control
         {
             animationTimer.Stop();
             animationTimer.Dispose();
+            faceEdgePen.Dispose();
+            foreach (var brush in materialBrushes.Values)
+                brush.Dispose();
+            foreach (var brush in particleBrushes)
+                brush?.Dispose();
+            foreach (var brush in starBrushes)
+                brush?.Dispose();
         }
         base.Dispose(disposing);
     }
 
-    private sealed record RenderFace(PointF[] Points, float Depth, Color Color);
+    private sealed class RenderFace
+    {
+        public Vector3[] Vertices { get; }
+        public PointF[] Points { get; }
+        public SolidBrush Brush { get; }
+        public Vector3 RotationCenter { get; }
+        public float RotationSpeed { get; }
+        public float RotationPhase { get; }
+        public float BobAmplitude { get; }
+        public float BobSpeed { get; }
+        public float BobPhase { get; }
+        public float Depth { get; set; }
+
+        public RenderFace(Vector3[] vertices, PointF[] points, SolidBrush brush,
+            Vector3 rotationCenter, float rotationSpeed, float rotationPhase,
+            float bobAmplitude, float bobSpeed, float bobPhase)
+        {
+            Vertices = vertices;
+            Points = points;
+            Brush = brush;
+            RotationCenter = rotationCenter;
+            RotationSpeed = rotationSpeed;
+            RotationPhase = rotationPhase;
+            BobAmplitude = bobAmplitude;
+            BobSpeed = bobSpeed;
+            BobPhase = bobPhase;
+        }
+    }
+
     private sealed record Particle(float X, float Y, float Radius, float Speed, float Phase);
 }
