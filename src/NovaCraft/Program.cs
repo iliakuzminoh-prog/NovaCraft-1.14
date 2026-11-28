@@ -145,9 +145,9 @@ internal sealed class MainForm : Form
     CheckBox? autoRepairInput;
     CheckBox? useDesktopResolutionInput;
     TextBox? jvmArgsInput;
-    readonly Button play = new();
-    readonly Button install = new();
-    readonly Button profileChip = new();
+    readonly AnimatedActionButton play = new();
+    readonly AnimatedActionButton install = new();
+    readonly AnimatedActionButton profileChip = new();
     readonly Label currentPageCaption = new();
     readonly ComboBox buildSelector = new();
     string pendingModSearch = "";
