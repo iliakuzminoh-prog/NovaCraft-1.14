@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Drawing.Drawing2D;
 
 namespace NovaCraft.UI;
@@ -8,7 +9,7 @@ internal sealed class PageDepthTransition : Control
     readonly Bitmap incoming;
     readonly bool forward;
     readonly System.Windows.Forms.Timer timer = new() { Interval = 16 };
-    readonly DateTime started = DateTime.UtcNow;
+    readonly Stopwatch stopwatch = Stopwatch.StartNew();
     readonly int durationMs;
     float progress;
 
@@ -111,7 +112,7 @@ internal sealed class PageDepthTransition : Control
     void Advance()
     {
         progress = Math.Clamp(
-            (float)(DateTime.UtcNow - started).TotalMilliseconds / durationMs, 0f, 1f);
+            (float)stopwatch.Elapsed.TotalMilliseconds / durationMs, 0f, 1f);
 
         Invalidate();
 
@@ -132,6 +133,7 @@ internal sealed class PageDepthTransition : Control
         if (disposing)
         {
             timer.Stop();
+            stopwatch.Stop();
             timer.Dispose();
             outgoing.Dispose();
             incoming.Dispose();
