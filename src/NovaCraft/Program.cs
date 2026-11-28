@@ -671,7 +671,7 @@ internal sealed class MainForm : Form
 
     static Button ModernButton(string text, int width, int height)
     {
-        var b = new Button
+        var b = new AnimatedActionButton
         {
             Text = text,
             Width = width,
