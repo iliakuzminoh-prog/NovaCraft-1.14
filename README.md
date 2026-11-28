@@ -9,7 +9,9 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 ### Launcher and profiles
 
 - Dark Russian-language WinForms UI with 16 feature pages grouped under five expandable left-navigation sections: Главная, Каталог, Профили и скины, Настройки, Журнал и диагностика. The existing page factories and original page indices are preserved.
+- The global app bar shows the active build, current page, offline profile chip and direct Install / Play actions; the profile chip opens profile and skin management.
 - A build selector in the top bar switches the active Minecraft instance.
+- The shared `NovaCraft.UI.AppTheme` applies a consistent dark palette, card outlines, input styling and button states to lazily-created pages.
 - Each build profile stores its own Minecraft directory, version, loader and optional exact loader version.
 - Existing Minecraft folder is preserved as the primary profile. Legacy saved build names are migrated into separate instance folders.
 - Removing a profile removes only its profile record. It does not delete the instance directory, worlds, mods or configuration files.
@@ -31,6 +33,8 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 ### Mods, packs and downloads
 
 - Modrinth mod feed and search.
+- The Home dashboard includes the bundled Minecraft banner with aspect-ratio-preserving display, clickable build tiles and a real popular-Modrinth feed with project artwork, authors, descriptions, download counts and install actions.
+- Pressing Enter in the Home search opens the Modrinth mod catalogue with the typed query.
 - Every Modrinth and CurseForge catalog card has an icon tile. Official artwork replaces a deterministic generated monogram when the source image is available; absent or failed artwork does not leave an empty square.
 - Mod downloads use the official Modrinth CDN, SHA-512 and JAR signature checks.
 - Resource-pack, shader and datapack catalog cards support verified ZIP installation. The datapack world picker is restricted to the active build's `saves` directory.
@@ -51,6 +55,7 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 ### Skins and music
 
 - Local PNG skin selection, dimension validation and preview.
+- Profile and skin cards reflow their list, details and action controls as the launcher window width changes; other older fixed-coordinate layouts still need a full DPI audit.
 - The skin preview is a software-rendered 3D Minecraft avatar with slow auto-rotation and mouse-drag rotation. It supports Classic/Slim arm width and both modern 64×64 and legacy 64×32 skin atlases.
 - Windows CI includes DrawToBitmap smoke tests for the 3D preview with both atlas formats and both arm models; this is a rendering smoke test, not a screenshot-based proof of visual parity with the concept artwork.
 - Skin source files are keyed by offline profile ID under `%LOCALAPPDATA%\\NovaCraft\\skins\\<profileId>.png`.
@@ -74,6 +79,7 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 - A full skin library, cloud upload and universal skin visibility on offline/third-party servers.
 - Windows MCI playback has not yet been manually exercised on the user's particular Windows installation; available MP3 codecs and audio-device volume support can vary.
 - 3D UI animation and verified visual parity with the eight-screen UI reference shown in the project conversation on 2026-11-27.
+- A complete 100/125/150% DPI and small-window layout audit of every page; the current UI pass improves shared styling and selected responsive layouts but does not claim that every legacy fixed-coordinate screen is fully responsive.
 - An original Java optimization mod tested on Radeon HD 6900 hardware or low-memory systems.
 - Automatic graphics-driver repair or installation.
 - Pause/resume/cancel and persistent download queue.
