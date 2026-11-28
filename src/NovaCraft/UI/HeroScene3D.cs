@@ -22,6 +22,7 @@ internal sealed class HeroScene3D : Control
     private float targetCameraX;
     private float targetCameraY;
     private float buttonHover;
+    private Form? ownerForm;
     private bool pointerInsideButton;
     private bool pointerPressed;
     private RectangleF playBounds;
@@ -89,6 +90,20 @@ internal sealed class HeroScene3D : Control
         Invalidate();
     }
 
+    protected override void OnParentChanged(EventArgs e)
+    {
+        if (ownerForm != null)
+            ownerForm.Resize -= OwnerForm_Resize;
+
+        base.OnParentChanged(e);
+
+        ownerForm = FindForm();
+        if (ownerForm != null)
+            ownerForm.Resize += OwnerForm_Resize;
+
+        UpdateAnimationState();
+    }
+
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
@@ -101,9 +116,12 @@ internal sealed class HeroScene3D : Control
         UpdateAnimationState();
     }
 
+    private void OwnerForm_Resize(object? sender, EventArgs e) => UpdateAnimationState();
+
     private void UpdateAnimationState()
     {
-        if (IsHandleCreated && Visible && !IsDisposed)
+        var formIsMinimized = ownerForm?.WindowState == FormWindowState.Minimized;
+        if (IsHandleCreated && Visible && !IsDisposed && !formIsMinimized)
             animationTimer.Start();
         else
             animationTimer.Stop();
@@ -889,6 +907,11 @@ internal sealed class HeroScene3D : Control
         {
             animationTimer.Stop();
             animationTimer.Dispose();
+            if (ownerForm != null)
+            {
+                ownerForm.Resize -= OwnerForm_Resize;
+                ownerForm = null;
+            }
             faceEdgePen.Dispose();
             foreach (var brush in materialBrushes.Values)
                 brush.Dispose();
