@@ -1008,7 +1008,7 @@ internal sealed class MainForm : Form
                 var parts = item.Name.Split(new[] { "  " }, StringSplitOptions.None);
                 var glyph = parts.Length > 1 ? parts[0] : "◆";
                 var caption = parts.Length > 1 ? parts[1] : item.Name;
-                var pageButton = new Button
+                var pageButton = new AnimatedNavigationButton
                 {
                     Text = caption,
                     Tag = pageIndex,
@@ -1257,8 +1257,19 @@ internal sealed class MainForm : Form
 
         for (var i = 0; i < navigationPages.Count; i++)
         {
-            navigationButtons[i].BackColor = i == index ? Color.FromArgb(101, 61, 235) : Color.FromArgb(22, 24, 35);
-            navigationButtons[i].ForeColor = i == index ? Color.White : Color.FromArgb(190, 198, 215);
+            if (navigationButtons[i] is AnimatedNavigationButton animatedButton)
+            {
+                animatedButton.Selected = i == index;
+            }
+            else
+            {
+                navigationButtons[i].BackColor = i == index
+                    ? Color.FromArgb(101, 61, 235)
+                    : Color.FromArgb(22, 24, 35);
+                navigationButtons[i].ForeColor = i == index
+                    ? Color.White
+                    : Color.FromArgb(190, 198, 215);
+            }
         }
     }
 
