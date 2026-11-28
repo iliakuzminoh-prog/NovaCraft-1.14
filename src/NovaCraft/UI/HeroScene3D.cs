@@ -669,13 +669,30 @@ internal sealed class HeroScene3D : Control
         using var subtitleBrush = new SolidBrush(Color.FromArgb(214, 200, 210, 235));
         using var detailBrush = new SolidBrush(Color.FromArgb(168, 160, 180, 214));
 
-        graphics.DrawString("A NEW WORLD BEGINS HERE", eyebrowFont, eyebrowBrush, left, titleY);
+        graphics.DrawString("ТВОЙ НОВЫЙ МИР НАЧИНАЕТСЯ ЗДЕСЬ", eyebrowFont, eyebrowBrush, left, titleY);
         graphics.DrawString("NovaCraft", titleFont, titleBrush, left - 1, titleY + height * 0.075f);
         graphics.DrawString("Твой мир. Твои правила.", subtitleFont, subtitleBrush, left + 2, titleY + height * 0.235f);
 
-        var chipY = height * 0.82f;
+        var chipY = height * 0.81f;
         var chipText = $"{GameVersion}  ·  {ProfileName}";
-        graphics.DrawString(chipText, detailFont, detailBrush, left + 2, chipY);
+        var chipTextSize = graphics.MeasureString(chipText, detailFont);
+        var chipBounds = new RectangleF(left, chipY - 4f, chipTextSize.Width + 38f, 22f);
+
+        using (var chipPath = RoundedPath(chipBounds, 10f))
+        using (var chipFill = new SolidBrush(Color.FromArgb(78, 20, 25, 45)))
+        using (var chipBorder = new Pen(Color.FromArgb(66, 159, 174, 218), 0.8f))
+        {
+            graphics.FillPath(chipFill, chipPath);
+            graphics.DrawPath(chipBorder, chipPath);
+        }
+
+        using (var statusGlow = new SolidBrush(Color.FromArgb(56, 103, 226, 176)))
+            graphics.FillEllipse(statusGlow, chipBounds.Left + 9f, chipBounds.Top + 7f, 8f, 8f);
+        using (var statusDot = new SolidBrush(Color.FromArgb(255, 104, 225, 178)))
+            graphics.FillEllipse(statusDot, chipBounds.Left + 11f, chipBounds.Top + 9f, 4f, 4f);
+
+        graphics.DrawString(chipText, detailFont, detailBrush,
+            chipBounds.Left + 23f, chipBounds.Top + 5.3f);
     }
 
     private void DrawPlayButton(Graphics graphics, int width, int height)
