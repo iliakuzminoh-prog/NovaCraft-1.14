@@ -100,4 +100,5 @@ jobs:
             NovaCraft-1.14-win-x64-portable.zip
             TestResults/*.trx
             tests/NovaCraft.Tests/bin/Release/net8.0-windows/NovaCraft-Hero-Preview.png
+            tests/NovaCraft.Tests/bin/Release/net8.0-windows/NovaCraft-Brand-Preview.png
           if-no-files-found: error
