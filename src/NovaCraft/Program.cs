@@ -646,7 +646,8 @@ internal sealed class MainForm : Form
             Height = height,
             BackColor = backColor,
             Margin = new Padding(7),
-            Padding = new Padding(18)
+            Padding = new Padding(18),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
         };
         RoundCorners(card, 16);
         AppTheme.StyleCard(card);
@@ -850,6 +851,7 @@ internal sealed class MainForm : Form
         profileChip.Cursor = Cursors.Hand;
         profileChip.AccessibleRole = AccessibleRole.PushButton;
         profileChip.AccessibleDescription = "Открыть управление офлайн-профилями и скинами";
+        RoundCorners(profileChip, 12);
         profileChip.Click += (_, _) => ShowNavigationPage(10);
 
         install.Text = "Установить";
@@ -863,6 +865,7 @@ internal sealed class MainForm : Form
         install.Font = new Font("Segoe UI Semibold", 8.5f, FontStyle.Bold);
         install.Cursor = Cursors.Hand;
         install.AccessibleName = "Установить выбранную версию Minecraft";
+        RoundCorners(install, 12);
         install.Click += async (_, _) => await InstallAsync();
 
         play.Text = "▶  Играть";
@@ -877,6 +880,7 @@ internal sealed class MainForm : Form
         play.Cursor = Cursors.Hand;
         play.Tag = "novacraft-primary";
         play.AccessibleName = "Запустить выбранную сборку Minecraft";
+        RoundCorners(play, 12);
         play.Click += async (_, _) => await LaunchAsync();
 
         headerLayout.Controls.Add(brand, 0, 0);
@@ -3200,6 +3204,26 @@ internal sealed class MainForm : Form
             SelectProfile();
         };
         profileCard.Controls.AddRange(new Control[] { profileList, profileName, addProfile, renameProfile, deleteProfile, uuidLabel });
+
+        void LayoutProfileCard()
+        {
+            var actionLeft = Math.Max(490, profileCard.ClientSize.Width - 138);
+            var availableLeft = Math.Max(210, actionLeft - 30);
+            var listWidth = Math.Clamp((int)(availableLeft * 0.56), 210, 330);
+            profileList.SetBounds(18, 48, listWidth, 130);
+
+            var detailLeft = profileList.Right + 16;
+            var detailWidth = Math.Max(130, actionLeft - detailLeft - 12);
+            profileName.SetBounds(detailLeft, 48, detailWidth, 36);
+            uuidLabel.SetBounds(detailLeft, 94, detailWidth, 68);
+
+            addProfile.SetBounds(actionLeft, 47, 120, 38);
+            renameProfile.SetBounds(actionLeft, 91, 120, 38);
+            deleteProfile.SetBounds(actionLeft, 135, 120, 38);
+        }
+        profileCard.Resize += (_, _) => LayoutProfileCard();
+        LayoutProfileCard();
+
         p.Controls.Add(profileCard);
 
         var skinCard = ModernCard(860, 305, "ЛОКАЛЬНЫЙ СКИН", Color.FromArgb(22, 25, 39));
@@ -3309,13 +3333,29 @@ internal sealed class MainForm : Form
         p.Controls.Add(skinCard);
         skinCard.Controls.AddRange(new Control[] { preview, skinStatus, choose, bridge, model, openFolder });
 
+        void LayoutSkinCard()
+        {
+            var availableWidth = Math.Max(500, skinCard.ClientSize.Width);
+            var textWidth = Math.Max(220, availableWidth - 286);
+            skinStatus.SetBounds(260, 55, textWidth, 70);
+            choose.SetBounds(260, 140, 160, 40);
+            bridge.SetBounds(Math.Max(430, availableWidth - 240), 140, 210, 40);
+            model.SetBounds(260, 195, 190, 36);
+            openFolder.SetBounds(260, 240, 190, 38);
+        }
+        skinCard.Resize += (_, _) => LayoutSkinCard();
+        LayoutSkinCard();
+
         var info = new Label
         {
             Text = "Важно: сам Minecraft Java не умеет показывать произвольный локальный PNG в обычном offline-профиле. Поэтому NovaCraft использует официальный для этой задачи механизм CustomSkinLoader: он читает LocalSkin/<USERNAME>.png. Другие игроки увидят такой скин только если их клиент тоже поддерживает этот механизм.",
             AutoSize = false, Size = new Size(850, 90), Location = new Point(24, 645),
-            ForeColor = Color.FromArgb(145, 155, 178)
+            ForeColor = Color.FromArgb(145, 155, 178),
+            Anchor = AnchorStyles.Top | AnchorStyles.Left | AnchorStyles.Right
         };
         p.Controls.Add(info);
+        p.Resize += (_, _) => info.Width = Math.Max(280, p.ClientSize.Width - info.Left - 24);
+        info.Width = Math.Max(280, p.ClientSize.Width - info.Left - 24);
         return p;
     }
 
