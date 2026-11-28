@@ -2412,7 +2412,7 @@ internal sealed class MainForm : Form
                 {
                     var card = CreateProjectCard(hit!, out var picture, projectType);
                     results.Controls.Add(card);
-                    iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
+                    iconTasks.Add(LoadProjectIconAsync(picture, SelectProjectArtworkUrl(hit), gate));
                 }
 
                 offset += hits.Count;
@@ -4613,16 +4613,27 @@ internal sealed class MainForm : Form
     }
 
 
-    static Bitmap CreateProjectFallbackIcon(string title, string projectType, int size = 96)
+    internal static Bitmap CreateProjectFallbackIcon(string title, string projectType, int size = 96)
     {
+        size = Math.Clamp(size, 48, 256);
         var safeTitle = string.IsNullOrWhiteSpace(title) ? "Minecraft" : title.Trim();
+        if (safeTitle.Length > 96)
+            safeTitle = safeTitle[..96];
+
         var digest = SHA256.HashData(Encoding.UTF8.GetBytes(safeTitle + "|" + projectType));
         var first = Color.FromArgb(255, 66 + digest[0] % 58, 48 + digest[1] % 58, 116 + digest[2] % 72);
-        var second = Color.FromArgb(255, 18 + digest[3] % 22, 23 + digest[4] % 25, 42 + digest[5] % 30);
+        var second = Color.FromArgb(255, 12 + digest[3] % 20, 17 + digest[4] % 24, 34 + digest[5] % 28);
+
+        static Color Shade(Color color, float factor) => Color.FromArgb(
+            255,
+            Math.Clamp((int)(color.R * factor), 0, 255),
+            Math.Clamp((int)(color.G * factor), 0, 255),
+            Math.Clamp((int)(color.B * factor), 0, 255));
 
         var bitmap = new Bitmap(size, size);
         using var graphics = Graphics.FromImage(bitmap);
         graphics.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        graphics.PixelOffsetMode = System.Drawing.Drawing2D.PixelOffsetMode.HighQuality;
         graphics.Clear(second);
 
         using (var background = new System.Drawing.Drawing2D.LinearGradientBrush(
@@ -4631,29 +4642,108 @@ internal sealed class MainForm : Form
             graphics.FillRectangle(background, 0, 0, size, size);
         }
 
-        using (var glow = new SolidBrush(Color.FromArgb(30, 255, 255, 255)))
-            graphics.FillEllipse(glow, (int)(size * 0.42), -(int)(size * 0.18), (int)(size * 0.82), (int)(size * 0.82));
+        using (var glow = new SolidBrush(Color.FromArgb(38, 226, 222, 255)))
+            graphics.FillEllipse(glow, (int)(size * 0.40f), -(int)(size * 0.22f), (int)(size * 0.86f), (int)(size * 0.86f));
+
+        using (var grid = new Pen(Color.FromArgb(16, 230, 235, 255), Math.Max(0.5f, size / 160f)))
+        {
+            for (var index = 1; index < 6; index++)
+            {
+                var position = size * index / 6f;
+                graphics.DrawLine(grid, position, 0, position, size);
+                graphics.DrawLine(grid, 0, position, size, position);
+            }
+        }
+
+        // Isometric voxel emblem: three independently shaded faces give the fallback
+        // a real project mark instead of a bare pair of letters.
+        var centerX = size * 0.5f;
+        var unit = size * 0.205f;
+        var topY = size * 0.105f;
+        var midY = topY + unit * 0.62f;
+        var centerY = topY + unit * 1.24f;
+        var bottomY = topY + unit * 2.36f;
+
+        PointF[] topFace =
+        {
+            new(centerX, topY),
+            new(centerX + unit, midY),
+            new(centerX, centerY),
+            new(centerX - unit, midY)
+        };
+        PointF[] leftFace =
+        {
+            new(centerX - unit, midY),
+            new(centerX, centerY),
+            new(centerX, bottomY),
+            new(centerX - unit, bottomY - unit * 0.62f)
+        };
+        PointF[] rightFace =
+        {
+            new(centerX, centerY),
+            new(centerX + unit, midY),
+            new(centerX + unit, bottomY - unit * 0.62f),
+            new(centerX, bottomY)
+        };
+
+        using (var topBrush = new SolidBrush(Shade(first, 1.42f)))
+        using (var leftBrush = new SolidBrush(Shade(first, 0.92f)))
+        using (var rightBrush = new SolidBrush(Shade(first, 0.62f)))
+        using (var edge = new Pen(Color.FromArgb(188, 239, 242, 255), Math.Max(1f, size / 80f)))
+        {
+            graphics.FillPolygon(leftBrush, leftFace);
+            graphics.FillPolygon(rightBrush, rightFace);
+            graphics.FillPolygon(topBrush, topFace);
+            graphics.DrawPolygon(edge, leftFace);
+            graphics.DrawPolygon(edge, rightFace);
+            graphics.DrawPolygon(edge, topFace);
+        }
+
+        // Small deterministic block lights make two projects with similar initials
+        // remain visually distinct while keeping the icon fully local.
+        for (var index = 0; index < 4; index++)
+        {
+            var side = index % 2 == 0 ? -1f : 1f;
+            var x = centerX + side * (size * (0.31f + (digest[8 + index] % 8) / 100f));
+            var y = size * (0.27f + (digest[12 + index] % 22) / 100f);
+            var block = Math.Max(2f, size * (0.035f + (digest[16 + index] % 4) / 150f));
+            var alpha = 90 + digest[20 + index] % 100;
+            using var blockBrush = new SolidBrush(Color.FromArgb(alpha, Shade(first, 1.2f)));
+            graphics.FillRectangle(blockBrush, x, y, block, block);
+        }
 
         var words = safeTitle.Split(new[] { ' ', '-', '_', '.', ':' }, StringSplitOptions.RemoveEmptyEntries);
-        string initials;
-        if (words.Length >= 2)
-            initials = string.Concat(words.Take(2).Select(word => char.ToUpperInvariant(word[0])));
-        else
-            initials = safeTitle.Length >= 2
-                ? safeTitle[..2].ToUpperInvariant()
-                : safeTitle.ToUpperInvariant();
-
+        var initials = words.Length >= 2
+            ? string.Concat(words.Take(2).Select(word => char.ToUpperInvariant(word[0])))
+            : safeTitle.Length >= 2 ? safeTitle[..2].ToUpperInvariant() : safeTitle.ToUpperInvariant();
         if (string.IsNullOrWhiteSpace(initials))
             initials = "MC";
 
-        using (var font = new Font("Segoe UI Semibold", Math.Max(16f, size * 0.34f), FontStyle.Bold, GraphicsUnit.Pixel))
-        using (var brush = new SolidBrush(Color.FromArgb(245, 255, 255, 255)))
-        using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+        var label = projectType switch
         {
-            graphics.DrawString(initials, font, brush, new RectangleF(4, 4, size - 8, size - 8), format);
+            "shader" => "SHADER",
+            "resourcepack" => "RESOURCE",
+            "datapack" => "DATA",
+            "modpack" => "PACK",
+            _ => "MOD"
+        };
+        using (var tagFont = new Font("Segoe UI Semibold", Math.Max(6.5f, size * 0.075f), FontStyle.Bold, GraphicsUnit.Pixel))
+        using (var tagBrush = new SolidBrush(Color.FromArgb(188, 224, 229, 247)))
+        {
+            graphics.DrawString(label, tagFont, tagBrush, new PointF(size * 0.09f, size * 0.055f));
         }
 
-        using (var border = new Pen(Color.FromArgb(70, 255, 255, 255), Math.Max(1f, size / 64f)))
+        var badgeBounds = new RectangleF(size * 0.18f, size * 0.715f, size * 0.64f, size * 0.235f);
+        using (var badge = new SolidBrush(Color.FromArgb(158, 8, 11, 24)))
+        using (var font = new Font("Segoe UI Semibold", Math.Max(11f, size * 0.19f), FontStyle.Bold, GraphicsUnit.Pixel))
+        using (var brush = new SolidBrush(Color.FromArgb(248, 255, 255, 255)))
+        using (var format = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center })
+        {
+            graphics.FillRectangle(badge, badgeBounds);
+            graphics.DrawString(initials, font, brush, badgeBounds, format);
+        }
+
+        using (var border = new Pen(Color.FromArgb(82, 255, 255, 255), Math.Max(1f, size / 64f)))
             graphics.DrawRectangle(border, 1, 1, size - 3, size - 3);
 
         return bitmap;
@@ -4729,11 +4819,149 @@ internal sealed class MainForm : Form
         }
     }
 
+    internal static string? SelectProjectArtworkUrl(JsonNode? hit)
+    {
+        if (hit is null)
+            return null;
+
+        var candidates = new List<string?>
+        {
+            hit["icon_url"]?.ToString(),
+            hit["raw_icon_url"]?.ToString(),
+            hit["featured_gallery"]?.ToString()
+        };
+
+        if (hit["gallery"] is JsonArray gallery)
+        {
+            foreach (var item in gallery.Take(8))
+            {
+                var candidate = item is JsonObject imageObject
+                    ? imageObject["url"]?.ToString()
+                    : item?.ToString();
+                candidates.Add(candidate);
+            }
+        }
+
+        foreach (var candidate in candidates)
+        {
+            if (string.IsNullOrWhiteSpace(candidate) || candidate.Length > 2048 ||
+                !Uri.TryCreate(candidate, UriKind.Absolute, out var uri))
+                continue;
+
+            if (uri.Scheme == Uri.UriSchemeHttps &&
+                uri.Port == 443 &&
+                string.IsNullOrEmpty(uri.UserInfo) &&
+                (string.Equals(uri.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase) ||
+                 string.Equals(uri.Host, "images.modrinth.com", StringComparison.OrdinalIgnoreCase)))
+                return uri.AbsoluteUri;
+        }
+
+        return null;
+    }
+
+    static string ProjectIconCacheDirectory => Path.Combine(
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+        "NovaCraft", "cache", "project-icons");
+
+    static Bitmap? LoadCachedProjectIcon(string cachePath)
+    {
+        try
+        {
+            var info = new FileInfo(cachePath);
+            if (!info.Exists || info.Length <= 0 || info.Length > 256 * 1024)
+                return null;
+
+            using var stream = new FileStream(cachePath, FileMode.Open, FileAccess.Read, FileShare.Read);
+            using var source = Image.FromStream(stream, useEmbeddedColorManagement: false, validateImageData: true);
+            return new Bitmap(source);
+        }
+        catch
+        {
+            try { File.Delete(cachePath); } catch { }
+            return null;
+        }
+    }
+
+    static void StoreProjectIconCache(string cachePath, byte[] bytes)
+    {
+        if (bytes.Length is <= 0 or > 256 * 1024)
+            return;
+
+        var directory = Path.GetDirectoryName(cachePath);
+        if (string.IsNullOrWhiteSpace(directory))
+            return;
+
+        string? temporaryPath = null;
+        try
+        {
+            Directory.CreateDirectory(directory);
+            temporaryPath = cachePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+            File.WriteAllBytes(temporaryPath, bytes);
+            File.Move(temporaryPath, cachePath, overwrite: true);
+
+            var cachedFiles = Directory.GetFiles(directory, "*.img");
+            if (cachedFiles.Length > 256)
+            {
+                var removeCount = cachedFiles.Length - 256;
+                foreach (var oldFile in cachedFiles
+                    .OrderBy(File.GetLastWriteTimeUtc)
+                    .Take(removeCount))
+                {
+                    try { File.Delete(oldFile); } catch { }
+                }
+            }
+        }
+        catch
+        {
+            // Icon caching is optional and must never prevent the image from displaying.
+        }
+        finally
+        {
+            if (temporaryPath is not null)
+            {
+                try
+                {
+                    if (File.Exists(temporaryPath))
+                        File.Delete(temporaryPath);
+                }
+                catch { }
+            }
+        }
+    }
+
+    static void SetProjectIcon(PictureBox picture, Bitmap bitmap)
+    {
+        if (picture.IsDisposed)
+        {
+            bitmap.Dispose();
+            return;
+        }
+
+        var previous = picture.Image;
+        picture.Image = bitmap;
+        if (previous is not null && !ReferenceEquals(previous, bitmap))
+            previous.Dispose();
+        picture.Controls.Clear();
+    }
+
     async Task LoadProjectIconAsync(PictureBox picture, string? iconUrl, SemaphoreSlim gate)
     {
-        if (string.IsNullOrWhiteSpace(iconUrl) || !Uri.TryCreate(iconUrl, UriKind.Absolute, out var uri) ||
-            uri.Scheme != "https" || (uri.Host != "cdn.modrinth.com" && uri.Host != "images.modrinth.com"))
+        if (string.IsNullOrWhiteSpace(iconUrl) || iconUrl.Length > 2048 ||
+            !Uri.TryCreate(iconUrl, UriKind.Absolute, out var uri) ||
+            uri.Scheme != Uri.UriSchemeHttps || uri.Port != 443 ||
+            !string.IsNullOrEmpty(uri.UserInfo) ||
+            (uri.Host != "cdn.modrinth.com" && uri.Host != "images.modrinth.com"))
             return;
+
+        var cacheKey = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(uri.AbsoluteUri))).ToLowerInvariant();
+        var cachePath = Path.Combine(ProjectIconCacheDirectory, cacheKey + ".img");
+        var cached = LoadCachedProjectIcon(cachePath);
+        if (cached is not null)
+        {
+            SetProjectIcon(picture, cached);
+            return;
+        }
+
         await gate.WaitAsync();
         try
         {
@@ -4743,25 +4971,40 @@ internal sealed class MainForm : Form
             var finalUri = response.RequestMessage?.RequestUri;
             if (finalUri == null ||
                 finalUri.Scheme != Uri.UriSchemeHttps ||
+                finalUri.Port != 443 ||
+                !string.IsNullOrEmpty(finalUri.UserInfo) ||
                 (finalUri.Host != "cdn.modrinth.com" && finalUri.Host != "images.modrinth.com"))
                 return;
 
             if (response.Content.Headers.ContentType?.MediaType?.StartsWith("image/", StringComparison.OrdinalIgnoreCase) != true)
                 return;
-            if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024)) return;
+            if (response.Content.Headers.ContentLength is long length && (length <= 0 || length > 5 * 1024 * 1024))
+                return;
 
             var bytes = await ReadBoundedContentAsync(response.Content, 5 * 1024 * 1024);
-            if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024) return;
+            if (bytes.Length == 0 || bytes.Length > 5 * 1024 * 1024)
+                return;
+
             using var ms = new MemoryStream(bytes);
-            using var source = Image.FromStream(ms);
+            using var source = Image.FromStream(ms, useEmbeddedColorManagement: false, validateImageData: true);
             var bitmap = new Bitmap(source);
-            if (picture.IsDisposed) { bitmap.Dispose(); return; }
-            picture.Image?.Dispose();
-            picture.Image = bitmap;
-            picture.Controls.Clear();
+            if (picture.IsDisposed)
+            {
+                bitmap.Dispose();
+                return;
+            }
+
+            SetProjectIcon(picture, bitmap);
+            StoreProjectIconCache(cachePath, bytes);
         }
-        catch { /* Отсутствующая или недоступная иконка не ломает каталог. */ }
-        finally { gate.Release(); }
+        catch
+        {
+            // An absent icon or unavailable CDN keeps the generated voxel emblem.
+        }
+        finally
+        {
+            gate.Release();
+        }
     }
 
     async Task LoadPopularModsAsync()
@@ -4781,7 +5024,7 @@ internal sealed class MainForm : Form
             {
                 var card = CreateProjectCard(hit!, out var picture, "mod");
                 popularFeed.Controls.Add(card);
-                iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
+                iconTasks.Add(LoadProjectIconAsync(picture, SelectProjectArtworkUrl(hit), gate));
             }
             popularFeed.ResumeLayout();
             await Task.WhenAll(iconTasks);
@@ -4847,7 +5090,7 @@ internal sealed class MainForm : Form
             {
                 var card = CreateProjectCard(hit!, out var picture, "mod");
                 modCards.Controls.Add(card);
-                iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
+                iconTasks.Add(LoadProjectIconAsync(picture, SelectProjectArtworkUrl(hit), gate));
             }
 
             modFeedOffset = requestedOffset + hits.Count;
@@ -4913,7 +5156,7 @@ internal sealed class MainForm : Form
             {
                 var card = CreateProjectCard(hit!, out var picture, projectType);
                 target.Controls.Add(card);
-                iconTasks.Add(LoadProjectIconAsync(picture, hit?["icon_url"]?.ToString(), gate));
+                iconTasks.Add(LoadProjectIconAsync(picture, SelectProjectArtworkUrl(hit), gate));
             }
             target.ResumeLayout();
             await Task.WhenAll(iconTasks);
