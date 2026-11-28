@@ -83,7 +83,7 @@ internal sealed class PageDepthTransition : Control
 
         graphics.DrawImage(
             image,
-            new RectangleF(0, 0, width, height),
+            new Rectangle(0, 0, width, height),
             0, 0, image.Width, image.Height,
             GraphicsUnit.Pixel,
             attributes);
