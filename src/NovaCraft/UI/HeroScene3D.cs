@@ -470,18 +470,6 @@ internal sealed class HeroScene3D : Control
             anchorY - rotatedY * perspective);
     }
 
-    private void DrawFace(Graphics graphics, RenderFace face)
-    {
-        using var brush = new SolidBrush(face.Color);
-        graphics.FillPolygon(brush, face.Points);
-
-        if (face.Points.Length >= 3)
-        {
-            using var edge = new Pen(Color.FromArgb(36, 218, 228, 244), 0.7f);
-            graphics.DrawPolygon(edge, face.Points);
-        }
-    }
-
     private void DrawAtmosphere(Graphics graphics, int width, int height)
     {
         foreach (var particle in particles)
@@ -682,13 +670,6 @@ internal sealed class HeroScene3D : Control
             (int)(from.R + (to.R - from.R) * amount),
             (int)(from.G + (to.G - from.G) * amount),
             (int)(from.B + (to.B - from.B) * amount));
-    }
-
-    private static GraphicsPath CreateEllipsePath(RectangleF bounds)
-    {
-        var path = new GraphicsPath();
-        path.AddEllipse(bounds);
-        return path;
     }
 
     private static float UnitHash(float value)
