@@ -22,7 +22,8 @@ public sealed class AnimatedActionButtonTests
         button.CreateControl();
 
         using var frame = new Bitmap(width, height);
-        button.DrawToBitmap(frame, new Rectangle(0, 0, width, height));
+        using (var graphics = Graphics.FromImage(frame))
+            button.RenderPreview(graphics);
 
         var colors = new HashSet<int>();
         for (var y = 0; y < height; y += 3)
