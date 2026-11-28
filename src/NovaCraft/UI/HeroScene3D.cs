@@ -267,11 +267,11 @@ internal sealed class HeroScene3D : Control
         }
 
         using var haze = new LinearGradientBrush(
-            new Rectangle(0, (int)(height * 0.56f), width, Math.Max(1, (int)(height * 0.30f))),
+            new Rectangle(0, (int)(height * 0.54f), width, Math.Max(1, (int)(height * 0.46f))),
             Color.FromArgb(0, 242, 154, 153),
-            Color.FromArgb(36, 159, 117, 184),
+            Color.FromArgb(29, 159, 117, 184),
             LinearGradientMode.Vertical);
-        graphics.FillRectangle(haze, 0, height * 0.56f, width, height * 0.30f);
+        graphics.FillRectangle(haze, 0, height * 0.54f, width, height * 0.46f);
     }
 
     private void BuildWorldMesh()
