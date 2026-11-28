@@ -1519,20 +1519,383 @@ internal sealed class MainForm : Form
     {
         var p = new TabPage("Производительность") { BackColor = Color.FromArgb(13,15,25), Padding = new Padding(24), AutoScroll = true };
         p.Controls.Add(new Label { Text = "ПРОИЗВОДИТЕЛЬНОСТЬ", AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 25, FontStyle.Bold), Location = new Point(24,18) });
-        p.Controls.Add(new Label { Text = "Готовые профили без опасных твиков Windows и без фоновых программ.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) });
-        var active = new Label { Text = "Текущий профиль: " + (settings.FpsBoost ? "FPS BOOST" : "Сбалансированный"), AutoSize = true, ForeColor = Color.White, Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold), Location = new Point(28,105) };
-        p.Controls.Add(active);
-        var balanced = ModernCard(410, 180, "СБАЛАНСИРОВАННЫЙ", Color.FromArgb(23,27,42)); balanced.Location = new Point(24,145);
-        balanced.Controls.Add(new Label { Text = "Для обычной игры и слабых ПК.\nПамять: 2 ГБ\nFPS Boost: выключен", AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50) });
-        var b1 = ModernButton("Применить", 130, 38); b1.Location = new Point(18,125);
-        b1.Click += (_,_) => { settings.MaximumRamMb = 2048; settings.FpsBoost = false; SettingsService.Save(settings); active.Text = "Текущий профиль: Сбалансированный"; status.Text = "Профиль применён"; }; balanced.Controls.Add(b1);
-        var boostCard = ModernCard(410, 180, "FPS BOOST", Color.FromArgb(27,25,45)); boostCard.Location = new Point(455,145);
-        boostCard.Controls.Add(new Label { Text = "Для максимальной отзывчивости.\nПамять: 3 ГБ\nFPS Boost: включен", AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50) });
-        var b2 = ModernButton("Включить", 130, 38); b2.Location = new Point(18,125);
-        b2.Click += (_,_) => { settings.MaximumRamMb = 3072; settings.FpsBoost = true; SettingsService.Save(settings); active.Text = "Текущий профиль: FPS BOOST"; status.Text = "FPS Boost включён"; }; boostCard.Controls.Add(b2);
-        var safe = ModernCard(841, 175, "БЕЗОПАСНОСТЬ", Color.FromArgb(22,25,39)); safe.Location = new Point(24,345);
-        safe.Controls.Add(new Label { Text = "NovaCraft не меняет реестр, не отключает защиту Windows и не запускает скрытые процессы.\nПрофиль меняет только параметры запуска Minecraft.", AutoSize = true, ForeColor = Color.FromArgb(181,190,207), Location = new Point(18,52) });
-        p.Controls.AddRange(new Control[] { balanced, boostCard, safe }); return p;
+        p.Controls.Add(new Label { Text = "Реальные клиентские оптимизации вместо обещаний нереального прироста.", AutoSize = true, ForeColor = Color.FromArgb(151,161,183), Location = new Point(27,62) });
+
+        var active = new Label
+        {
+            Text = "Текущий режим памяти: " + (settings.FpsBoost ? "3 ГБ + JVM-флаги" : "2 ГБ"),
+            AutoSize = true,
+            ForeColor = Color.White,
+            Font = new Font("Segoe UI Semibold", 12, FontStyle.Bold),
+            Location = new Point(28,105)
+        };
+
+        var balanced = ModernCard(410, 170, "ЛИМИТ ПАМЯТИ · 2 ГБ", Color.FromArgb(23,27,42));
+        balanced.Location = new Point(24,145);
+        balanced.Controls.Add(new Label
+        {
+            Text = "Стандартный лимит Java.\nСам по себе не повышает FPS, но обычно безопаснее для слабого ПК.",
+            AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50)
+        });
+        var b1 = ModernButton("Выбрать 2 ГБ", 140, 38);
+        b1.Location = new Point(18,122);
+        b1.Click += (_,_) =>
+        {
+            settings.MaximumRamMb = 2048;
+            settings.FpsBoost = false;
+            SettingsService.Save(settings);
+            active.Text = "Текущий режим памяти: 2 ГБ";
+            status.Text = "Лимит Java установлен на 2 ГБ";
+        };
+        balanced.Controls.Add(b1);
+
+        var boostCard = ModernCard(410, 170, "ЛИМИТ ПАМЯТИ · 3 ГБ", Color.FromArgb(27,25,45));
+        boostCard.Location = new Point(455,145);
+        boostCard.Controls.Add(new Label
+        {
+            Text = "Только при достаточном запасе ОЗУ.\nЭто не ускоритель FPS; на ПК с нехваткой памяти может вызвать тормоза.",
+            AutoSize = true, ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50)
+        });
+        var b2 = ModernButton("Выбрать 3 ГБ", 140, 38);
+        b2.Location = new Point(18,122);
+        b2.Click += (_,_) =>
+        {
+            settings.MaximumRamMb = 3072;
+            settings.FpsBoost = true;
+            SettingsService.Save(settings);
+            active.Text = "Текущий режим памяти: 3 ГБ + JVM-флаги";
+            status.Text = "Лимит Java установлен на 3 ГБ; прирост FPS не гарантирован";
+        };
+        boostCard.Controls.Add(b2);
+
+        var profile = ModernCard(841, 245, "FABRIC 1.21.11 · НАБОР ОПТИМИЗАЦИИ ДЛЯ СЛАБОГО ПК", Color.FromArgb(21,27,43));
+        profile.Location = new Point(24,330);
+        profile.Controls.Add(new Label
+        {
+            Text = "Установка проверенных клиентских модов: Lithium, FerriteCore, Entity Culling и ImmediatelyFast. " +
+                   "Они не требуют установки на сервер для обычного подключения, но совместимость с каждым отдельным модпаком не гарантируется. " +
+                   "Файлы берутся с Modrinth CDN и проверяются по SHA-512. Старые версии тех же модов будут сохранены в резервную папку.",
+            AutoSize = true, MaximumSize = new Size(800, 0), ForeColor = Color.FromArgb(190,198,215), Location = new Point(18,50)
+        });
+        var installProfile = ModernButton("Установить оптимизации Fabric 1.21.11", 300, 40);
+        installProfile.Location = new Point(18,170);
+        installProfile.Click += async (_,_) => await InstallRecommendedPerformanceProfileAsync();
+        profile.Controls.Add(installProfile);
+
+        var compatibility = ModernCard(841, 160, "ВАЖНО ДЛЯ ТВОЕЙ ВИДЕОКАРТЫ", Color.FromArgb(22,25,39));
+        compatibility.Location = new Point(24,590);
+        compatibility.Controls.Add(new Label
+        {
+            Text = "Sodium намеренно не включён: Radeon HD 6900 старше официально поддерживаемого AMD HD 7000/GCN 1, " +
+                   "а Sodium требует OpenGL 4.5+. У HD 6900 официально заявлен OpenGL 4.4 и драйверы переведены в legacy. " +
+                   "Поэтому установка Sodium вслепую может закончиться отказом запуска. Набор выше улучшает отдельные части клиента, " +
+                   "но не ускорит чужой серверный TPS, пинг и не даст прирост в 800 раз.",
+            AutoSize = true, MaximumSize = new Size(800, 0), ForeColor = Color.FromArgb(181,190,207), Location = new Point(18,50)
+        });
+
+        p.Controls.AddRange(new Control[] { active, balanced, boostCard, profile, compatibility });
+        return p;
+    }
+
+    async Task InstallRecommendedPerformanceProfileAsync()
+    {
+        var busy = false;
+        string? stagingDirectory = null;
+        try
+        {
+            var selectedGame = version.SelectedItem?.ToString();
+            if (!string.Equals(selectedGame, "1.21.11", StringComparison.Ordinal))
+                throw new InvalidOperationException("Сначала выбери Minecraft 1.21.11 на главной странице.");
+            var selectedLoader = gameLoader.SelectedItem?.ToString();
+            if (!string.Equals(selectedLoader, "Fabric", StringComparison.OrdinalIgnoreCase))
+                throw new InvalidOperationException("Этот набор рассчитан только на Fabric. Выбери Fabric в загрузчике.");
+
+            settings.LastVersion = selectedGame;
+            settings.ModLoader = "fabric";
+            SettingsService.Save(settings);
+
+            var gameFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { selectedGame }));
+            var loaderFilter = Uri.EscapeDataString(JsonSerializer.Serialize(new[] { "fabric" }));
+            var roots = new (string Slug, string Title)[]
+            {
+                ("lithium", "Lithium"),
+                ("ferrite-core", "FerriteCore"),
+                ("entityculling", "Entity Culling"),
+                ("immediatelyfast", "ImmediatelyFast")
+            };
+
+            var files = new List<(string ProjectId, string Title, JsonNode File, string Sha512)>();
+            var projects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var filenames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            void AddVersionFile(JsonNode? modVersion, string title)
+            {
+                if (modVersion == null)
+                    throw new InvalidDataException("Modrinth не вернул совместимую версию для " + title + ".");
+
+                var gameVersions = modVersion["game_versions"]?.AsArray();
+                if (gameVersions == null || !gameVersions.Any(x => string.Equals(x?.ToString(), selectedGame, StringComparison.Ordinal)))
+                    throw new InvalidDataException(title + " не подтверждает совместимость с Minecraft " + selectedGame + ".");
+
+                var loaders = modVersion["loaders"]?.AsArray();
+                if (loaders == null || !loaders.Any(x => string.Equals(x?.ToString(), "fabric", StringComparison.OrdinalIgnoreCase)))
+                    throw new InvalidDataException(title + " не подтверждает совместимость с Fabric.");
+
+                if (string.Equals(modVersion["environment"]?["client"]?.ToString(), "unsupported", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException(title + " не поддерживает клиентскую установку.");
+
+                var projectId = modVersion["project_id"]?.ToString();
+                if (string.IsNullOrWhiteSpace(projectId))
+                    throw new InvalidDataException("У " + title + " отсутствует ID проекта Modrinth.");
+                if (!projects.Add(projectId))
+                    return;
+
+                var file = modVersion["files"]?.AsArray()?.FirstOrDefault(x => x?["primary"]?.GetValue<bool>() == true)
+                           ?? modVersion["files"]?.AsArray()?.FirstOrDefault()
+                           ?? throw new InvalidDataException("У " + title + " отсутствует основной JAR-файл.");
+
+                var filename = file["filename"]?.ToString() ?? "";
+                if (string.IsNullOrWhiteSpace(filename) ||
+                    !string.Equals(filename, Path.GetFileName(filename), StringComparison.Ordinal) ||
+                    !filename.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("Modrinth вернул некорректное имя JAR для " + title + ".");
+                if (!filenames.Add(filename))
+                    throw new InvalidDataException("Два проекта Modrinth вернули одинаковое имя файла: " + filename + ".");
+
+                var sha512 = file["hashes"]?["sha512"]?.ToString();
+                if (string.IsNullOrWhiteSpace(sha512) || sha512.Length != 128 || !sha512.All(Uri.IsHexDigit))
+                    throw new InvalidDataException("У " + title + " отсутствует корректный SHA-512.");
+
+                var download = file["url"]?.ToString();
+                if (!Uri.TryCreate(download, UriKind.Absolute, out var downloadUri) ||
+                    downloadUri.Scheme != Uri.UriSchemeHttps ||
+                    !string.Equals(downloadUri.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase))
+                    throw new SecurityException("Загрузка разрешена только с официального HTTPS CDN Modrinth.");
+
+                files.Add((projectId, title, file, sha512));
+            }
+
+            SetBusy(true, "Проверяю совместимые версии оптимизационных модов…");
+            busy = true;
+
+            foreach (var root in roots)
+            {
+                var endpoint = "https://api.modrinth.com/v2/project/" + Uri.EscapeDataString(root.Slug) +
+                    "/version?game_versions=" + gameFilter + "&loaders=" + loaderFilter +
+                    "&version_type=release&include_changelog=false";
+                var versions = JsonNode.Parse(await http.GetStringAsync(endpoint))?.AsArray();
+                var selectedVersion = versions?.FirstOrDefault();
+                AddVersionFile(selectedVersion, root.Title);
+
+                var dependencies = selectedVersion?["dependencies"]?.AsArray() ?? new JsonArray();
+                foreach (var dependency in dependencies)
+                {
+                    if (!string.Equals(dependency?["dependency_type"]?.ToString(), "required", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var versionId = dependency?["version_id"]?.ToString();
+                    var dependencyProjectId = dependency?["project_id"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(versionId) && string.IsNullOrWhiteSpace(dependencyProjectId))
+                        continue;
+
+                    JsonNode? dependencyVersion = null;
+                    if (!string.IsNullOrWhiteSpace(versionId))
+                    {
+                        var dependencyUrl = "https://api.modrinth.com/v2/version/" + Uri.EscapeDataString(versionId);
+                        dependencyVersion = JsonNode.Parse(await http.GetStringAsync(dependencyUrl));
+                    }
+                    else if (!string.IsNullOrWhiteSpace(dependencyProjectId))
+                    {
+                        var dependencyUrl = "https://api.modrinth.com/v2/project/" + Uri.EscapeDataString(dependencyProjectId) +
+                            "/version?game_versions=" + gameFilter + "&loaders=" + loaderFilter +
+                            "&version_type=release&include_changelog=false";
+                        dependencyVersion = JsonNode.Parse(await http.GetStringAsync(dependencyUrl))?.AsArray()?.FirstOrDefault();
+                    }
+
+                    AddVersionFile(dependencyVersion, dependencyProjectId ?? "Обязательная зависимость");
+                }
+            }
+
+            if (files.Count == 0)
+                throw new InvalidDataException("Modrinth не вернул ни одного файла для установки.");
+
+            var summary = string.Join(Environment.NewLine, files.Select(x =>
+                "• " + x.Title + " — " + (x.File["filename"]?.ToString() ?? "JAR")));
+            var approval = MessageBox.Show(
+                "Будут установлены клиентские оптимизации:" + Environment.NewLine + summary +
+                Environment.NewLine + Environment.NewLine +
+                "Minecraft: 1.21.11 · Fabric" +
+                "\nИсточник: официальный Modrinth CDN" +
+                "\nПроверка: SHA-512 и Fabric mod ID" +
+                "\nСуществующие версии этих же модов будут перенесены в резервную папку вне mods." +
+                "\n\nПродолжить?",
+                "NovaCraft — оптимизация Fabric",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Information);
+            if (approval != DialogResult.Yes)
+                return;
+
+            var modsDirectory = Path.Combine(settings.GameDirectory, "mods");
+            Directory.CreateDirectory(modsDirectory);
+            stagingDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NovaCraft", "staging", "performance-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(stagingDirectory);
+
+            var staged = new List<(string Path, string Filename, string ModId, string Sha512)>();
+            foreach (var entry in files)
+            {
+                var filename = entry.File["filename"]?.ToString() ?? throw new InvalidDataException("У файла отсутствует имя.");
+                var download = entry.File["url"]?.ToString() ?? throw new InvalidDataException("У файла отсутствует URL.");
+                var uri = new Uri(download);
+                var stagedPath = await DownloadService.DownloadVerifiedAsync(
+                    http, uri, entry.Sha512, stagingDirectory, filename, new[] { ".jar" },
+                    250L * 1024 * 1024, null, CancellationToken.None, _ => true);
+
+                var modId = ReadFabricModId(stagedPath);
+                if (string.IsNullOrWhiteSpace(modId))
+                    throw new InvalidDataException("Файл " + filename + " не содержит корректный fabric.mod.json. Установка остановлена.");
+                staged.Add((stagedPath, filename, modId, entry.Sha512));
+                WriteLog("Проверен JAR: " + filename + " · mod id: " + modId);
+            }
+
+            if (staged.Select(x => x.ModId).Distinct(StringComparer.OrdinalIgnoreCase).Count() != staged.Count)
+                throw new InvalidDataException("В наборе обнаружены два JAR с одинаковым Fabric mod ID.");
+
+            var existing = Directory.GetFiles(modsDirectory, "*.jar", SearchOption.TopDirectoryOnly)
+                .Select(path => (Path: path, ModId: ReadFabricModId(path)))
+                .Where(x => !string.IsNullOrWhiteSpace(x.ModId))
+                .ToList();
+
+            var backupFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var toInstall = new List<(string Path, string Filename, string ModId, string Sha512)>();
+            foreach (var incoming in staged)
+            {
+                var sameMod = existing.Where(x => string.Equals(x.ModId, incoming.ModId, StringComparison.OrdinalIgnoreCase)).ToList();
+                var identicalIndex = sameMod.FindIndex(x =>
+                    string.Equals(GetFileSha512(x.Path), incoming.Sha512, StringComparison.OrdinalIgnoreCase));
+
+                if (identicalIndex >= 0)
+                {
+                    File.Delete(incoming.Path);
+                    for (var i = 0; i < sameMod.Count; i++)
+                    {
+                        if (i != identicalIndex)
+                            backupFiles.Add(sameMod[i].Path);
+                    }
+                }
+                else
+                {
+                    foreach (var old in sameMod)
+                        backupFiles.Add(old.Path);
+                    toInstall.Add(incoming);
+                }
+            }
+
+            foreach (var incoming in toInstall)
+            {
+                var destination = Path.Combine(modsDirectory, incoming.Filename);
+                if (File.Exists(destination) && !backupFiles.Contains(destination))
+                    throw new IOException("Нельзя безопасно заменить уже существующий файл " + incoming.Filename + ".");
+            }
+
+            var backupDirectory = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "NovaCraft", "mod-backups", DateTime.Now.ToString("yyyyMMdd-HHmmss") + "-" + Guid.NewGuid().ToString("N")[..6]);
+            var movedBackups = new List<(string Original, string Backup)>();
+            var movedNew = new List<string>();
+
+            try
+            {
+                if (backupFiles.Count > 0)
+                {
+                    Directory.CreateDirectory(backupDirectory);
+                    foreach (var oldPath in backupFiles)
+                    {
+                        var backupPath = Path.Combine(backupDirectory, Path.GetFileName(oldPath));
+                        File.Move(oldPath, backupPath, false);
+                        movedBackups.Add((oldPath, backupPath));
+                    }
+                }
+
+                foreach (var incoming in toInstall)
+                {
+                    var destination = Path.Combine(modsDirectory, incoming.Filename);
+                    File.Move(incoming.Path, destination, false);
+                    movedNew.Add(destination);
+                }
+            }
+            catch
+            {
+                foreach (var newPath in movedNew.AsEnumerable().Reverse())
+                {
+                    try { if (File.Exists(newPath)) File.Delete(newPath); } catch { }
+                }
+                foreach (var backup in movedBackups.AsEnumerable().Reverse())
+                {
+                    try
+                    {
+                        if (File.Exists(backup.Backup) && !File.Exists(backup.Original))
+                            File.Move(backup.Backup, backup.Original, false);
+                    }
+                    catch { }
+                }
+                throw;
+            }
+
+            SettingsService.Save(settings);
+            WriteLog("Профиль оптимизации установлен. Новых JAR: " + toInstall.Count +
+                "; одинаковых версий уже было: " + (staged.Count - toInstall.Count) +
+                "; резервных копий: " + movedBackups.Count);
+            status.Text = "Оптимизации Fabric 1.21.11 установлены. Резервные копии: " + movedBackups.Count;
+            MessageBox.Show(
+                "Установка завершена.\nНовых модов: " + toInstall.Count +
+                "\nУже актуальных: " + (staged.Count - toInstall.Count) +
+                "\nРезервных копий: " + movedBackups.Count +
+                (movedBackups.Count > 0 ? "\nПапка резервных копий: " + backupDirectory : ""),
+                "NovaCraft — готово",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+        }
+        catch (Exception ex)
+        {
+            Fail("Не удалось установить профиль оптимизации", ex);
+        }
+        finally
+        {
+            if (stagingDirectory != null && Directory.Exists(stagingDirectory))
+            {
+                try { Directory.Delete(stagingDirectory, true); }
+                catch (Exception ex) { WriteLog("Не удалось удалить временную папку: " + ex.Message); }
+            }
+            if (busy)
+                SetBusy(false);
+        }
+    }
+
+    static string? ReadFabricModId(string jarPath)
+    {
+        try
+        {
+            using var archive = ZipFile.OpenRead(jarPath);
+            var metadata = archive.GetEntry("fabric.mod.json");
+            if (metadata == null) return null;
+            using var stream = metadata.Open();
+            using var document = JsonDocument.Parse(stream);
+            return document.RootElement.TryGetProperty("id", out var id) && id.ValueKind == JsonValueKind.String
+                ? id.GetString()
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    static string GetFileSha512(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA512.HashData(stream));
     }
 
     TabPage ServersPage()
