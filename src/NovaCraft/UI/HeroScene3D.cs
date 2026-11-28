@@ -324,8 +324,8 @@ internal sealed class HeroScene3D : Control
         AddCrystal(1.05f, 0.2f, 1.9f, 0.72f);
         AddPortalRing(-0.25f, 1.05f, 6.6f, 0.72f);
         AddWorldDisk(-0.25f, 0.12f, 6.58f, 0.92f, 0.42f, Color.FromArgb(16, 106, 91, 231));
-        AddWorldDisk(2.15f, 0.075f, 1.84f, 0.57f, 0.31f, Color.FromArgb(43, 4, 7, 17));
-        AddWorldDisk(2.15f, 0.078f, 1.84f, 0.34f, 0.18f, Color.FromArgb(25, 4, 7, 17));
+        AddWorldDisk(2.15f, 0.385f, 1.84f, 0.62f, 0.34f, Color.FromArgb(62, 4, 7, 17));
+        AddWorldDisk(2.15f, 0.388f, 1.84f, 0.36f, 0.19f, Color.FromArgb(33, 4, 7, 17));
         AddVoxelExplorer(1.88f, 0.07f, 1.62f);
 
         AddRotatingCube(-2.4f, 2.0f, 3.7f, 0.48f,
@@ -349,7 +349,8 @@ internal sealed class HeroScene3D : Control
         foreach (var face in faces)
         {
             graphics.FillPolygon(face.Brush, face.Points);
-            graphics.DrawPolygon(faceEdgePen, face.Points);
+            if (face.DrawOutline)
+                graphics.DrawPolygon(faceEdgePen, face.Points);
         }
     }
 
@@ -415,7 +416,8 @@ internal sealed class HeroScene3D : Control
             0f,
             0f,
             0f,
-            0f);
+            0f,
+            drawOutline: false);
     }
 
     private void AddVoxelExplorer(float x, float groundY, float z)
@@ -604,7 +606,8 @@ internal sealed class HeroScene3D : Control
     }
 
     private void AddMeshFace(Vector3[] vertices, Color color, Vector3 rotationCenter,
-        float rotationSpeed, float rotationPhase, float bobAmplitude, float bobSpeed, float bobPhase)
+        float rotationSpeed, float rotationPhase, float bobAmplitude, float bobSpeed, float bobPhase,
+        bool drawOutline = true)
     {
         var brushKey = color.ToArgb();
         if (!materialBrushes.TryGetValue(brushKey, out var brush))
@@ -622,7 +625,8 @@ internal sealed class HeroScene3D : Control
             rotationPhase,
             bobAmplitude,
             bobSpeed,
-            bobPhase));
+            bobPhase,
+            drawOutline));
     }
 
     private void ProjectFace(RenderFace face, float yaw, float pitch, int width, int height)
@@ -934,11 +938,12 @@ internal sealed class HeroScene3D : Control
         public float BobAmplitude { get; }
         public float BobSpeed { get; }
         public float BobPhase { get; }
+        public bool DrawOutline { get; }
         public float Depth { get; set; }
 
         public RenderFace(Vector3[] vertices, PointF[] points, SolidBrush brush,
             Vector3 rotationCenter, float rotationSpeed, float rotationPhase,
-            float bobAmplitude, float bobSpeed, float bobPhase)
+            float bobAmplitude, float bobSpeed, float bobPhase, bool drawOutline)
         {
             Vertices = vertices;
             Points = points;
@@ -949,6 +954,7 @@ internal sealed class HeroScene3D : Control
             BobAmplitude = bobAmplitude;
             BobSpeed = bobSpeed;
             BobPhase = bobPhase;
+            DrawOutline = drawOutline;
         }
     }
 
