@@ -148,6 +148,7 @@ internal sealed class MainForm : Form
     readonly Button play = new();
     readonly Button install = new();
     readonly Button profileChip = new();
+    readonly Label currentPageCaption = new();
     readonly ComboBox buildSelector = new();
     string pendingModSearch = "";
     readonly List<LauncherDownloadTask> downloadTasks = new();
@@ -797,14 +798,12 @@ internal sealed class MainForm : Form
             ForeColor = AppTheme.Text,
             Font = new Font("Segoe UI Semibold", 18, FontStyle.Bold)
         });
-        brand.Controls.Add(new Label
-        {
-            Text = "MINECRAFT JAVA  ·  WINDOWS",
-            AutoSize = true,
-            Location = new Point(40, 43),
-            ForeColor = AppTheme.Muted,
-            Font = new Font("Segoe UI Semibold", 7.5f, FontStyle.Bold)
-        });
+        currentPageCaption.Text = "MINECRAFT JAVA  ·  WINDOWS";
+        currentPageCaption.AutoSize = true;
+        currentPageCaption.Location = new Point(40, 43);
+        currentPageCaption.ForeColor = AppTheme.Muted;
+        currentPageCaption.Font = new Font("Segoe UI Semibold", 7.5f, FontStyle.Bold);
+        brand.Controls.Add(currentPageCaption);
 
         var buildPanel = new Panel
         {
@@ -1181,6 +1180,9 @@ internal sealed class MainForm : Form
         }
 
         pageHost.SelectedIndex = index;
+        var pageTitleParts = navigationPages[index].Text.Split(new[] { "  " }, StringSplitOptions.None);
+        var pageTitle = pageTitleParts.Length > 1 ? pageTitleParts[^1] : navigationPages[index].Text;
+        currentPageCaption.Text = pageTitle.ToUpperInvariant();
         for (var i = 0; i < navigationPages.Count; i++)
         {
             navigationButtons[i].BackColor = i == index ? Color.FromArgb(101, 61, 235) : Color.FromArgb(22, 24, 35);
@@ -1242,7 +1244,7 @@ internal sealed class MainForm : Form
             Dock = DockStyle.Fill,
             FlatStyle = FlatStyle.Flat,
             BackgroundImage = LoadHeroArt(),
-            BackgroundImageLayout = ImageLayout.Stretch,
+            BackgroundImageLayout = ImageLayout.Zoom,
             BackColor = Color.FromArgb(25, 28, 45),
             Text = "",
             Cursor = Cursors.Hand,
