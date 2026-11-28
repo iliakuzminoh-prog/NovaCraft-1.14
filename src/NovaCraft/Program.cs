@@ -5962,7 +5962,7 @@ internal sealed class MainForm : Form
         {
             result.Text = "Требуется Fabric 1.21.11.";
             MessageBox.Show(
-                "NovaBoost 0.1.0 предназначен только для сборки Minecraft 1.21.11 + Fabric.",
+                "NovaBoost предназначен только для сборки Minecraft 1.21.11 + Fabric.",
                 "NovaBoost · совместимость",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
