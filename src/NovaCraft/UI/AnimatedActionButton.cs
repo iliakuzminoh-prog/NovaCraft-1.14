@@ -31,6 +31,8 @@ internal sealed class AnimatedActionButton : Button
         TextAlign = ContentAlignment.MiddleCenter;
         Cursor = Cursors.Hand;
         TabStop = true;
+        AccessibleRole = AccessibleRole.PushButton;
+        AccessibleName = "Основное действие";
 
         animationTimer.Tick += (_, _) => AdvanceAnimationFrame(0.24f);
     }
