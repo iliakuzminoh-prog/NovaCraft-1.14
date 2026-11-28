@@ -1,5 +1,6 @@
 using System.Windows.Forms;
 using System.Drawing;
+using System.Drawing.Imaging;
 using NovaCraft.UI;
 
 namespace NovaCraft.Tests;
@@ -22,6 +23,12 @@ public sealed class HeroScene3DTests
 
         using var frame = new Bitmap(width, height);
         hero.DrawToBitmap(frame, new Rectangle(0, 0, width, height));
+
+        if (width == 960 && height == 270)
+        {
+            var previewPath = Path.Combine(AppContext.BaseDirectory, "NovaCraft-Hero-Preview.png");
+            frame.Save(previewPath, ImageFormat.Png);
+        }
 
         var sampledColors = new HashSet<int>();
         for (var y = 0; y < height; y += 7)
