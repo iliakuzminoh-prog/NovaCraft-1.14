@@ -113,7 +113,25 @@ internal static class AppTheme
             ? Color.FromArgb(39, 34, 69)
             : Surface;
         card.Tag = "novacraft-card";
-        card.Paint += (_, e) => PaintCardBorder(card, e.Graphics, selected);
+
+        var hovered = false;
+        card.MouseEnter += (_, _) =>
+        {
+            hovered = true;
+            card.BackColor = selected
+                ? Color.FromArgb(45, 39, 80)
+                : SurfaceRaised;
+            InvalidateCard(card);
+        };
+        card.MouseLeave += (_, _) =>
+        {
+            hovered = false;
+            card.BackColor = selected
+                ? Color.FromArgb(39, 34, 69)
+                : Surface;
+            InvalidateCard(card);
+        };
+        card.Paint += (_, e) => PaintCardBorder(card, e.Graphics, selected, hovered);
         card.Resize += (_, _) => InvalidateCard(card);
     }
 
@@ -123,11 +141,25 @@ internal static class AppTheme
 
         card.BackColor = Surface;
         card.Tag = "novacraft-catalog-card";
-        card.Paint += (_, e) => PaintCardBorder(card, e.Graphics, false);
+
+        var hovered = false;
+        card.MouseEnter += (_, _) =>
+        {
+            hovered = true;
+            card.BackColor = SurfaceRaised;
+            InvalidateCard(card);
+        };
+        card.MouseLeave += (_, _) =>
+        {
+            hovered = false;
+            card.BackColor = Surface;
+            InvalidateCard(card);
+        };
+        card.Paint += (_, e) => PaintCardBorder(card, e.Graphics, false, hovered);
         card.Resize += (_, _) => InvalidateCard(card);
     }
 
-    private static void PaintCardBorder(Control control, Graphics graphics, bool selected)
+    private static void PaintCardBorder(Control control, Graphics graphics, bool selected, bool hovered)
     {
         if (control.ClientSize.Width < 4 || control.ClientSize.Height < 4)
             return;
@@ -143,16 +175,25 @@ internal static class AppTheme
         const float radius = 15f;
 
         using var path = RoundedRectangle(bounds, radius);
+        if (hovered)
+        {
+            using var glow = new Pen(Color.FromArgb(48, Accent), 3f)
+            {
+                Alignment = PenAlignment.Inset
+            };
+            graphics.DrawPath(glow, path);
+        }
+
         using var border = new Pen(
-            selected ? Color.FromArgb(114, 94, 204) : Border,
-            selected ? 1.4f : 1f)
+            selected ? Color.FromArgb(114, 94, 204) : hovered ? Color.FromArgb(78, 91, 122) : Border,
+            selected ? 1.4f : hovered ? 1.15f : 1f)
         {
             Alignment = PenAlignment.Inset
         };
 
         graphics.DrawPath(border, path);
 
-        if (selected)
+        if (selected || hovered)
         {
             using var highlight = new Pen(Color.FromArgb(65, Accent), 1f);
             var topLine = new PointF[]
