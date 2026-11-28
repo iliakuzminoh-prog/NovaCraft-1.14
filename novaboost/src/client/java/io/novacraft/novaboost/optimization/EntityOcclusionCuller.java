@@ -7,6 +7,7 @@ import java.util.Map;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.world.entity.Avatar;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.level.ClipContext;
@@ -81,7 +82,20 @@ public final class EntityOcclusionCuller {
             visibilityCache.clear();
         }
 
+        var entityTypeKey = BuiltInRegistries.ENTITY_TYPE.getKey(entity.getType());
+        if (entityTypeKey == null) {
+            return false;
+        }
+
         AABB bounds = entity.getBoundingBox();
+        double width = bounds.maxX - bounds.minX;
+        double height = bounds.maxY - bounds.minY;
+        double depth = bounds.maxZ - bounds.minZ;
+        if (!EntityCullingPolicy.isSafeCandidate(
+            entityTypeKey.getNamespace(), width, height, depth)) {
+            return false;
+        }
+
         double centerX = (bounds.minX + bounds.maxX) * 0.5D;
         double centerY = (bounds.minY + bounds.maxY) * 0.5D;
         double centerZ = (bounds.minZ + bounds.maxZ) * 0.5D;
@@ -127,8 +141,6 @@ public final class EntityOcclusionCuller {
         }
 
         Vec3 camera = new Vec3(cameraX, cameraY, cameraZ);
-        double width = bounds.maxX - bounds.minX;
-        double height = bounds.maxY - bounds.minY;
 
         Vec3 center = new Vec3(centerX, centerY, centerZ);
         Vec3 upper = new Vec3(centerX, bounds.minY + height * 0.82D, centerZ);
