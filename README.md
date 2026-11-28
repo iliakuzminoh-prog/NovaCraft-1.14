@@ -31,6 +31,7 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 ### Mods, packs and downloads
 
 - Modrinth mod feed and search.
+- Every Modrinth and CurseForge catalog card has an icon tile. Official artwork replaces a deterministic generated monogram when the source image is available; absent or failed artwork does not leave an empty square.
 - Mod downloads use the official Modrinth CDN, SHA-512 and JAR signature checks.
 - Resource-pack, shader and datapack catalog cards support verified ZIP installation. The datapack world picker is restricted to the active build's `saves` directory.
 - Downloads page shows source, file, target build, progress and task state (downloading, validation, installed, already installed or failed).
@@ -39,6 +40,8 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 - Byte-progress wiring is compile-tested in CI, but live download speed and every loader's full network sequence have not been verified on the user's PC.
 
 ### Display and settings
+
+- The Home page uses the bundled Minecraft hero artwork instead of a generated gradient. Its visible Play action is an accessible, keyboard-activatable button.
 
 - Launch resolution defaults to the current primary Windows monitor bounds when the game launch options are created.
 - Manual width/height mode remains available in Settings.
