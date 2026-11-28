@@ -26,7 +26,7 @@ The culler is deliberately conservative. If the query budget is exhausted, a res
 
 ## Build
 
-Requirements: Java 21.
+Build requirement: JDK 25 for the current Fabric Loom plugin. The produced mod bytecode is Java 21 (`options.release = 21`) and targets Minecraft's Java 21 runtime.
 
 From this directory:
 
