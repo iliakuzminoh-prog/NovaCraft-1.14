@@ -359,13 +359,14 @@ internal sealed class HeroScene3D : Control
                 var worldX = x * 0.91f;
                 var worldZ = z * 0.91f + 0.8f;
 
+                var grassPatch = Math.Abs(x * 17 + z * 31 + 211) % 5;
                 var grass = Color.FromArgb(
                     255,
-                    49 + (x + 4) * 2,
-                    117 + (z % 3) * 9,
-                    93 + (x + z + 13) % 4 * 5);
+                    52 + grassPatch % 3 * 2,
+                    121 + grassPatch % 4 * 2,
+                    88 + grassPatch % 3 * 2);
 
-                AddCubeMesh(worldX, top - 0.84f, worldZ, 0.9f, 0.9f, 0.9f,
+                AddCubeMesh(worldX, top - 0.84f, worldZ, 0.91f, 0.9f, 0.91f,
                     grass,
                     Color.FromArgb(255, 100, 72, 58),
                     Color.FromArgb(255, 67, 48, 48),
