@@ -602,7 +602,12 @@ internal sealed class MainForm : Form
 
         using var stream = assembly.GetManifestResourceStream(resourceName)
             ?? throw new InvalidOperationException("Не удалось открыть встроенный баннер NovaCraft.");
-        using var image = Image.FromStream(stream, false, true);
+        using var decodedWebp = SixLabors.ImageSharp.Image.Load(stream);
+        using var pngStream = new MemoryStream();
+        decodedWebp.SaveAsPng(pngStream);
+        pngStream.Position = 0;
+
+        using var image = System.Drawing.Image.FromStream(pngStream, false, true);
         return new Bitmap(image);
     }
 
