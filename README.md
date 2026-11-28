@@ -33,7 +33,7 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 ### Mods, packs and downloads
 
 - Modrinth mod feed and search.
-- The Home dashboard uses a procedural software-rendered 3D scene: perspective-projected voxel terrain, shaded block faces, voxel trees, a blocky idle-animated explorer, a floating crystal, a segmented rotating portal, drifting clouds, animated sky layers, stars and particles. Camera parallax follows the pointer; the Play control has a separate hover/press animation and keyboard activation. Scene geometry and GDI brushes are created once and reused; the 30 FPS animation timer runs only while the control is visible and pauses when the launcher is minimized. The profile/version chip updates when the active offline profile or Minecraft version changes; soft world shadows and portal spill are depth-sorted with the voxel geometry.
+- The Home dashboard uses a procedural software-rendered 3D scene: perspective-projected voxel terrain with brown block sides, scattered grass/stone/flowers, a wider curved river with animated light-catching ripple strips, voxel trees, a blocky idle-animated explorer, a floating crystal and a segmented portal with an animated energy membrane. Stepped clouds, sun shafts, stars and particles animate in the sky. Camera parallax follows the pointer; the Play control has a separate hover/press animation and keyboard activation. Scene geometry, fonts and GDI brushes are cached and reused; the 30 FPS animation timer runs only while the control is visible and pauses when the launcher is minimized. The profile/version chip updates when the active offline profile or Minecraft version changes; soft world shadows and portal spill are depth-sorted with the voxel geometry.
 - The Home dashboard also includes clickable build tiles and a real popular-Modrinth feed with project artwork, authors, descriptions, download counts and install actions.
 - Pressing Enter in the Home search opens the Modrinth mod catalogue with the typed query.
 - Every Modrinth and CurseForge catalog card has an icon tile. Official artwork replaces a deterministic generated monogram when the source image is available; absent or failed artwork does not leave an empty square.
@@ -46,7 +46,7 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 
 ### Display and settings
 
-- The Home hero is drawn locally by the 3D scene control; it does not fetch remote art or depend on a system image codec. Navigation between pages uses a short depth/slide transition; shared cards gain a restrained hover-depth and border-glow state.
+- The Home hero is drawn locally by the 3D scene control; it does not fetch remote art or depend on a system image codec. The header uses a rotating software-rendered 3D cube mark. Primary action buttons animate their depth on hover/press and retain keyboard activation; sidebar page buttons animate their selected indicator. Navigation between pages uses a short depth/slide transition; shared cards gain a restrained hover-depth and border-glow state.
 
 - Launch resolution defaults to the current primary Windows monitor bounds when the game launch options are created.
 - Manual width/height mode remains available in Settings.
@@ -93,7 +93,7 @@ The GitHub Actions workflow runs:
 
 1. .NET restore.
 2. Build with warnings treated as errors.
-3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests, build-profile migration/isolation, 3D skin-preview and Home hero rendering, local music playlist validation and RAM recommendation rules.
+3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests, build-profile migration/isolation, 3D skin-preview, Home hero, rotating brand cube, animated primary-button and sidebar-selection rendering, local music playlist validation and RAM recommendation rules.
 4. Self-contained Windows x64 publish and EXE size check.
 5. Portable ZIP and Inno Setup installer packaging.
 6. Installer smoke test: install, verify EXE, start the application process, uninstall and verify removal.
