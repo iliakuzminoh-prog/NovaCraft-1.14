@@ -1252,34 +1252,62 @@ internal sealed class MainForm : Form
             return;
         }
 
-        pageTransitionRunning = true;
-        pageHost.Visible = false;
-
-        var overlay = new PageDepthTransition(outgoing, incoming, forward, 320)
-        {
-            Bounds = pageHost.Bounds,
-            Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
-        };
-
+        PageDepthTransition? overlay = null;
         EventHandler? completed = null;
-        completed = (_, _) =>
+
+        try
         {
-            if (overlay.IsDisposed)
-                return;
+            overlay = new PageDepthTransition(outgoing, incoming, forward, 320)
+            {
+                Bounds = pageHost.Bounds,
+                Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right
+            };
 
-            overlay.Completed -= completed;
-            if (host.Controls.Contains(overlay))
-                host.Controls.Remove(overlay);
+            completed = (_, _) =>
+            {
+                if (overlay == null)
+                    return;
 
-            overlay.Dispose();
+                if (!overlay.IsDisposed)
+                {
+                    overlay.Completed -= completed;
+                    if (host.Controls.Contains(overlay))
+                        host.Controls.Remove(overlay);
+                    overlay.Dispose();
+                }
+
+                pageHost.Visible = true;
+                pageHost.BringToFront();
+                pageTransitionRunning = false;
+            };
+
+            overlay.Completed += completed;
+            pageTransitionRunning = true;
+            pageHost.Visible = false;
+            host.Controls.Add(overlay);
+            overlay.BringToFront();
+        }
+        catch
+        {
+            if (overlay != null)
+            {
+                if (completed != null)
+                    overlay.Completed -= completed;
+                if (host.Controls.Contains(overlay))
+                    host.Controls.Remove(overlay);
+                overlay.Dispose();
+            }
+            else
+            {
+                outgoing.Dispose();
+                incoming.Dispose();
+            }
+
             pageHost.Visible = true;
             pageHost.BringToFront();
             pageTransitionRunning = false;
-        };
-
-        overlay.Completed += completed;
-        host.Controls.Add(overlay);
-        overlay.BringToFront();
+            throw;
+        }
     }
 
     static void ApplyDarkTheme(Control root) => AppTheme.Apply(root);
