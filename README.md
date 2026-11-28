@@ -2,13 +2,13 @@
 
 Windows launcher for Minecraft Java Edition. C# WinForms, .NET 8, self-contained Windows x64.
 
-This README describes the source on the `nova/skin-preview-3d` branch. A green CI build proves compilation, tests and packaging; it does not prove that every modpack launches correctly on every PC.
+This README describes the source on the `nova/ui-polish-2026-11-28` branch. A green CI build proves compilation, tests and packaging; it does not prove that every modpack launches correctly on every PC.
 
 ## Implemented
 
 ### Launcher and profiles
 
-- Dark Russian-language WinForms UI with Home, Versions, Builds, Mods, Resource Packs, Shaders, Datapacks, Modpack catalog links, Music, Skins, Performance, Servers, Settings, Diagnostics and Downloads pages.
+- Dark Russian-language WinForms UI with 16 feature pages grouped under five expandable left-navigation sections: Главная, Каталог, Профили и скины, Настройки, Журнал и диагностика. The existing page factories and original page indices are preserved.
 - A build selector in the top bar switches the active Minecraft instance.
 - Each build profile stores its own Minecraft directory, version, loader and optional exact loader version.
 - Existing Minecraft folder is preserved as the primary profile. Legacy saved build names are migrated into separate instance folders.
@@ -41,7 +41,7 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 
 ### Display and settings
 
-- The Home page uses the bundled Minecraft hero artwork instead of a generated gradient. Its visible Play action is an accessible, keyboard-activatable button. The embedded WebP is decoded with ImageSharp before it is handed to WinForms, avoiding reliance on a system WebP codec.
+- The Home page uses the bundled Minecraft hero artwork instead of a generated gradient. The full banner is an accessible, keyboard-activatable Play button. The embedded WebP is decoded through the MIT-licensed Imazen.WebP binding and the Windows x64 libwebp runtime; no system WebP codec is required.
 
 - Launch resolution defaults to the current primary Windows monitor bounds when the game launch options are created.
 - Manual width/height mode remains available in Settings.
