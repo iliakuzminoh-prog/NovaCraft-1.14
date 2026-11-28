@@ -174,8 +174,8 @@ internal sealed class HeroScene3D : Control
                 x, y, radius * 2, radius * 2);
         }
 
-        DrawCloudBand(graphics, width, height, 0.19f, 0.54f, 0.18f, 0.10f, 0.24f);
-        DrawCloudBand(graphics, width, height, 0.63f, 0.72f, 0.12f, 0.075f, -0.18f);
+        DrawCloudBand(graphics, width, height, 0.48f, 0.50f, 0.23f, 0.15f, 0.075f);
+        DrawCloudBand(graphics, width, height, 0.75f, 0.61f, 0.19f, 0.12f, -0.055f);
     }
 
     private void DrawCloudBand(Graphics graphics, int width, int height, float x, float y,
@@ -186,15 +186,16 @@ internal sealed class HeroScene3D : Control
         if (speed < 0)
             cloudX = x * width - offset;
 
-        using var cloud = new SolidBrush(Color.FromArgb(10, 194, 179, 220));
         var w = cloudWidth * width;
         var h = cloudHeight * height;
-        for (var part = 0; part < 4; part++)
-        {
-            var px = cloudX + part * w * 0.19f;
-            var py = y * height + MathF.Sin(elapsed * 0.32f + part) * 3f;
-            graphics.FillEllipse(cloud, px, py, w * 0.34f, h * 0.55f);
-        }
+        var cloudY = y * height + MathF.Sin(elapsed * 0.32f) * 2.5f;
+        using var cloudPath = new GraphicsPath(FillMode.Winding);
+        cloudPath.AddEllipse(cloudX + w * 0.04f, cloudY + h * 0.28f, w * 0.88f, h * 0.62f);
+        cloudPath.AddEllipse(cloudX + w * 0.17f, cloudY + h * 0.04f, w * 0.28f, h * 0.72f);
+        cloudPath.AddEllipse(cloudX + w * 0.39f, cloudY - h * 0.08f, w * 0.34f, h * 0.86f);
+        cloudPath.AddEllipse(cloudX + w * 0.64f, cloudY + h * 0.14f, w * 0.24f, h * 0.68f);
+        using var cloud = new SolidBrush(Color.FromArgb(13, 194, 179, 220));
+        graphics.FillPath(cloud, cloudPath);
     }
 
     private void DrawDistantLandscape(Graphics graphics, int width, int height)
@@ -299,6 +300,7 @@ internal sealed class HeroScene3D : Control
         AddTree(-3.05f, 0.2f, 6.1f, 0.62f);
         AddCrystal(1.05f, 0.2f, 1.9f, 0.72f);
         AddPortalRing(-0.25f, 1.05f, 6.6f, 0.72f);
+        AddVoxelExplorer(1.88f, 0.07f, 1.62f);
 
         AddRotatingCube(-2.4f, 2.0f, 3.7f, 0.48f,
             Color.FromArgb(255, 117, 95, 220), 0.47f, 1.2f, 0.10f, 0.62f);
@@ -364,6 +366,88 @@ internal sealed class HeroScene3D : Control
         AddTriangle(tip, center, bottomRight, Color.FromArgb(220, 91, 110, 229), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
         AddTriangle(tip, bottomRight, bottomBack, Color.FromArgb(205, 72, 81, 191), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
         AddTriangle(tip, bottomBack, bottomLeft, Color.FromArgb(225, 146, 166, 255), rotationCenter, 0.035f, 0.4f, 0.025f, 1.2f);
+    }
+
+    private void AddVoxelExplorer(float x, float groundY, float z)
+    {
+        var shirtTop = Color.FromArgb(255, 67, 174, 178);
+        var shirtFront = Color.FromArgb(255, 41, 143, 156);
+        var shirtSide = Color.FromArgb(255, 27, 105, 129);
+        var skinTop = Color.FromArgb(255, 226, 174, 129);
+        var skinFront = Color.FromArgb(255, 205, 143, 103);
+        var skinSide = Color.FromArgb(255, 164, 104, 85);
+        var hairTop = Color.FromArgb(255, 77, 52, 48);
+        var hairFront = Color.FromArgb(255, 57, 39, 43);
+        var hairSide = Color.FromArgb(255, 39, 31, 43);
+        var pantsTop = Color.FromArgb(255, 78, 111, 178);
+        var pantsFront = Color.FromArgb(255, 51, 79, 139);
+        var pantsSide = Color.FromArgb(255, 37, 56, 103);
+        var idle = 0.018f;
+        var idleSpeed = 1.18f;
+
+        // Legs and boots: separate cuboids preserve the classic block-avatar silhouette.
+        AddCubeMesh(x + 0.02f, groundY + 0.14f, z + 0.02f, 0.245f, 0.59f, 0.34f,
+            pantsTop, pantsFront, pantsSide,
+            bobAmplitude: idle * 0.22f, bobSpeed: idleSpeed, bobPhase: 0.1f);
+        AddCubeMesh(x + 0.285f, groundY + 0.14f, z + 0.02f, 0.245f, 0.59f, 0.34f,
+            pantsTop, pantsFront, pantsSide,
+            bobAmplitude: idle * 0.22f, bobSpeed: idleSpeed, bobPhase: 0.1f);
+        AddCubeMesh(x + 0.015f, groundY + 0.06f, z - 0.015f, 0.25f, 0.16f, 0.39f,
+            Color.FromArgb(255, 70, 76, 96),
+            Color.FromArgb(255, 43, 48, 69),
+            Color.FromArgb(255, 29, 34, 54));
+        AddCubeMesh(x + 0.285f, groundY + 0.06f, z - 0.015f, 0.25f, 0.16f, 0.39f,
+            Color.FromArgb(255, 70, 76, 96),
+            Color.FromArgb(255, 43, 48, 69),
+            Color.FromArgb(255, 29, 34, 54));
+
+        // Torso and sleeves.
+        AddCubeMesh(x, groundY + 0.75f, z + 0.03f, 0.55f, 0.68f, 0.36f,
+            shirtTop, shirtFront, shirtSide,
+            bobAmplitude: idle, bobSpeed: idleSpeed, bobPhase: 0.25f);
+        AddCubeMesh(x - 0.205f, groundY + 0.79f, z + 0.035f, 0.20f, 0.55f, 0.34f,
+            shirtTop, shirtFront, shirtSide,
+            rotationSpeed: 0.026f, rotationPhase: 0.2f,
+            bobAmplitude: idle * 1.3f, bobSpeed: idleSpeed, bobPhase: 0.0f);
+        AddCubeMesh(x + 0.555f, groundY + 0.79f, z + 0.035f, 0.20f, 0.55f, 0.34f,
+            shirtTop, shirtFront, shirtSide,
+            rotationSpeed: -0.026f, rotationPhase: -0.2f,
+            bobAmplitude: idle * 1.3f, bobSpeed: idleSpeed, bobPhase: 1.2f);
+
+        // Hands extend slightly below the sleeves and use their own skin material.
+        AddCubeMesh(x - 0.205f, groundY + 0.63f, z + 0.035f, 0.20f, 0.18f, 0.34f,
+            skinTop, skinFront, skinSide,
+            bobAmplitude: idle * 1.2f, bobSpeed: idleSpeed, bobPhase: 0.0f);
+        AddCubeMesh(x + 0.555f, groundY + 0.63f, z + 0.035f, 0.20f, 0.18f, 0.34f,
+            skinTop, skinFront, skinSide,
+            bobAmplitude: idle * 1.2f, bobSpeed: idleSpeed, bobPhase: 1.2f);
+
+        // Head, hair cap, side locks and face details.
+        var headY = groundY + 1.46f;
+        AddCubeMesh(x + 0.025f, headY, z + 0.005f, 0.50f, 0.50f, 0.43f,
+            skinTop, skinFront, skinSide,
+            bobAmplitude: idle * 1.1f, bobSpeed: idleSpeed, bobPhase: 0.35f);
+        AddCubeMesh(x + 0.025f, headY + 0.43f, z + 0.005f, 0.50f, 0.12f, 0.43f,
+            hairTop, hairFront, hairSide,
+            bobAmplitude: idle * 1.1f, bobSpeed: idleSpeed, bobPhase: 0.35f);
+        AddCubeMesh(x - 0.005f, headY + 0.19f, z + 0.005f, 0.08f, 0.26f, 0.43f,
+            hairTop, hairFront, hairSide);
+        AddCubeMesh(x + 0.475f, headY + 0.19f, z + 0.005f, 0.08f, 0.26f, 0.43f,
+            hairTop, hairFront, hairSide);
+
+        var eyeY = headY + 0.265f;
+        AddCubeMesh(x + 0.135f, eyeY, z - 0.035f, 0.055f, 0.052f, 0.035f,
+            Color.FromArgb(255, 235, 239, 248),
+            Color.FromArgb(255, 42, 49, 70),
+            Color.FromArgb(255, 31, 36, 57));
+        AddCubeMesh(x + 0.345f, eyeY, z - 0.035f, 0.055f, 0.052f, 0.035f,
+            Color.FromArgb(255, 235, 239, 248),
+            Color.FromArgb(255, 42, 49, 70),
+            Color.FromArgb(255, 31, 36, 57));
+        AddCubeMesh(x + 0.205f, headY + 0.125f, z - 0.036f, 0.16f, 0.035f, 0.035f,
+            Color.FromArgb(255, 162, 83, 78),
+            Color.FromArgb(255, 135, 66, 67),
+            Color.FromArgb(255, 103, 53, 61));
     }
 
     private void AddPortalRing(float x, float y, float z, float radius)
@@ -565,11 +649,11 @@ internal sealed class HeroScene3D : Control
         };
         graphics.FillRectangle(vignette, 0, 0, width, height);
         using var bottomShade = new LinearGradientBrush(
-            new Rectangle(0, (int)(height * 0.72f), width, Math.Max(1, height / 3)),
+            new Rectangle(0, (int)(height * 0.79f), width, Math.Max(1, height / 4)),
             Color.FromArgb(0, 8, 11, 24),
-            Color.FromArgb(120, 8, 11, 24),
+            Color.FromArgb(76, 8, 11, 24),
             LinearGradientMode.Vertical);
-        graphics.FillRectangle(bottomShade, 0, height * 0.72f, width, height * 0.28f);
+        graphics.FillRectangle(bottomShade, 0, height * 0.79f, width, height * 0.21f);
     }
 
     private void DrawTypography(Graphics graphics, int width, int height)
