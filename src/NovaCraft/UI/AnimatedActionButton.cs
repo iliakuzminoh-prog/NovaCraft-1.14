@@ -32,7 +32,6 @@ internal sealed class AnimatedActionButton : Button
         Cursor = Cursors.Hand;
         TabStop = true;
         AccessibleRole = AccessibleRole.PushButton;
-        AccessibleName = "Основное действие";
 
         animationTimer.Tick += (_, _) => AdvanceAnimationFrame(0.24f);
     }
