@@ -140,12 +140,6 @@ internal sealed class HeroScene3D : Control
         Invalidate();
     }
 
-    protected override void OnResize(EventArgs e)
-    {
-        base.OnResize(e);
-        RebuildSceneBrushes();
-    }
-
     private void RebuildSceneBrushes()
     {
         var size = ClientSize;
@@ -1405,6 +1399,7 @@ internal sealed class HeroScene3D : Control
     protected override void OnResize(EventArgs e)
     {
         base.OnResize(e);
+        RebuildSceneBrushes();
         Invalidate();
     }
 
