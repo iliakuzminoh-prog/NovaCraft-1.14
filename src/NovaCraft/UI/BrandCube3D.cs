@@ -173,8 +173,8 @@ internal sealed class BrandCube3D : Control
             var nz = normal.X * sinY + normal.Z * cosY;
             var ny = normal.Y * cosX - nz * sinX;
             nz = normal.Y * sinX + nz * cosX;
-            var normalZ = nx * sinZ + ny * cosZ;
-            if (-normalZ <= 0.02f)
+            var normalZ = nz;
+            if (normalZ <= 0.02f)
                 continue;
 
             var points = new PointF[face.Length];
