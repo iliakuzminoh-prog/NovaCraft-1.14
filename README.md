@@ -33,7 +33,8 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 ### Mods, packs and downloads
 
 - Modrinth mod feed and search.
-- The Home dashboard includes the bundled Minecraft banner with aspect-ratio-preserving display, clickable build tiles and a real popular-Modrinth feed with project artwork, authors, descriptions, download counts and install actions.
+- The Home dashboard uses a procedural software-rendered 3D scene: perspective-projected voxel terrain, shaded block faces, trees, a floating crystal, rotating/bobbing cubes, animated sky layers, stars and particles. Camera parallax follows the pointer; the Play control has a separate hover/press animation and keyboard activation. Scene geometry and GDI brushes are created once and reused; the 30 FPS animation timer runs only while the control is visible.
+- The Home dashboard also includes clickable build tiles and a real popular-Modrinth feed with project artwork, authors, descriptions, download counts and install actions.
 - Pressing Enter in the Home search opens the Modrinth mod catalogue with the typed query.
 - Every Modrinth and CurseForge catalog card has an icon tile. Official artwork replaces a deterministic generated monogram when the source image is available; absent or failed artwork does not leave an empty square.
 - Mod downloads use the official Modrinth CDN, SHA-512 and JAR signature checks.
@@ -45,7 +46,7 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 
 ### Display and settings
 
-- The Home page uses the bundled Minecraft hero artwork instead of a generated gradient. The full banner is an accessible, keyboard-activatable Play button. The embedded WebP is decoded through the MIT-licensed Imazen.WebP binding and the Windows x64 libwebp runtime; no system WebP codec is required.
+- The Home hero is drawn locally by the 3D scene control; it does not fetch remote art or depend on a system image codec. Navigation between pages uses a short depth/slide transition; shared cards gain a restrained hover-depth and border-glow state.
 
 - Launch resolution defaults to the current primary Windows monitor bounds when the game launch options are created.
 - Manual width/height mode remains available in Settings.
@@ -78,7 +79,8 @@ This README describes the source on the `nova/ui-polish-2026-11-28` branch. A gr
 - Automatic Java runtime installation.
 - A full skin library, cloud upload and universal skin visibility on offline/third-party servers.
 - Windows MCI playback has not yet been manually exercised on the user's particular Windows installation; available MP3 codecs and audio-device volume support can vary.
-- 3D UI animation and verified visual parity with the eight-screen UI reference shown in the project conversation on 2026-11-27.
+- GPU-accelerated 3D rendering is not used: the Home scene is software-rendered with GDI+ to keep it self-contained. Its exact frame rate depends on the Windows machine.
+- Pixel-perfect parity with the eight-screen UI reference shown in the project conversation on 2026-11-27 has not been verified. CI includes rendering smoke tests but does not compare screenshots against those reference screens.
 - A complete 100/125/150% DPI and small-window layout audit of every page; the current UI pass improves shared styling and selected responsive layouts but does not claim that every legacy fixed-coordinate screen is fully responsive.
 - An original Java optimization mod tested on Radeon HD 6900 hardware or low-memory systems.
 - Automatic graphics-driver repair or installation.
@@ -91,7 +93,7 @@ The GitHub Actions workflow runs:
 
 1. .NET restore.
 2. Build with warnings treated as errors.
-3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests, build-profile migration/isolation, 3D skin-preview rendering, local music playlist validation and RAM recommendation rules.
+3. xUnit tests for offline UUID/nickname rules, ZIP catalog validation, Modrinth/CurseForge manifests, build-profile migration/isolation, 3D skin-preview and Home hero rendering, local music playlist validation and RAM recommendation rules.
 4. Self-contained Windows x64 publish and EXE size check.
 5. Portable ZIP and Inno Setup installer packaging.
 6. Installer smoke test: install, verify EXE, start the application process, uninstall and verify removal.
