@@ -15,7 +15,29 @@ internal sealed class HeroScene3D : Control
     private readonly Dictionary<int, SolidBrush> materialBrushes = new();
     private readonly SolidBrush[] particleBrushes = new SolidBrush[16];
     private readonly SolidBrush[] starBrushes = new SolidBrush[16];
+    private readonly SolidBrush[] sunRayBrushes = new SolidBrush[16];
+    private readonly SolidBrush cloudBrush = new(Color.FromArgb(23, 194, 179, 220));
+    private readonly SolidBrush eyebrowBrush = new(Color.FromArgb(185, 184, 197, 229));
+    private readonly SolidBrush titleBrush = new(Color.FromArgb(250, 247, 248, 255));
+    private readonly SolidBrush subtitleBrush = new(Color.FromArgb(214, 200, 210, 235));
+    private readonly SolidBrush detailBrush = new(Color.FromArgb(168, 160, 180, 214));
+    private readonly SolidBrush playTextBrush = new(Color.White);
+    private readonly SolidBrush chipFillBrush = new(Color.FromArgb(78, 20, 25, 45));
+    private readonly SolidBrush statusGlowBrush = new(Color.FromArgb(56, 103, 226, 176));
+    private readonly SolidBrush statusDotBrush = new(Color.FromArgb(255, 104, 225, 178));
+    private readonly Pen chipBorderPen = new(Color.FromArgb(66, 159, 174, 218), 0.8f);
+    private readonly Font playButtonFont = new("Segoe UI Semibold", 12f, FontStyle.Bold, GraphicsUnit.Point);
+    private readonly StringFormat playTextFormat = new()
+    {
+        Alignment = StringAlignment.Center,
+        LineAlignment = StringAlignment.Center
+    };
     private readonly Pen faceEdgePen = new(Color.FromArgb(36, 218, 228, 244), 0.7f);
+    private Font? eyebrowFont;
+    private Font? titleFont;
+    private Font? subtitleFont;
+    private Font? detailFont;
+    private int typographyHeight = -1;
     private float elapsed;
     private float cameraX;
     private float cameraY;
@@ -67,6 +89,7 @@ internal sealed class HeroScene3D : Control
             var alpha = index * 16;
             starBrushes[index] = new SolidBrush(Color.FromArgb(alpha, 214, 224, 255));
             particleBrushes[index] = new SolidBrush(Color.FromArgb(alpha, 150, 203, 255));
+            sunRayBrushes[index] = new SolidBrush(Color.FromArgb(5 + index, 255, 202, 151));
         }
 
         BuildWorldMesh();
@@ -240,8 +263,7 @@ internal sealed class HeroScene3D : Control
                 new(start.X - perpendicular.X * widthAtStart, start.Y - perpendicular.Y * widthAtStart)
             };
 
-            using var brush = new SolidBrush(Color.FromArgb(alpha, 255, 202, 151));
-            graphics.FillPolygon(brush, ray);
+            graphics.FillPolygon(sunRayBrushes[Math.Clamp(alpha - 5, 0, sunRayBrushes.Length - 1)], ray);
         }
     }
 
@@ -259,8 +281,7 @@ internal sealed class HeroScene3D : Control
         cloudPath.AddEllipse(cloudX + w * 0.17f, cloudY + h * 0.04f, w * 0.28f, h * 0.72f);
         cloudPath.AddEllipse(cloudX + w * 0.39f, cloudY - h * 0.08f, w * 0.34f, h * 0.86f);
         cloudPath.AddEllipse(cloudX + w * 0.64f, cloudY + h * 0.14f, w * 0.24f, h * 0.68f);
-        using var cloud = new SolidBrush(Color.FromArgb(23, 194, 179, 220));
-        graphics.FillPath(cloud, cloudPath);
+        graphics.FillPath(cloudBrush, cloudPath);
     }
 
     private void DrawDistantLandscape(Graphics graphics, int width, int height)
@@ -934,44 +955,73 @@ internal sealed class HeroScene3D : Control
         graphics.FillRectangle(bottomShade, 0, height * 0.79f, width, height * 0.21f);
     }
 
+    private void EnsureTypographyResources(int height)
+    {
+        if (typographyHeight == height &&
+            eyebrowFont != null &&
+            titleFont != null &&
+            subtitleFont != null &&
+            detailFont != null)
+            return;
+
+        eyebrowFont?.Dispose();
+        titleFont?.Dispose();
+        subtitleFont?.Dispose();
+        detailFont?.Dispose();
+
+        eyebrowFont = new Font(
+            "Segoe UI Semibold",
+            Math.Clamp(height * 0.040f, 8f, 10f),
+            FontStyle.Bold,
+            GraphicsUnit.Pixel);
+        titleFont = new Font(
+            "Segoe UI Semibold",
+            Math.Clamp(height * 0.125f, 26f, 36f),
+            FontStyle.Bold,
+            GraphicsUnit.Pixel);
+        subtitleFont = new Font(
+            "Segoe UI",
+            Math.Clamp(height * 0.047f, 10f, 13f),
+            FontStyle.Regular,
+            GraphicsUnit.Pixel);
+        detailFont = new Font(
+            "Segoe UI Semibold",
+            Math.Clamp(height * 0.034f, 8f, 9.5f),
+            FontStyle.Bold,
+            GraphicsUnit.Pixel);
+
+        typographyHeight = height;
+    }
+
     private void DrawTypography(Graphics graphics, int width, int height)
     {
+        EnsureTypographyResources(height);
+
+        var eyebrow = eyebrowFont!;
+        var title = titleFont!;
+        var subtitle = subtitleFont!;
+        var detail = detailFont!;
         var left = Math.Max(25f, width * 0.045f);
         var titleY = height * 0.20f;
 
-        using var eyebrowFont = new Font("Segoe UI Semibold", Math.Clamp(height * 0.040f, 8f, 10f), FontStyle.Bold, GraphicsUnit.Pixel);
-        using var titleFont = new Font("Segoe UI Semibold", Math.Clamp(height * 0.125f, 26f, 36f), FontStyle.Bold, GraphicsUnit.Pixel);
-        using var subtitleFont = new Font("Segoe UI", Math.Clamp(height * 0.047f, 10f, 13f), FontStyle.Regular, GraphicsUnit.Pixel);
-        using var detailFont = new Font("Segoe UI Semibold", Math.Clamp(height * 0.034f, 8f, 9.5f), FontStyle.Bold, GraphicsUnit.Pixel);
-
-        using var eyebrowBrush = new SolidBrush(Color.FromArgb(185, 184, 197, 229));
-        using var titleBrush = new SolidBrush(Color.FromArgb(250, 247, 248, 255));
-        using var subtitleBrush = new SolidBrush(Color.FromArgb(214, 200, 210, 235));
-        using var detailBrush = new SolidBrush(Color.FromArgb(168, 160, 180, 214));
-
-        graphics.DrawString("ТВОЙ НОВЫЙ МИР НАЧИНАЕТСЯ ЗДЕСЬ", eyebrowFont, eyebrowBrush, left, titleY);
-        graphics.DrawString("NovaCraft", titleFont, titleBrush, left - 1, titleY + height * 0.075f);
-        graphics.DrawString("Твой мир. Твои правила.", subtitleFont, subtitleBrush, left + 2, titleY + height * 0.235f);
+        graphics.DrawString("ТВОЙ НОВЫЙ МИР НАЧИНАЕТСЯ ЗДЕСЬ", eyebrow, eyebrowBrush, left, titleY);
+        graphics.DrawString("NovaCraft", title, titleBrush, left - 1, titleY + height * 0.075f);
+        graphics.DrawString("Твой мир. Твои правила.", subtitle, subtitleBrush, left + 2, titleY + height * 0.235f);
 
         var chipY = height * 0.81f;
         var chipText = $"{GameVersion}  ·  {ProfileName}";
-        var chipTextSize = graphics.MeasureString(chipText, detailFont);
+        var chipTextSize = graphics.MeasureString(chipText, detail);
         var chipBounds = new RectangleF(left, chipY - 4f, chipTextSize.Width + 38f, 22f);
 
         using (var chipPath = RoundedPath(chipBounds, 10f))
-        using (var chipFill = new SolidBrush(Color.FromArgb(78, 20, 25, 45)))
-        using (var chipBorder = new Pen(Color.FromArgb(66, 159, 174, 218), 0.8f))
         {
-            graphics.FillPath(chipFill, chipPath);
-            graphics.DrawPath(chipBorder, chipPath);
+            graphics.FillPath(chipFillBrush, chipPath);
+            graphics.DrawPath(chipBorderPen, chipPath);
         }
 
-        using (var statusGlow = new SolidBrush(Color.FromArgb(56, 103, 226, 176)))
-            graphics.FillEllipse(statusGlow, chipBounds.Left + 9f, chipBounds.Top + 7f, 8f, 8f);
-        using (var statusDot = new SolidBrush(Color.FromArgb(255, 104, 225, 178)))
-            graphics.FillEllipse(statusDot, chipBounds.Left + 11f, chipBounds.Top + 9f, 4f, 4f);
-
-        graphics.DrawString(chipText, detailFont, detailBrush,
+        graphics.FillEllipse(statusGlowBrush, chipBounds.Left + 9f, chipBounds.Top + 7f, 8f, 8f);
+        graphics.FillEllipse(statusDotBrush, chipBounds.Left + 11f, chipBounds.Top + 9f, 4f, 4f);
+        graphics.DrawString(chipText, detail, detailBrush,
             chipBounds.Left + 23f, chipBounds.Top + 5.3f);
     }
 
@@ -1019,11 +1069,9 @@ internal sealed class HeroScene3D : Control
         using (var playBrush = new SolidBrush(Color.White))
             graphics.FillPolygon(playBrush, triangle);
 
-        using var textFont = new Font("Segoe UI Semibold", 12f, FontStyle.Bold, GraphicsUnit.Point);
-        using var textBrush = new SolidBrush(Color.White);
-        using var textFormat = new StringFormat { Alignment = StringAlignment.Center, LineAlignment = StringAlignment.Center };
-        graphics.DrawString("ИГРАТЬ", textFont, textBrush,
-            new RectangleF(playBounds.Left + 22f, playBounds.Top, playBounds.Width - 22f, playBounds.Height), textFormat);
+        graphics.DrawString("ИГРАТЬ", playButtonFont, playTextBrush,
+            new RectangleF(playBounds.Left + 22f, playBounds.Top, playBounds.Width - 22f, playBounds.Height),
+            playTextFormat);
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
@@ -1147,6 +1195,24 @@ internal sealed class HeroScene3D : Control
                 brush?.Dispose();
             foreach (var brush in starBrushes)
                 brush?.Dispose();
+            foreach (var brush in sunRayBrushes)
+                brush?.Dispose();
+            cloudBrush.Dispose();
+            eyebrowBrush.Dispose();
+            titleBrush.Dispose();
+            subtitleBrush.Dispose();
+            detailBrush.Dispose();
+            playTextBrush.Dispose();
+            chipFillBrush.Dispose();
+            statusGlowBrush.Dispose();
+            statusDotBrush.Dispose();
+            chipBorderPen.Dispose();
+            playButtonFont.Dispose();
+            playTextFormat.Dispose();
+            eyebrowFont?.Dispose();
+            titleFont?.Dispose();
+            subtitleFont?.Dispose();
+            detailFont?.Dispose();
         }
         base.Dispose(disposing);
     }
