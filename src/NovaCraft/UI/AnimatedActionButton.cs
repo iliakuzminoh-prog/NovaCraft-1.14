@@ -61,7 +61,7 @@ internal sealed class AnimatedActionButton : Button
 
     private void StartAnimation()
     {
-        if (IsHandleCreated && Visible && Enabled && !animationTimer.Enabled)
+        if (!IsDisposed && IsHandleCreated && Visible && Enabled && !animationTimer.Enabled)
             animationTimer.Start();
     }
 
@@ -91,13 +91,40 @@ internal sealed class AnimatedActionButton : Button
 
     protected override void OnMouseUp(MouseEventArgs e)
     {
-        base.OnMouseUp(e);
         if (e.Button == MouseButtons.Left)
         {
             pointerPressed = false;
             pointerInside = Enabled && ClientRectangle.Contains(e.Location);
             StartAnimation();
         }
+        base.OnMouseUp(e);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        if (e.KeyCode is Keys.Space or Keys.Enter)
+        {
+            pointerPressed = true;
+            StartAnimation();
+        }
+        base.OnKeyDown(e);
+    }
+
+    protected override void OnKeyUp(KeyEventArgs e)
+    {
+        if (e.KeyCode is Keys.Space or Keys.Enter)
+        {
+            pointerPressed = false;
+            StartAnimation();
+        }
+        base.OnKeyUp(e);
+    }
+
+    protected override void OnHandleCreated(EventArgs e)
+    {
+        base.OnHandleCreated(e);
+        if (pointerInside || pointerPressed)
+            StartAnimation();
     }
 
     protected override void OnVisibleChanged(EventArgs e)
