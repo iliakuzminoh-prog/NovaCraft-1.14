@@ -41,7 +41,7 @@ This README describes the source on the `nova/skin-preview-3d` branch. A green C
 
 ### Display and settings
 
-- The Home page uses the bundled Minecraft hero artwork instead of a generated gradient. Its visible Play action is an accessible, keyboard-activatable button.
+- The Home page uses the bundled Minecraft hero artwork instead of a generated gradient. Its visible Play action is an accessible, keyboard-activatable button. The embedded WebP is decoded with ImageSharp before it is handed to WinForms, avoiding reliance on a system WebP codec.
 
 - Launch resolution defaults to the current primary Windows monitor bounds when the game launch options are created.
 - Manual width/height mode remains available in Settings.
