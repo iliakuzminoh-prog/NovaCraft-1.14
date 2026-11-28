@@ -4300,7 +4300,7 @@ internal sealed class MainForm : Form
         autoCard.Controls.Add(apply);
 
         var modsCard = ModernCard(820, 190, "ОПТИМИЗАЦИЯ ГРАФИКИ И МОДОВ", Color.FromArgb(22, 25, 39));
-        modsCard.Location = new Point(24, 355);
+        modsCard.Location = new Point(24, 590);
         modsCard.Controls.Add(new Label
         {
             Text = "В этой сборке NovaCraft не устанавливает собственный Java-мод и не обещает автоматический прирост FPS.\nДля Fabric обычно рассматривают Sodium (рендеринг), Lithium (логика игры) и FerriteCore (память),\nно совместимость зависит от версии Minecraft, загрузчика и остальных модов.",
@@ -4308,7 +4308,29 @@ internal sealed class MainForm : Form
             ForeColor = Color.FromArgb(181, 190, 207),
             Location = new Point(18, 50)
         });
-        var openModrinth = ModernButton("Открыть оптимизационные моды на Modrinth", 330, 38);
+        var novaBoostCard = ModernCard(820, 224, "NOVABOOST · FABRIC 1.21.11", Color.FromArgb(25, 28, 46));
+        novaBoostCard.Location = new Point(24, 355);
+        novaBoostCard.Controls.Add(new Label
+        {
+            Text = "Клиент-first профиль для слабого ПК и модовых серверов: Sodium + Lithium + FerriteCore + ImmediatelyFast + Entity Culling + BadOptimizations.\nОн не требует установки этих оптимизационных модов на сервере; несовместимые версии блокируются.\nДля твоей старой Radeon нельзя честно обещать 800× — здесь приоритет стабильности, FPS и меньшего расхода ОЗУ.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(190, 198, 215),
+            Location = new Point(18, 48)
+        });
+        var novaBoostInstall = ModernButton("Установить NovaBoost", 190, 38);
+        novaBoostInstall.Location = new Point(18, 151);
+        var novaBoostStatus = new Label
+        {
+            Text = "Только Fabric 1.21.11 · существующие JAR не перезаписываются.",
+            AutoSize = true,
+            ForeColor = Color.FromArgb(130, 218, 172),
+            Location = new Point(222, 160)
+        };
+        novaBoostInstall.Click += async (_, _) => await InstallNovaBoost12111Async(novaBoostStatus);
+        novaBoostCard.Controls.AddRange(new Control[] { novaBoostInstall, novaBoostStatus });
+        p.Controls.Add(novaBoostCard);
+
+                var openModrinth = ModernButton("Открыть оптимизационные моды на Modrinth", 330, 38);
         openModrinth.Location = new Point(18, 132);
         openModrinth.Click += (_, _) =>
         {
@@ -5734,6 +5756,188 @@ internal sealed class MainForm : Form
         {
             if (downloadTask != null) FailDownloadTask(downloadTask, ex);
             Fail("Не удалось установить проект Modrinth", ex);
+        }
+    }
+
+    async Task InstallNovaBoost12111Async(Label result)
+    {
+        if (isBusy)
+            return;
+
+        var targetBuild = ActiveBuild;
+        var game = version.SelectedItem?.ToString() ?? targetBuild.MinecraftVersion;
+        if (!OptimizationPackRules.IsTarget(game, targetBuild.Loader))
+        {
+            result.Text = "NovaBoost сейчас рассчитан только на Fabric 1.21.11.";
+            MessageBox.Show(
+                "Выбери сборку Minecraft 1.21.11 + Fabric. Профиль специально не устанавливается на другие версии.",
+                "NovaBoost · совместимость",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        var targetGameDirectory = Path.GetFullPath(targetBuild.GameDirectory);
+        var modsDirectory = Path.Combine(targetGameDirectory, "mods");
+        var selected = OptimizationPackRules.ConservativePack;
+        var summary = string.Join(
+            Environment.NewLine,
+            selected.Select(x => "• " + x.Name + " — " + x.Purpose));
+
+        if (MessageBox.Show(
+                "NovaBoost для Fabric 1.21.11 установит проверенный клиент-first набор:" +
+                Environment.NewLine + Environment.NewLine + summary +
+                Environment.NewLine + Environment.NewLine +
+                "Существующие JAR не перезаписываются. Каждый новый файл проверяется по SHA-512 и скачивается только с cdn.modrinth.com." +
+                Environment.NewLine + Environment.NewLine +
+                "Это не обещание «800× FPS»: прирост зависит от видеокарты, процессора, памяти, мира и модов.",
+                "NovaBoost · безопасный набор оптимизации",
+                MessageBoxButtons.YesNo,
+                MessageBoxIcon.Warning) != DialogResult.Yes)
+            return;
+
+        LauncherDownloadTask? activeTask = null;
+        var installedProjects = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var installedFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            SetBusy(true);
+            Directory.CreateDirectory(modsDirectory);
+
+            foreach (var spec in selected)
+            {
+                result.Text = "Проверяю " + spec.Name + "…";
+                var versionsUrl =
+                    "https://api.modrinth.com/v2/project/" + Uri.EscapeDataString(spec.ProjectSlug) +
+                    "/version?game_versions=" + Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game })) +
+                    "&loaders=" + Uri.EscapeDataString(JsonSerializer.Serialize(new[] { targetBuild.Loader })) +
+                    "&include_changelog=false";
+
+                var versions = JsonNode.Parse(await http.GetStringAsync(versionsUrl))?.AsArray();
+                var selectedVersion = versions?.FirstOrDefault(v =>
+                    OptimizationPackRules.LooksLikeOptimizationPackVersion(
+                        v?["version_type"]?.ToString(),
+                        v?["loaders"]?.AsArray()?.FirstOrDefault()?.ToString()));
+                if (selectedVersion == null)
+                    throw new InvalidOperationException($"Для {spec.Name} нет стабильной версии Fabric {game}.");
+
+                var files = selectedVersion["files"]?.AsArray();
+                var mainFile = files?.FirstOrDefault(f => f?["primary"]?.GetValue<bool>() == true)
+                    ?? files?.FirstOrDefault();
+                if (mainFile == null)
+                    throw new InvalidDataException($"Modrinth не вернул файл для {spec.Name}.");
+
+                var pending = new List<(JsonNode File, string Project, string Title)> { (mainFile, spec.ProjectSlug, spec.Name) };
+                var dependencies = selectedVersion["dependencies"]?.AsArray() ?? new JsonArray();
+
+                foreach (var dependency in dependencies)
+                {
+                    if (!string.Equals(dependency?["dependency_type"]?.ToString(), "required", StringComparison.OrdinalIgnoreCase))
+                        continue;
+
+                    var versionId = dependency?["version_id"]?.ToString();
+                    var projectId = dependency?["project_id"]?.ToString();
+                    JsonNode? dependencyVersion = null;
+
+                    if (!string.IsNullOrWhiteSpace(versionId))
+                        dependencyVersion = JsonNode.Parse(await http.GetStringAsync(
+                            "https://api.modrinth.com/v2/version/" + Uri.EscapeDataString(versionId)));
+
+                    if (dependencyVersion == null && !string.IsNullOrWhiteSpace(projectId))
+                    {
+                        var dependencyUrl =
+                            "https://api.modrinth.com/v2/project/" + Uri.EscapeDataString(projectId) +
+                            "/version?game_versions=" + Uri.EscapeDataString(JsonSerializer.Serialize(new[] { game })) +
+                            "&loaders=" + Uri.EscapeDataString(JsonSerializer.Serialize(new[] { targetBuild.Loader })) +
+                            "&include_changelog=false";
+                        dependencyVersion = JsonNode.Parse(await http.GetStringAsync(dependencyUrl))?.AsArray()?.FirstOrDefault();
+                    }
+
+                    var dependencyFile = dependencyVersion?["files"]?.AsArray()?.FirstOrDefault(f => f?["primary"]?.GetValue<bool>() == true)
+                        ?? dependencyVersion?["files"]?.AsArray()?.FirstOrDefault();
+                    var dependencyProject = dependencyVersion?["project_id"]?.ToString() ?? projectId;
+                    if (dependencyFile != null && !string.IsNullOrWhiteSpace(dependencyProject))
+                        pending.Add((dependencyFile, dependencyProject!, dependencyProject!));
+                }
+
+                foreach (var entry in pending)
+                {
+                    if (!installedProjects.Add(entry.Project))
+                        continue;
+
+                    var file = entry.File;
+                    var download = file["url"]?.ToString();
+                    var sha = file["hashes"]?["sha512"]?.ToString();
+                    var filename = file["filename"]?.ToString();
+                    if (string.IsNullOrWhiteSpace(download) || string.IsNullOrWhiteSpace(sha) || string.IsNullOrWhiteSpace(filename))
+                        throw new InvalidDataException($"У {entry.Title} отсутствуют обязательные метаданные SHA-512/файла.");
+
+                    if (!Uri.TryCreate(download, UriKind.Absolute, out var uri) ||
+                        uri.Scheme != Uri.UriSchemeHttps ||
+                        !string.Equals(uri.Host, "cdn.modrinth.com", StringComparison.OrdinalIgnoreCase))
+                        throw new SecurityException($"Загрузка {entry.Title} разрешена только с HTTPS cdn.modrinth.com.");
+
+                    if (!string.Equals(Path.GetFileName(filename), filename, StringComparison.Ordinal) ||
+                        !filename.EndsWith(".jar", StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException($"Небезопасное имя JAR: {filename}");
+
+                    var destination = Path.GetFullPath(Path.Combine(modsDirectory, filename));
+                    if (!destination.StartsWith(Path.GetFullPath(modsDirectory) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
+                        throw new InvalidDataException("Путь JAR вышел за пределы mods.");
+
+                    if (installedFiles.Contains(filename))
+                        continue;
+
+                    activeTask = BeginDownloadTask(
+                        "NovaBoost · " + entry.Title,
+                        filename,
+                        "Modrinth",
+                        targetBuild.Name);
+
+                    if (File.Exists(destination))
+                    {
+                        if (!await DownloadService.HasMatchingSha512Async(destination, sha, CancellationToken.None))
+                            throw new CryptographicException(
+                                $"Файл {filename} уже существует, но его SHA-512 не совпадает. Существующий файл не перезаписан.");
+                        CompleteDownloadTask(activeTask, "Уже установлен · SHA-512 совпадает");
+                    }
+                    else
+                    {
+                        var progress = new Progress<double>(value =>
+                            UpdateDownloadTask(activeTask, "Загружается", value, "NovaBoost · SHA-512"));
+                        await DownloadService.DownloadVerifiedAsync(
+                            http,
+                            uri,
+                            sha,
+                            modsDirectory,
+                            filename,
+                            new[] { ".jar" },
+                            50L * 1024 * 1024,
+                            progress,
+                            CancellationToken.None,
+                            _ => true);
+                        CompleteDownloadTask(activeTask, "Установлен · SHA-512 совпадает");
+                    }
+
+                    installedFiles.Add(filename);
+                }
+            }
+
+            SettingsService.Save(settings);
+            result.Text = "NovaBoost установлен: " + installedFiles.Count + " JAR-файлов проверено.";
+            status.Text = "NovaBoost для Fabric 1.21.11 готов.";
+            WriteLog("NovaBoost 1.21.11: установлен клиент-first набор оптимизации.");
+        }
+        catch (Exception ex)
+        {
+            if (activeTask != null)
+                FailDownloadTask(activeTask, ex);
+            result.Text = "NovaBoost не установлен: " + ex.Message;
+            Fail("Не удалось установить NovaBoost", ex);
+        }
+        finally
+        {
+            SetBusy(false);
         }
     }
 
