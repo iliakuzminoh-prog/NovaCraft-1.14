@@ -293,8 +293,8 @@ internal sealed class HeroScene3D : Control
 
                 AddCubeMesh(worldX, top - 0.84f, worldZ, 0.9f, 0.9f, 0.9f,
                     grass,
-                    Color.FromArgb(255, 66, 75, 91),
-                    Color.FromArgb(255, 42, 52, 73));
+                    Color.FromArgb(255, 100, 72, 58),
+                    Color.FromArgb(255, 67, 48, 48));
 
                 var riverColumn = (int)MathF.Round(MathF.Sin(z * 0.49f) * 1.35f);
                 if (x == riverColumn && z >= 1 && z <= 7)
@@ -321,12 +321,15 @@ internal sealed class HeroScene3D : Control
         AddTree(-2.6f, 0.22f, 2.4f, 1f);
         AddTree(2.4f, 0.25f, 4.7f, 0.78f);
         AddTree(-3.05f, 0.2f, 6.1f, 0.62f);
+        AddTree(3.35f, 0.19f, 7.0f, 0.55f);
+        AddTerrainDetails();
         AddCrystal(1.05f, 0.2f, 1.9f, 0.72f);
-        AddPortalRing(-0.25f, 1.05f, 6.6f, 0.72f);
-        AddWorldDisk(-0.25f, 0.12f, 6.58f, 0.92f, 0.42f, Color.FromArgb(16, 106, 91, 231));
-        AddWorldDisk(2.15f, 0.385f, 1.84f, 0.62f, 0.34f, Color.FromArgb(62, 4, 7, 17));
-        AddWorldDisk(2.15f, 0.388f, 1.84f, 0.36f, 0.19f, Color.FromArgb(33, 4, 7, 17));
-        AddVoxelExplorer(1.88f, 0.07f, 1.62f);
+        AddPortalMembrane(-0.25f, 1.05f, 6.74f, 0.72f);
+        AddPortalRing(-0.25f, 1.05f, 6.6f, 0.82f);
+        AddWorldDisk(-0.25f, 0.12f, 6.58f, 1.02f, 0.48f, Color.FromArgb(23, 106, 91, 231));
+        AddWorldDisk(1.72f, 0.19f, 1.05f, 0.74f, 0.42f, Color.FromArgb(72, 4, 7, 17));
+        AddWorldDisk(1.72f, 0.193f, 1.05f, 0.42f, 0.22f, Color.FromArgb(36, 4, 7, 17));
+        AddVoxelExplorer(1.28f, 0.07f, 0.55f, 1.25f);
 
         AddRotatingCube(-2.4f, 2.0f, 3.7f, 0.48f,
             Color.FromArgb(255, 117, 95, 220), 0.47f, 1.2f, 0.10f, 0.62f);
@@ -420,86 +423,223 @@ internal sealed class HeroScene3D : Control
             drawOutline: false);
     }
 
-    private void AddVoxelExplorer(float x, float groundY, float z)
+    private void AddVoxelExplorer(float x, float groundY, float z, float scale = 1f)
     {
-        var shirtTop = Color.FromArgb(255, 67, 174, 178);
-        var shirtFront = Color.FromArgb(255, 41, 143, 156);
-        var shirtSide = Color.FromArgb(255, 27, 105, 129);
-        var skinTop = Color.FromArgb(255, 226, 174, 129);
-        var skinFront = Color.FromArgb(255, 205, 143, 103);
-        var skinSide = Color.FromArgb(255, 164, 104, 85);
-        var hairTop = Color.FromArgb(255, 77, 52, 48);
-        var hairFront = Color.FromArgb(255, 57, 39, 43);
-        var hairSide = Color.FromArgb(255, 39, 31, 43);
-        var pantsTop = Color.FromArgb(255, 78, 111, 178);
-        var pantsFront = Color.FromArgb(255, 51, 79, 139);
-        var pantsSide = Color.FromArgb(255, 37, 56, 103);
-        var idle = 0.018f;
-        var idleSpeed = 1.18f;
+        var shirtTop = Color.FromArgb(255, 83, 190, 185);
+        var shirtFront = Color.FromArgb(255, 40, 145, 153);
+        var shirtSide = Color.FromArgb(255, 25, 99, 125);
+        var skinTop = Color.FromArgb(255, 239, 193, 149);
+        var skinFront = Color.FromArgb(255, 208, 146, 108);
+        var skinSide = Color.FromArgb(255, 164, 101, 82);
+        var hairTop = Color.FromArgb(255, 91, 59, 49);
+        var hairFront = Color.FromArgb(255, 62, 41, 43);
+        var hairSide = Color.FromArgb(255, 39, 31, 42);
+        var pantsTop = Color.FromArgb(255, 91, 132, 201);
+        var pantsFront = Color.FromArgb(255, 55, 88, 153);
+        var pantsSide = Color.FromArgb(255, 35, 57, 111);
+        var bootTop = Color.FromArgb(255, 96, 93, 112);
+        var bootFront = Color.FromArgb(255, 47, 51, 74);
+        var bootSide = Color.FromArgb(255, 30, 36, 58);
+        var idle = 0.022f;
+        const float idleSpeed = 1.18f;
 
-        // Legs and boots: separate cuboids preserve the classic block-avatar silhouette.
-        AddCubeMesh(x + 0.02f, groundY + 0.14f, z + 0.02f, 0.245f, 0.59f, 0.34f,
-            pantsTop, pantsFront, pantsSide,
-            bobAmplitude: idle * 0.22f, bobSpeed: idleSpeed, bobPhase: 0.1f);
-        AddCubeMesh(x + 0.285f, groundY + 0.14f, z + 0.02f, 0.245f, 0.59f, 0.34f,
-            pantsTop, pantsFront, pantsSide,
-            bobAmplitude: idle * 0.22f, bobSpeed: idleSpeed, bobPhase: 0.1f);
-        AddCubeMesh(x + 0.015f, groundY + 0.06f, z - 0.015f, 0.25f, 0.16f, 0.39f,
-            Color.FromArgb(255, 70, 76, 96),
-            Color.FromArgb(255, 43, 48, 69),
-            Color.FromArgb(255, 29, 34, 54));
-        AddCubeMesh(x + 0.285f, groundY + 0.06f, z - 0.015f, 0.25f, 0.16f, 0.39f,
-            Color.FromArgb(255, 70, 76, 96),
-            Color.FromArgb(255, 43, 48, 69),
-            Color.FromArgb(255, 29, 34, 54));
+        void Block(float offsetX, float offsetY, float offsetZ,
+            float width, float height, float depth,
+            Color top, Color front, Color side,
+            float rotationSpeed = 0f, float rotationPhase = 0f,
+            float bob = 0f, float bobPhase = 0f)
+        {
+            AddCubeMesh(
+                x + offsetX * scale,
+                groundY + offsetY * scale,
+                z + offsetZ * scale,
+                width * scale,
+                height * scale,
+                depth * scale,
+                top, front, side,
+                rotationSpeed: rotationSpeed,
+                rotationPhase: rotationPhase,
+                bobAmplitude: bob * scale,
+                bobSpeed: idleSpeed,
+                bobPhase: bobPhase);
+        }
 
-        // Torso and sleeves.
-        AddCubeMesh(x, groundY + 0.75f, z + 0.03f, 0.55f, 0.68f, 0.36f,
+        // Two separate legs retain the square silhouette while a slight phase offset
+        // gives the idle pose a restrained breathing motion.
+        Block(0.02f, 0.14f, 0.02f, 0.245f, 0.59f, 0.34f,
+            pantsTop, pantsFront, pantsSide, bob: idle * 0.22f, bobPhase: 0.1f);
+        Block(0.285f, 0.14f, 0.02f, 0.245f, 0.59f, 0.34f,
+            pantsTop, pantsFront, pantsSide, bob: idle * 0.22f, bobPhase: 0.8f);
+        Block(0.015f, 0.06f, -0.015f, 0.25f, 0.16f, 0.39f,
+            bootTop, bootFront, bootSide);
+        Block(0.285f, 0.06f, -0.015f, 0.25f, 0.16f, 0.39f,
+            bootTop, bootFront, bootSide);
+
+        // A small belt separates the jacket from the trousers and adds readable depth.
+        Block(0.01f, 0.72f, 0.015f, 0.54f, 0.09f, 0.385f,
+            Color.FromArgb(255, 122, 91, 66),
+            Color.FromArgb(255, 84, 63, 54),
+            Color.FromArgb(255, 60, 49, 50));
+
+        // Backpack sits behind the torso; only the outer side and top are exposed.
+        Block(0.10f, 0.84f, 0.32f, 0.36f, 0.51f, 0.20f,
+            Color.FromArgb(255, 81, 92, 130),
+            Color.FromArgb(255, 46, 61, 102),
+            Color.FromArgb(255, 30, 44, 80));
+
+        // Torso, shoulder pads and sleeves.
+        Block(0f, 0.75f, 0.03f, 0.55f, 0.68f, 0.36f,
+            shirtTop, shirtFront, shirtSide, bob: idle, bobPhase: 0.25f);
+        Block(-0.205f, 0.79f, 0.035f, 0.20f, 0.55f, 0.34f,
             shirtTop, shirtFront, shirtSide,
-            bobAmplitude: idle, bobSpeed: idleSpeed, bobPhase: 0.25f);
-        AddCubeMesh(x - 0.205f, groundY + 0.79f, z + 0.035f, 0.20f, 0.55f, 0.34f,
+            rotationSpeed: 0.026f, rotationPhase: 0.2f, bob: idle * 1.3f, bobPhase: 0.0f);
+        Block(0.555f, 0.79f, 0.035f, 0.20f, 0.55f, 0.34f,
             shirtTop, shirtFront, shirtSide,
-            rotationSpeed: 0.026f, rotationPhase: 0.2f,
-            bobAmplitude: idle * 1.3f, bobSpeed: idleSpeed, bobPhase: 0.0f);
-        AddCubeMesh(x + 0.555f, groundY + 0.79f, z + 0.035f, 0.20f, 0.55f, 0.34f,
-            shirtTop, shirtFront, shirtSide,
-            rotationSpeed: -0.026f, rotationPhase: -0.2f,
-            bobAmplitude: idle * 1.3f, bobSpeed: idleSpeed, bobPhase: 1.2f);
+            rotationSpeed: -0.026f, rotationPhase: -0.2f, bob: idle * 1.3f, bobPhase: 1.2f);
 
-        // Hands extend slightly below the sleeves and use their own skin material.
-        AddCubeMesh(x - 0.205f, groundY + 0.63f, z + 0.035f, 0.20f, 0.18f, 0.34f,
-            skinTop, skinFront, skinSide,
-            bobAmplitude: idle * 1.2f, bobSpeed: idleSpeed, bobPhase: 0.0f);
-        AddCubeMesh(x + 0.555f, groundY + 0.63f, z + 0.035f, 0.20f, 0.18f, 0.34f,
-            skinTop, skinFront, skinSide,
-            bobAmplitude: idle * 1.2f, bobSpeed: idleSpeed, bobPhase: 1.2f);
+        // Hands, cuff bands and a small chest badge are separate mesh pieces.
+        Block(-0.205f, 0.63f, 0.035f, 0.20f, 0.18f, 0.34f,
+            skinTop, skinFront, skinSide, bob: idle * 1.2f, bobPhase: 0.0f);
+        Block(0.555f, 0.63f, 0.035f, 0.20f, 0.18f, 0.34f,
+            skinTop, skinFront, skinSide, bob: idle * 1.2f, bobPhase: 1.2f);
+        Block(0.245f, 1.10f, -0.006f, 0.09f, 0.13f, 0.025f,
+            Color.FromArgb(255, 245, 207, 123),
+            Color.FromArgb(255, 188, 130, 73),
+            Color.FromArgb(255, 131, 84, 58));
 
-        // Head, hair cap, side locks and face details.
-        var headY = groundY + 1.46f;
-        AddCubeMesh(x + 0.025f, headY, z + 0.005f, 0.50f, 0.50f, 0.43f,
-            skinTop, skinFront, skinSide,
-            bobAmplitude: idle * 1.1f, bobSpeed: idleSpeed, bobPhase: 0.35f);
-        AddCubeMesh(x + 0.025f, headY + 0.43f, z + 0.005f, 0.50f, 0.12f, 0.43f,
-            hairTop, hairFront, hairSide,
-            bobAmplitude: idle * 1.1f, bobSpeed: idleSpeed, bobPhase: 0.35f);
-        AddCubeMesh(x - 0.005f, headY + 0.19f, z + 0.005f, 0.08f, 0.26f, 0.43f,
+        // Head, layered hair cap, side locks and face details.
+        var headY = 1.46f;
+        Block(0.025f, headY, 0.005f, 0.50f, 0.50f, 0.43f,
+            skinTop, skinFront, skinSide, bob: idle * 1.1f, bobPhase: 0.35f);
+        Block(0.025f, headY + 0.43f, 0.005f, 0.50f, 0.12f, 0.43f,
+            hairTop, hairFront, hairSide, bob: idle * 1.1f, bobPhase: 0.35f);
+        Block(-0.005f, headY + 0.19f, 0.005f, 0.08f, 0.26f, 0.43f,
             hairTop, hairFront, hairSide);
-        AddCubeMesh(x + 0.475f, headY + 0.19f, z + 0.005f, 0.08f, 0.26f, 0.43f,
+        Block(0.475f, headY + 0.19f, 0.005f, 0.08f, 0.26f, 0.43f,
             hairTop, hairFront, hairSide);
+        Block(0.025f, headY + 0.30f, -0.045f, 0.50f, 0.13f, 0.035f,
+            hairFront, hairFront, hairSide);
 
         var eyeY = headY + 0.265f;
-        AddCubeMesh(x + 0.135f, eyeY, z - 0.035f, 0.055f, 0.052f, 0.035f,
-            Color.FromArgb(255, 235, 239, 248),
-            Color.FromArgb(255, 42, 49, 70),
-            Color.FromArgb(255, 31, 36, 57));
-        AddCubeMesh(x + 0.345f, eyeY, z - 0.035f, 0.055f, 0.052f, 0.035f,
-            Color.FromArgb(255, 235, 239, 248),
-            Color.FromArgb(255, 42, 49, 70),
-            Color.FromArgb(255, 31, 36, 57));
-        AddCubeMesh(x + 0.205f, headY + 0.125f, z - 0.036f, 0.16f, 0.035f, 0.035f,
+        var eyeWhite = Color.FromArgb(255, 239, 242, 247);
+        var eyeDark = Color.FromArgb(255, 36, 47, 66);
+        Block(0.135f, eyeY, -0.035f, 0.055f, 0.052f, 0.035f,
+            eyeWhite, eyeDark, eyeDark);
+        Block(0.345f, eyeY, -0.035f, 0.055f, 0.052f, 0.035f,
+            eyeWhite, eyeDark, eyeDark);
+        Block(0.205f, headY + 0.125f, -0.036f, 0.16f, 0.035f, 0.035f,
             Color.FromArgb(255, 162, 83, 78),
             Color.FromArgb(255, 135, 66, 67),
             Color.FromArgb(255, 103, 53, 61));
+
+        // Bright shoulder pixels give the avatar a readable rim against the dark ridge.
+        Block(-0.02f, 1.28f, -0.012f, 0.08f, 0.07f, 0.035f,
+            Color.FromArgb(255, 143, 226, 211),
+            Color.FromArgb(255, 79, 181, 176),
+            Color.FromArgb(255, 39, 125, 146));
+    }
+
+    private void AddTerrainDetails()
+    {
+        var grassLight = Color.FromArgb(255, 102, 181, 119);
+        var grassDark = Color.FromArgb(255, 44, 109, 87);
+        var flowerGold = Color.FromArgb(255, 255, 204, 119);
+        var flowerPetal = Color.FromArgb(255, 236, 136, 170);
+
+        for (var z = 0; z < 9; z++)
+        {
+            for (var x = -4; x <= 4; x++)
+            {
+                var riverColumn = (int)MathF.Round(MathF.Sin(z * 0.49f) * 1.35f);
+                if (x == riverColumn && z >= 1 && z <= 7)
+                    continue;
+
+                var seed = Math.Abs(x * 37 + z * 19 + 211);
+                var worldX = x * 0.91f + 0.13f;
+                var worldZ = z * 0.91f + 0.8f + 0.12f;
+                var top = 0.12f + Math.Max(0,
+                    MathF.Sin((x + 1.5f) * 0.63f) * 0.13f +
+                    MathF.Cos(z * 0.61f) * 0.12f);
+
+                if (seed % 5 == 0)
+                {
+                    var tuftX = worldX + ((seed % 3) - 1) * 0.17f;
+                    var tuftZ = worldZ + ((seed % 7) - 3) * 0.045f;
+                    AddCubeMesh(tuftX, top + 0.035f, tuftZ, 0.11f, 0.07f, 0.10f,
+                        grassLight, grassDark, Color.FromArgb(255, 31, 79, 76));
+                    AddCubeMesh(tuftX + 0.055f, top + 0.07f, tuftZ + 0.015f, 0.055f, 0.12f, 0.055f,
+                        grassLight, grassDark, Color.FromArgb(255, 31, 79, 76));
+                }
+
+                if (seed % 13 == 0)
+                    AddVoxelFlower(worldX - 0.12f, top + 0.04f, worldZ - 0.09f,
+                        seed % 2 == 0 ? flowerGold : flowerPetal);
+
+                if (seed % 17 == 0)
+                {
+                    var stone = Color.FromArgb(255, 92, 110, 119);
+                    AddCubeMesh(worldX + 0.20f, top + 0.025f, worldZ + 0.14f, 0.15f, 0.075f, 0.13f,
+                        Color.FromArgb(255, 127, 145, 149), stone, Color.FromArgb(255, 54, 72, 85));
+                }
+            }
+        }
+    }
+
+    private void AddVoxelFlower(float x, float y, float z, Color petal)
+    {
+        AddCubeMesh(x, y, z, 0.045f, 0.20f, 0.045f,
+            Color.FromArgb(255, 66, 139, 91),
+            Color.FromArgb(255, 40, 103, 80),
+            Color.FromArgb(255, 28, 73, 71));
+        AddCubeMesh(x - 0.055f, y + 0.17f, z - 0.045f, 0.15f, 0.10f, 0.13f,
+            petal,
+            Color.FromArgb(255, Math.Max(0, petal.R - 32), Math.Max(0, petal.G - 32), Math.Max(0, petal.B - 26)),
+            Color.FromArgb(255, Math.Max(0, petal.R - 58), Math.Max(0, petal.G - 48), Math.Max(0, petal.B - 34)));
+        AddCubeMesh(x - 0.005f, y + 0.18f, z - 0.005f, 0.045f, 0.045f, 0.045f,
+            Color.FromArgb(255, 255, 231, 154),
+            Color.FromArgb(255, 225, 175, 96),
+            Color.FromArgb(255, 170, 114, 68));
+    }
+
+    private void AddPortalMembrane(float x, float y, float z, float radius)
+    {
+        const int segments = 36;
+        var innerRadius = radius * 0.715f;
+        var center = new Vector3(x, y, z);
+        var centerPoint = new Vector3(x, y, z + 0.004f);
+        var palette = new[]
+        {
+            Color.FromArgb(126, 91, 102, 246),
+            Color.FromArgb(142, 74, 173, 226),
+            Color.FromArgb(118, 116, 117, 244),
+            Color.FromArgb(136, 59, 143, 213)
+        };
+
+        for (var index = 0; index < segments; index++)
+        {
+            var a0 = index * MathF.Tau / segments;
+            var a1 = (index + 1) * MathF.Tau / segments;
+            var p0 = new Vector3(
+                x + MathF.Cos(a0) * innerRadius,
+                y + MathF.Sin(a0) * innerRadius,
+                z);
+            var p1 = new Vector3(
+                x + MathF.Cos(a1) * innerRadius,
+                y + MathF.Sin(a1) * innerRadius,
+                z);
+            var material = palette[(index / 3) % palette.Length];
+
+            AddMeshFace(
+                new[] { centerPoint, p0, p1 },
+                material,
+                center,
+                0.018f,
+                index * 0.07f,
+                0.012f,
+                0.68f,
+                index * 0.19f,
+                drawOutline: false);
+        }
     }
 
     private void AddPortalRing(float x, float y, float z, float radius)
