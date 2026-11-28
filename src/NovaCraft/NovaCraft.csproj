@@ -25,6 +25,6 @@
     <PackageReference Include="CmlLib.Core" Version="4.1.0" />
     <PackageReference Include="CmlLib.Core.Installer.Forge" Version="2.0.0" />
     <PackageReference Include="Imazen.WebP" Version="11.0.0" />
-    <PackageReference Include="Imazen.WebP.NativeRuntime.win-x64" Version="11.0.0" />
+    <PackageReference Include="Imazen.WebP.NativeRuntime.win-x64" Version="1.6.1" />
   </ItemGroup>
 </Project>
