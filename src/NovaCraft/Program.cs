@@ -1346,27 +1346,20 @@ internal sealed class MainForm : Form
         var hero = new Panel
         {
             Dock = DockStyle.Top,
-            Height = 250,
-            BackColor = Color.FromArgb(25, 28, 45),
+            Height = 270,
+            BackColor = Color.FromArgb(12, 16, 31),
             Padding = Padding.Empty
         };
-        var artworkButton = new Button
+        var artworkButton = new HeroScene3D
         {
             Dock = DockStyle.Fill,
-            FlatStyle = FlatStyle.Flat,
-            BackgroundImage = LoadHeroArt(),
-            BackgroundImageLayout = ImageLayout.Zoom,
-            BackColor = Color.FromArgb(25, 28, 45),
-            Text = "",
-            Cursor = Cursors.Hand,
-            TabStop = true,
-            AccessibleRole = AccessibleRole.PushButton,
-            AccessibleName = "Запустить Minecraft",
-            AccessibleDescription = "Запускает выбранную сборку Minecraft. На баннере показана кнопка «Играть»."
+            GameVersion = settings.LastVersion,
+            ProfileName = string.IsNullOrWhiteSpace(settings.Username)
+                ? "OFFLINE PROFILE"
+                : settings.Username.Trim().ToUpperInvariant(),
+            BackColor = Color.FromArgb(12, 16, 31)
         };
-        artworkButton.FlatAppearance.BorderSize = 0;
-        artworkButton.FlatAppearance.MouseDownBackColor = Color.FromArgb(25, 28, 45);
-        artworkButton.Click += async (_, _) => await LaunchAsync();
+        artworkButton.PlayRequested += async (_, _) => await LaunchAsync();
         hero.Controls.Add(artworkButton);
         RoundCorners(hero, 16);
 
