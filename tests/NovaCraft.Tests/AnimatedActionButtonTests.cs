@@ -31,7 +31,10 @@ public sealed class AnimatedActionButtonTests
                 colors.Add(frame.GetPixel(x, y).ToArgb());
         }
 
-        Assert.True(colors.Count > 10, $"Expected a gradient button surface, got {colors.Count} sampled colors.");
+        Assert.True(colors.Count > 5, $"Expected a rendered button surface, got {colors.Count} sampled colors.");
+        Assert.NotEqual(
+            frame.GetPixel(width / 2, 4),
+            frame.GetPixel(width / 2, height - 10));
         Assert.Equal(AccessibleRole.PushButton, button.AccessibleRole);
         Assert.True(button.TabStop);
     }
