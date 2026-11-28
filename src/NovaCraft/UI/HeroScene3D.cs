@@ -92,22 +92,30 @@ internal sealed class HeroScene3D : Control
 
     protected override void OnParentChanged(EventArgs e)
     {
-        if (ownerForm != null)
-            ownerForm.Resize -= OwnerForm_Resize;
-
         base.OnParentChanged(e);
-
-        ownerForm = FindForm();
-        if (ownerForm != null)
-            ownerForm.Resize += OwnerForm_Resize;
-
+        RefreshOwnerForm();
         UpdateAnimationState();
     }
 
     protected override void OnHandleCreated(EventArgs e)
     {
         base.OnHandleCreated(e);
+        RefreshOwnerForm();
         UpdateAnimationState();
+    }
+
+    private void RefreshOwnerForm()
+    {
+        var currentForm = FindForm();
+        if (ReferenceEquals(ownerForm, currentForm))
+            return;
+
+        if (ownerForm != null)
+            ownerForm.Resize -= OwnerForm_Resize;
+
+        ownerForm = currentForm;
+        if (ownerForm != null)
+            ownerForm.Resize += OwnerForm_Resize;
     }
 
     protected override void OnVisibleChanged(EventArgs e)
